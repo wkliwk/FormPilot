@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts Account[]
+  sessions Session[]
+  profile  Profile?
+  forms    Form[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Encrypted personal data profile for autofill
+model Profile {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  data      Json     // Encrypted profile fields (name, DOB, address, etc.)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Represents a form session (uploaded or web form)
+model Form {
+  id          String     @id @default(cuid())
+  userId      String
+  title       String
+  sourceType  SourceType
+  sourceUrl   String?    // For web forms
+  fileKey     String?    // S3/storage key for uploaded files
+  fields      Json       // Parsed field definitions
+  filledData  Json?      // Autofilled values
+  status      FormStatus @default(PENDING)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum SourceType {
+  PDF
+  WORD
+  WEB
+  SPREADSHEET
+}
+
+enum FormStatus {
+  PENDING
+  ANALYZED
+  FILLING
+  COMPLETED
+}
