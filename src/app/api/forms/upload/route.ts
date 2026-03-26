@@ -43,11 +43,16 @@ export async function POST(req: NextRequest) {
 
   const analysis = await analyzeFormFields(text);
 
+  const sourceType =
+    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ? "WORD"
+      : "PDF";
+
   const form = await prisma.form.create({
     data: {
       userId: session.user.id,
       title: analysis.title || file.name,
-      sourceType: "PDF",
+      sourceType,
       fields: analysis.fields as object,
       status: "ANALYZED",
     },

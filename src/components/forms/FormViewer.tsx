@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback, useRef } from "react";
 import type { FormField } from "@/lib/ai/analyze-form";
 
 interface FormRecord {
@@ -18,10 +18,53 @@ interface Props {
 export default function FormViewer({ form, hasProfile }: Props) {
   const [fields, setFields] = useState<FormField[]>(form.fields as FormField[]);
   const [autofilling, setAutofilling] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [activeField, setActiveField] = useState<string | null>(null);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const scheduleSave = useCallback(
+    (newValues: Record<string, string>) => {
+      if (saveTimer.current) clearTimeout(saveTimer.current);
+      setSaveStatus("saving");
+      saveTimer.current = setTimeout(async () => {
+        try {
+          await fetch(`/api/forms/${form.id}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              fields: Object.entries(newValues).map(([id, value]) => ({ id, value })),
+              status: "FILLING",
+            }),
+          });
+          setSaveStatus("saved");
+        } catch {
+          setSaveStatus("idle");
+        }
+      }, 1000);
+    },
+    [form.id]
+  );
   const [values, setValues] = useState<Record<string, string>>(
     Object.fromEntries(fields.filter((f) => f.value).map((f) => [f.id, f.value!]))
   );
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/forms/${form.id}/export`);
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.headers.get("Content-Disposition")?.split("filename=")[1]?.replace(/"/g, "") ?? "form_filled.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   async function handleAutofill() {
     setAutofilling(true);
@@ -48,17 +91,32 @@ export default function FormViewer({ form, hasProfile }: Props) {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-xl font-bold text-slate-900">{form.title}</h1>
-            <p className="text-sm text-slate-400 mt-1">{fields.length} fields · {progress}% complete</p>
+            <p className="text-sm text-slate-400 mt-1">
+              {fields.length} fields · {progress}% complete
+              {saveStatus === "saving" && <span className="ml-2 text-slate-300">saving...</span>}
+              {saveStatus === "saved" && <span className="ml-2 text-green-500">saved</span>}
+            </p>
           </div>
-          {hasProfile && (
-            <button
-              onClick={handleAutofill}
-              disabled={autofilling}
-              className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
-            >
-              {autofilling ? "Filling..." : "⚡ Autofill from Profile"}
-            </button>
-          )}
+          <div className="flex gap-2">
+            {filledCount > 0 && (
+              <button
+                onClick={handleExport}
+                disabled={exporting}
+                className="px-4 py-2 border border-slate-200 text-slate-700 text-sm rounded-lg font-semibold hover:bg-slate-50 transition-colors disabled:opacity-50"
+              >
+                {exporting ? "Exporting..." : "⬇ Export"}
+              </button>
+            )}
+            {hasProfile && (
+              <button
+                onClick={handleAutofill}
+                disabled={autofilling}
+                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50"
+              >
+                {autofilling ? "Filling..." : "⚡ Autofill from Profile"}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Progress bar */}
@@ -92,7 +150,11 @@ export default function FormViewer({ form, hasProfile }: Props) {
                   <input
                     type={field.type === "date" ? "date" : "text"}
                     value={values[field.id] ?? ""}
-                    onChange={(e) => setValues((v) => ({ ...v, [field.id]: e.target.value }))}
+                    onChange={(e) => {
+                      const newValues = { ...values, [field.id]: e.target.value };
+                      setValues(newValues);
+                      scheduleSave(newValues);
+                    }}
                     onFocus={() => setActiveField(field.id)}
                     onBlur={() => setActiveField(null)}
                     className="mt-2 w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"

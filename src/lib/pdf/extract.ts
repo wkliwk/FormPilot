@@ -1,8 +1,14 @@
 import pdfParse from "pdf-parse";
+import mammoth from "mammoth";
 
 export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   const data = await pdfParse(buffer);
   return data.text;
+}
+
+export async function extractTextFromDocx(buffer: Buffer): Promise<string> {
+  const result = await mammoth.extractRawText({ buffer });
+  return result.value;
 }
 
 export async function extractTextFromBuffer(
@@ -13,12 +19,10 @@ export async function extractTextFromBuffer(
     return extractTextFromPDF(buffer);
   }
 
-  // Word docs (.docx) — basic text extraction via reading XML
   if (
     mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   ) {
-    // For now return placeholder — will add mammoth.js in a follow-up
-    throw new Error("Word document parsing coming soon. Please upload a PDF for now.");
+    return extractTextFromDocx(buffer);
   }
 
   throw new Error(`Unsupported file type: ${mimeType}`);

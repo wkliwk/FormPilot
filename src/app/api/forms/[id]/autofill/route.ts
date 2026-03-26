@@ -27,7 +27,7 @@ export async function POST(
     return NextResponse.json({ error: "No profile found. Set up your profile first." }, { status: 400 });
   }
 
-  const fields = form.fields as FormField[];
+  const fields = form.fields as unknown as FormField[];
   const profileData = profile.data as Record<string, string>;
   const filledFields = await autofillFields(fields, profileData);
 
