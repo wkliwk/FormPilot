@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
+import { buildCacheKey, lookupCacheEntries, storeCacheEntries } from "./field-cache";
 
 // Shared Anthropic client singleton
 let _client: Anthropic | null = null;
@@ -133,12 +134,55 @@ ${truncatedText}`,
   const jsonMatch = content.text.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("No JSON found in AI response");
 
+  let analysis: FormAnalysis;
   try {
     const parsed = JSON.parse(jsonMatch[0]);
-    return formAnalysisSchema.parse(parsed) as FormAnalysis;
+    analysis = formAnalysisSchema.parse(parsed) as FormAnalysis;
   } catch (e) {
     throw new Error(`Failed to parse AI response: ${e instanceof Error ? e.message : "invalid JSON"}`);
   }
+
+  // Overlay cached explanations and store new ones
+  try {
+    const cacheKeys = analysis.fields.map((f) => buildCacheKey(f.label, f.type));
+    const cached = await lookupCacheEntries(cacheKeys);
+
+    const misses: Array<{ cacheKey: string; data: { explanation: string; example: string; commonMistakes: string; profileKey: string | null } }> = [];
+
+    analysis.fields = analysis.fields.map((field) => {
+      const key = buildCacheKey(field.label, field.type);
+      const hit = cached.get(key);
+      if (hit) {
+        return { ...field, ...hit };
+      }
+      misses.push({
+        cacheKey: key,
+        data: {
+          explanation: field.explanation,
+          example: field.example,
+          commonMistakes: field.commonMistakes,
+          profileKey: field.profileKey ?? null,
+        },
+      });
+      return field;
+    });
+
+    const hitRate = cacheKeys.length > 0
+      ? ((cacheKeys.length - misses.length) / cacheKeys.length * 100).toFixed(0)
+      : "0";
+    console.log(`[field-cache] ${cacheKeys.length} fields, ${cacheKeys.length - misses.length} hits (${hitRate}%)`);
+
+    // Store misses in background
+    if (misses.length > 0) {
+      storeCacheEntries(misses).catch((err) => {
+        console.error("[field-cache] Failed to store cache entries:", err);
+      });
+    }
+  } catch (cacheErr) {
+    console.error("[field-cache] Cache lookup failed, proceeding without cache:", cacheErr);
+  }
+
+  return analysis;
 }
 
 export async function autofillFields(
