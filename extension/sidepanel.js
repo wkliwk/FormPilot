@@ -11,12 +11,20 @@ const langSelect = document.getElementById("langSelect");
 
 let currentFields = [];
 let analysisResult = [];
+let authPollInterval = null;
+let lastAuthState = null;
 
-// Check auth on load
-chrome.runtime.sendMessage({ type: "GET_AUTH_STATUS" }, (response) => {
-  if (response?.authenticated) {
+/** Update the UI based on auth status. Only updates DOM if state changed. */
+function updateAuthUI(authenticated, user) {
+  const newState = authenticated ? "connected" : "disconnected";
+  if (newState === lastAuthState) return;
+  lastAuthState = newState;
+
+  statusDot.classList.remove("connected", "error");
+
+  if (authenticated) {
     statusDot.classList.add("connected");
-    statusText.textContent = `Connected as ${response.user.name || response.user.email}`;
+    statusText.textContent = `Connected as ${user?.name || user?.email || "user"}`;
     content.style.display = "block";
     langRow.style.display = "flex";
     loginPrompt.style.display = "none";
@@ -26,6 +34,35 @@ chrome.runtime.sendMessage({ type: "GET_AUTH_STATUS" }, (response) => {
     content.style.display = "none";
     langRow.style.display = "none";
     loginPrompt.style.display = "block";
+  }
+}
+
+/** Check auth status and update UI. */
+function checkAuth() {
+  chrome.runtime.sendMessage({ type: "GET_AUTH_STATUS" }, (response) => {
+    updateAuthUI(response?.authenticated, response?.user);
+  });
+}
+
+// Check auth on load
+checkAuth();
+
+// Poll auth status every 60 seconds while side panel is open
+authPollInterval = setInterval(checkAuth, 60_000);
+
+// Stop polling when side panel is closed/hidden
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    if (authPollInterval) {
+      clearInterval(authPollInterval);
+      authPollInterval = null;
+    }
+  } else {
+    // Resumed — check immediately and restart polling
+    checkAuth();
+    if (!authPollInterval) {
+      authPollInterval = setInterval(checkAuth, 60_000);
+    }
   }
 });
 
