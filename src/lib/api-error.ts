@@ -7,6 +7,7 @@
 
 import { NextResponse } from "next/server";
 import { log } from "./logger";
+import { ClaudeUnavailableError } from "./ai/retry";
 
 export interface ApiErrorResponse {
   error: string;
@@ -57,6 +58,15 @@ export function handleApiError(err: unknown, route: string): NextResponse<ApiErr
     log.error("Claude API server error", { route, status, error: error.message });
     return NextResponse.json(
       { error: "AI service error. Please try again shortly.", code: "AI_SERVER_ERROR" },
+      { status: 503 }
+    );
+  }
+
+  // Claude retry exhaustion
+  if (error instanceof ClaudeUnavailableError) {
+    log.error("Claude API unavailable after retries", { route, error: error.message });
+    return NextResponse.json(
+      { error: "AI service is temporarily unavailable. Please try again shortly.", code: "AI_UNAVAILABLE" },
       { status: 503 }
     );
   }

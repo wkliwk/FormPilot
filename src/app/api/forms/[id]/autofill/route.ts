@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { autofillFields, FormField } from "@/lib/ai/analyze-form";
 import { getSuggestionsFromHistory } from "@/lib/ai/suggestion-engine";
+
+export const maxDuration = 60;
 import { checkRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-error";
 import { log } from "@/lib/logger";

@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { getClient } from "@/lib/ai/analyze-form";
 import { handleCorsPreFlight, withCors } from "@/lib/cors";
 import { handleApiError } from "@/lib/api-error";
+
+export const maxDuration = 60;
 import { log } from "@/lib/logger";
 
 const SUPPORTED_LANGUAGES = ["en", "es", "zh", "ko", "vi", "tl", "ar", "hi", "fr", "pt"] as const;
