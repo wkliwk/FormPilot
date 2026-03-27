@@ -16,10 +16,11 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts Account[]
-  sessions Session[]
-  profile  Profile?
-  forms    Form[]
+  accounts  Account[]
+  sessions  Session[]
+  profile   Profile?
+  forms     Form[]
+  templates FormTemplate[]
 }
 
 model Account {
@@ -52,11 +53,12 @@ model Session {
 
 // Encrypted personal data profile for autofill
 model Profile {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  data      Json     // Encrypted profile fields (name, DOB, address, etc.)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  data              Json     // Encrypted profile fields (name, DOB, address, etc.)
+  preferredLanguage String?  // ISO 639-1 code, e.g. "es", "zh", "ko". Null = English.
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -103,6 +105,7 @@ model FieldCache {
   explanation    String
   example        String
   commonMistakes String
+  whereToFind    String?
   profileKey     String?
   hitCount       Int      @default(0)
   createdAt      DateTime @default(now())
@@ -110,4 +113,20 @@ model FieldCache {
   expiresAt      DateTime
 
   @@index([expiresAt])
+}
+
+// Saved form templates for repeat submissions
+model FormTemplate {
+  id           String   @id @default(cuid())
+  userId       String
+  name         String
+  sourceFormId String
+  fieldData    Json     // Saved field values (sensitive fields stripped)
+  category     String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
