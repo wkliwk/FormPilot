@@ -231,7 +231,7 @@ export default function FormViewer({ form, hasProfile }: Props) {
     <div className="space-y-6">
       {/* Header */}
       <div className="bg-white rounded-xl border border-slate-200 p-6 space-y-4">
-        <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
             <h1 className="text-xl font-bold text-slate-900">{form.title}</h1>
             <p className="text-sm text-slate-400 mt-1">
@@ -245,7 +245,7 @@ export default function FormViewer({ form, hasProfile }: Props) {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-col sm:flex-row gap-2">
             {highConfidencePendingCount > 0 && (
               <button
                 onClick={handleAcceptAllHigh}

@@ -1,13 +1,14 @@
 import { signIn } from "@/lib/auth";
+import Link from "next/link";
 
 export default function LoginPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-slate-50">
       <div className="bg-white rounded-2xl border border-slate-200 p-10 max-w-sm w-full space-y-6 text-center">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">
+          <Link href="/" className="text-2xl font-bold text-slate-900 hover:opacity-80 transition-opacity">
             Form<span className="text-blue-600">Pilot</span>
-          </h1>
+          </Link>
           <p className="text-slate-500 mt-2 text-sm">Sign in to start filling forms with AI</p>
         </div>
 
