@@ -101,6 +101,7 @@ model FieldCache {
   explanation    String
   example        String
   commonMistakes String
+  whereToFind    String?
   profileKey     String?
   hitCount       Int      @default(0)
   createdAt      DateTime @default(now())
