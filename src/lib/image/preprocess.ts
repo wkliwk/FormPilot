@@ -16,22 +16,18 @@ export async function preprocessImage(
   buffer: Buffer,
   originalMimeType: string
 ): Promise<PreprocessedImage> {
-  // Read metadata for dimensions
   const metadata = await sharp(buffer).metadata();
   const origWidth = metadata.width ?? 0;
   const origHeight = metadata.height ?? 0;
 
-  // Validate minimum size
   if (origWidth < MIN_DIMENSION || origHeight < MIN_DIMENSION) {
     throw new Error(
       "Image is too small to read. Please upload a larger or higher-resolution image."
     );
   }
 
-  // Start pipeline: auto-rotate using EXIF orientation
   let pipeline = sharp(buffer).rotate();
 
-  // Resize if needed (fit within MAX_DIMENSION x MAX_DIMENSION)
   const longestEdge = Math.max(origWidth, origHeight);
   if (longestEdge > MAX_DIMENSION) {
     pipeline = pipeline.resize(MAX_DIMENSION, MAX_DIMENSION, {
@@ -40,11 +36,9 @@ export async function preprocessImage(
     });
   }
 
-  // Determine output format
   let outputMimeType: PreprocessedImage["mimeType"];
 
   if (HEIC_TYPES.has(originalMimeType.toLowerCase())) {
-    // HEIC/HEIF → convert to JPEG (not supported by Claude vision)
     pipeline = pipeline.jpeg({ quality: 90 });
     outputMimeType = "image/jpeg";
   } else if (originalMimeType === "image/png") {
@@ -54,7 +48,6 @@ export async function preprocessImage(
     pipeline = pipeline.webp({ quality: 90 });
     outputMimeType = "image/webp";
   } else {
-    // Default to JPEG for all other types (including image/jpeg)
     pipeline = pipeline.jpeg({ quality: 90 });
     outputMimeType = "image/jpeg";
   }
