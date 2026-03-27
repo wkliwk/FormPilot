@@ -1,7 +1,8 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
-export const runtime = "nodejs";
+// Note: `export const runtime` is not supported in proxy.ts (throws in Next.js 16).
+// Node.js is the default runtime (stable since Next.js 15.5) — no explicit export needed.
 
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
