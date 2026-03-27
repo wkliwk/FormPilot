@@ -91,3 +91,20 @@ enum FormStatus {
   FILLING
   COMPLETED
 }
+
+// Global cache for AI-generated field explanations, keyed by normalized label+type.
+// Shared across all users — field explanations are not user-specific.
+model FieldCache {
+  id             String   @id @default(cuid())
+  cacheKey       String   @unique // "{normalized_label}:{type}", e.g. "first_name:text"
+  explanation    String
+  example        String
+  commonMistakes String
+  profileKey     String?
+  hitCount       Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  expiresAt      DateTime
+
+  @@index([expiresAt])
+}
