@@ -35,30 +35,64 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "File too large. Max 10MB." }, { status: 400 });
   }
 
-  const allowedTypes = [
+  const DOC_TYPES = [
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   ];
+  const IMAGE_TYPES = [
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+    "image/heic",
+    "image/heif",
+  ];
+  const allowedTypes = [...DOC_TYPES, ...IMAGE_TYPES];
+
   if (!allowedTypes.includes(file.type)) {
-    return NextResponse.json({ error: "Only PDF and DOCX files are supported." }, { status: 400 });
-  }
-
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const text = await extractTextFromBuffer(buffer, file.type);
-
-  if (!text || text.trim().length < 50) {
     return NextResponse.json(
-      { error: "Could not extract readable text from this file. Is it a scanned image PDF?" },
-      { status: 422 }
+      { error: "Supported formats: PDF, DOCX, PNG, JPEG, WEBP, HEIC." },
+      { status: 400 }
     );
   }
 
-  const analysis = await analyzeFormFields(text);
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const isImage = IMAGE_TYPES.includes(file.type);
 
-  const sourceType =
-    file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      ? "WORD"
-      : "PDF";
+  let analysis;
+  let sourceType: "PDF" | "WORD" | "IMAGE";
+
+  if (isImage) {
+    // Image path: preprocess → vision analysis (wired in #47)
+    const { preprocessImage } = await import("@/lib/image/preprocess");
+    const processed = await preprocessImage(buffer, file.type);
+
+    // TODO(#47): Replace with analyzeFormFieldsFromImage(processed.base64, processed.mimeType)
+    // For now, return an error until the vision integration is complete
+    return NextResponse.json(
+      { error: "Image upload support is coming soon. Please upload a PDF or DOCX for now." },
+      { status: 422 }
+    );
+
+    // Unreachable until #47 wires vision:
+    // analysis = await analyzeFormFieldsFromImage(processed.base64, processed.mimeType);
+    // sourceType = "IMAGE";
+  } else {
+    // Document path: extract text → analyze
+    const text = await extractTextFromBuffer(buffer, file.type);
+
+    if (!text || text.trim().length < 50) {
+      return NextResponse.json(
+        { error: "Could not extract readable text from this file. Is it a scanned image PDF?" },
+        { status: 422 }
+      );
+    }
+
+    analysis = await analyzeFormFields(text);
+    sourceType =
+      file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ? "WORD"
+        : "PDF";
+  }
 
   const form = await prisma.form.create({
     data: {
