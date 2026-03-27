@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FormPilot</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: #f8fafc;
+      color: #1e293b;
+      min-width: 320px;
+    }
+
+    .header {
+      padding: 16px;
+      background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+      color: white;
+    }
+
+    .header h1 {
+      font-size: 18px;
+      font-weight: 700;
+    }
+
+    .header p {
+      font-size: 12px;
+      opacity: 0.85;
+      margin-top: 2px;
+    }
+
+    .status-bar {
+      padding: 8px 16px;
+      font-size: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border-bottom: 1px solid #e2e8f0;
+      background: white;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #94a3b8;
+    }
+
+    .status-dot.connected { background: #22c55e; }
+    .status-dot.error { background: #ef4444; }
+
+    .actions {
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    button {
+      padding: 10px 16px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+
+    .btn-primary:hover { background: #2563eb; }
+    .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
+
+    .btn-secondary {
+      background: #f1f5f9;
+      color: #475569;
+    }
+
+    .btn-secondary:hover { background: #e2e8f0; }
+
+    .field-list {
+      padding: 0 16px 16px;
+    }
+
+    .field-card {
+      background: white;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 8px;
+    }
+
+    .field-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 6px;
+    }
+
+    .field-label {
+      font-weight: 600;
+      font-size: 13px;
+    }
+
+    .field-type {
+      font-size: 11px;
+      color: #94a3b8;
+      background: #f1f5f9;
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+
+    .field-explanation {
+      font-size: 13px;
+      color: #475569;
+      margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    .field-example {
+      font-size: 12px;
+      color: #64748b;
+      border-top: 1px solid #f1f5f9;
+      padding-top: 6px;
+    }
+
+    .field-mistakes {
+      font-size: 12px;
+      color: #dc2626;
+      margin-top: 4px;
+    }
+
+    .confidence {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+    }
+
+    .confidence.high { background: #dcfce7; color: #166534; }
+    .confidence.medium { background: #fef9c3; color: #854d0e; }
+    .confidence.low { background: #fee2e2; color: #991b1b; }
+
+    .loading {
+      text-align: center;
+      padding: 40px 16px;
+      color: #94a3b8;
+    }
+
+    .spinner {
+      width: 32px;
+      height: 32px;
+      border: 3px solid #e2e8f0;
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .empty {
+      text-align: center;
+      padding: 40px 16px;
+      color: #94a3b8;
+    }
+
+    .error-msg {
+      padding: 12px 16px;
+      margin: 8px 16px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
+      border-radius: 8px;
+      color: #dc2626;
+      font-size: 13px;
+    }
+
+    .login-prompt {
+      text-align: center;
+      padding: 40px 16px;
+    }
+
+    .login-prompt a {
+      color: #3b82f6;
+      text-decoration: none;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>FormPilot</h1>
+    <p>AI-powered form assistant</p>
+  </div>
+
+  <div class="status-bar">
+    <div class="status-dot" id="statusDot"></div>
+    <span id="statusText">Checking connection...</span>
+  </div>
+
+  <div id="content">
+    <div class="actions">
+      <button class="btn-primary" id="scanBtn">Scan Form Fields</button>
+      <button class="btn-secondary" id="autofillBtn" style="display:none">Autofill with Profile</button>
+      <button class="btn-secondary" id="clearBtn" style="display:none">Clear Highlights</button>
+    </div>
+    <div id="fieldList" class="field-list"></div>
+  </div>
+
+  <div id="loginPrompt" class="login-prompt" style="display:none">
+    <p>Sign in to FormPilot to use the extension.</p>
+    <p style="margin-top:12px"><a href="https://formpilot-brown.vercel.app/login" target="_blank">Sign In</a></p>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>
