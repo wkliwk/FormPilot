@@ -1,6 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { buildCacheKey, lookupCacheEntries, storeCacheEntries } from "./field-cache";
+import { detectCategory, CATEGORY_SYSTEM_PROMPTS, type FormCategory } from "./form-categories";
+
+export type { FormCategory };
 
 // Shared Anthropic client singleton
 let _client: Anthropic | null = null;
@@ -45,6 +48,7 @@ export interface FormAnalysis {
   description: string;
   fields: FormField[];
   estimatedMinutes: number;
+  category: FormCategory;
 }
 
 // Zod schemas for validating AI responses
@@ -83,17 +87,7 @@ export function stripSensitiveFields(profile: Record<string, string>): Record<st
 
 const MAX_TEXT_LENGTH = 50_000;
 
-export async function analyzeFormFields(rawText: string): Promise<FormAnalysis> {
-  const client = getClient();
-  const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
-
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `You are a form analysis expert. Analyze the following form and extract all fillable fields.
+const FIELD_ANALYSIS_INSTRUCTIONS = `Analyze the form and extract all fillable fields.
 
 For each field, provide:
 1. A plain-language explanation of what information belongs there
@@ -116,28 +110,22 @@ Return a JSON object matching this schema:
       "explanation": "Plain language explanation",
       "example": "Example answer",
       "commonMistakes": "What people often get wrong",
-      "profileKey": "firstName" // or null if not auto-fillable
+      "profileKey": "firstName"
     }
   ],
   "estimatedMinutes": 5
-}
+}`;
 
-FORM CONTENT:
-${truncatedText}`,
-      },
-    ],
-  });
-
-  const content = message.content[0];
-  if (content.type !== "text") throw new Error("Unexpected response type");
-
-  const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+/** Parse Claude response text, validate with Zod, overlay field cache, and attach category */
+async function parseAndCacheAnalysis(responseText: string, category: FormCategory): Promise<FormAnalysis> {
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("No JSON found in AI response");
 
   let analysis: FormAnalysis;
   try {
     const parsed = JSON.parse(jsonMatch[0]);
-    analysis = formAnalysisSchema.parse(parsed) as FormAnalysis;
+    const validated = formAnalysisSchema.parse(parsed);
+    analysis = { ...validated, category } as FormAnalysis;
   } catch (e) {
     throw new Error(`Failed to parse AI response: ${e instanceof Error ? e.message : "invalid JSON"}`);
   }
@@ -178,7 +166,6 @@ ${truncatedText}`,
       : "0";
     console.log(`[field-cache] ${cacheKeys.length} fields, ${cacheKeys.length - misses.length} hits (${hitRate}%)`);
 
-    // Store misses in background
     if (misses.length > 0) {
       storeCacheEntries(misses).catch((err) => {
         console.error("[field-cache] Failed to store cache entries:", err);
@@ -189,6 +176,85 @@ ${truncatedText}`,
   }
 
   return analysis;
+}
+
+export async function analyzeFormFields(rawText: string): Promise<FormAnalysis> {
+  const client = getClient();
+  const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
+
+  // Detect category from the form text, then prepend the domain-specific prompt
+  const category = detectCategory(truncatedText, []);
+  const categoryPrompt = CATEGORY_SYSTEM_PROMPTS[category];
+
+  console.log(`[form-category] Detected category: ${category}`);
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    messages: [
+      {
+        role: "user",
+        content: `${categoryPrompt}
+
+${FIELD_ANALYSIS_INSTRUCTIONS}
+
+FORM CONTENT:
+${truncatedText}`,
+      },
+    ],
+  });
+
+  const content = message.content[0];
+  if (content.type !== "text") throw new Error("Unexpected response type");
+
+  return parseAndCacheAnalysis(content.text, category);
+}
+
+export async function analyzeFormFieldsFromImage(
+  base64: string,
+  mimeType: string,
+  titleHint?: string
+): Promise<FormAnalysis> {
+  const client = getClient();
+
+  // For image-based forms we can only use the filename hint for detection
+  const category = detectCategory(titleHint ?? "", []);
+  const categoryPrompt = CATEGORY_SYSTEM_PROMPTS[category];
+
+  console.log(`[form-category] Detected category (image): ${category}`);
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    messages: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+              data: base64,
+            },
+          },
+          {
+            type: "text",
+            text: `${categoryPrompt}
+
+${FIELD_ANALYSIS_INSTRUCTIONS}
+
+Look at the form image above and extract all fillable fields you can identify.`,
+          },
+        ],
+      },
+    ],
+  });
+
+  const content = message.content[0];
+  if (content.type !== "text") throw new Error("Unexpected response type");
+
+  return parseAndCacheAnalysis(content.text, category);
 }
 
 export async function autofillFields(
@@ -215,7 +281,7 @@ FORM FIELDS:
 ${JSON.stringify(fields.map((f) => ({ id: f.id, label: f.label, type: f.type, profileKey: f.profileKey })), null, 2)}
 
 Return a JSON array of { id, value, confidence } for each field you can fill.
-confidence is 0.0–1.0 (1.0 = exact match from profile, 0.5 = inferred/transformed, 0.0 = cannot fill).
+confidence is 0.0-1.0 (1.0 = exact match from profile, 0.5 = inferred/transformed, 0.0 = cannot fill).
 Only include fields with confidence > 0.`,
       },
     ],

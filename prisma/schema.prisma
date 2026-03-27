@@ -73,6 +73,7 @@ model Form {
   fields      Json       // Parsed field definitions
   filledData  Json?      // Autofilled values
   status      FormStatus @default(PENDING)
+  category    String?    // Detected form category (TAX, IMMIGRATION, LEGAL, HR_EMPLOYMENT, HEALTHCARE, GENERAL)
   createdAt   DateTime   @default(now())
   updatedAt   DateTime   @updatedAt
 
@@ -84,6 +85,7 @@ enum SourceType {
   WORD
   WEB
   SPREADSHEET
+  IMAGE
 }
 
 enum FormStatus {
