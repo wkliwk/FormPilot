@@ -1,15 +1,4 @@
-/**
- * Image preprocessing for the FormPilot upload pipeline.
- *
- * This module is implemented in full on feat/image-preprocessing (PR #56).
- * The stub here exists so that:
- *   1. TypeScript can resolve the @/lib/image/preprocess import.
- *   2. Integration tests can mock this module with jest.mock().
- *
- * Once PR #56 is merged, this file will be replaced by the real implementation
- * which uses sharp to auto-rotate, resize, convert HEIC→JPEG, and validate
- * minimum image dimensions.
- */
+import sharp from "sharp";
 
 export interface PreprocessedImage {
   base64: string;
@@ -18,23 +7,65 @@ export interface PreprocessedImage {
   height: number;
 }
 
-/**
- * Preprocess an image buffer for submission to the Claude vision API.
- *
- * Real implementation (PR #56) behavior:
- * - Validates minimum dimensions (400x400 px)
- * - Auto-rotates using EXIF orientation data
- * - Resizes to fit within 2048x2048 px (preserving aspect ratio)
- * - Converts HEIC/HEIF → JPEG
- * - Returns base64-encoded output + mimeType + output dimensions
- *
- * @throws Error with user-friendly message if image is too small or corrupt
- */
+const MAX_DIMENSION = 2048;
+const MIN_DIMENSION = 400;
+
+const HEIC_TYPES = new Set(["image/heic", "image/heif"]);
+
 export async function preprocessImage(
-  _buffer: Buffer,
-  _originalMimeType: string
+  buffer: Buffer,
+  originalMimeType: string
 ): Promise<PreprocessedImage> {
-  throw new Error(
-    "preprocessImage is not yet implemented. This stub will be replaced by PR #56 (feat/image-preprocessing)."
-  );
+  // Read metadata for dimensions
+  const metadata = await sharp(buffer).metadata();
+  const origWidth = metadata.width ?? 0;
+  const origHeight = metadata.height ?? 0;
+
+  // Validate minimum size
+  if (origWidth < MIN_DIMENSION || origHeight < MIN_DIMENSION) {
+    throw new Error(
+      "Image is too small to read. Please upload a larger or higher-resolution image."
+    );
+  }
+
+  // Start pipeline: auto-rotate using EXIF orientation
+  let pipeline = sharp(buffer).rotate();
+
+  // Resize if needed (fit within MAX_DIMENSION x MAX_DIMENSION)
+  const longestEdge = Math.max(origWidth, origHeight);
+  if (longestEdge > MAX_DIMENSION) {
+    pipeline = pipeline.resize(MAX_DIMENSION, MAX_DIMENSION, {
+      fit: "inside",
+      withoutEnlargement: true,
+    });
+  }
+
+  // Determine output format
+  let outputMimeType: PreprocessedImage["mimeType"];
+
+  if (HEIC_TYPES.has(originalMimeType.toLowerCase())) {
+    // HEIC/HEIF → convert to JPEG (not supported by Claude vision)
+    pipeline = pipeline.jpeg({ quality: 90 });
+    outputMimeType = "image/jpeg";
+  } else if (originalMimeType === "image/png") {
+    pipeline = pipeline.png();
+    outputMimeType = "image/png";
+  } else if (originalMimeType === "image/webp") {
+    pipeline = pipeline.webp({ quality: 90 });
+    outputMimeType = "image/webp";
+  } else {
+    // Default to JPEG for all other types (including image/jpeg)
+    pipeline = pipeline.jpeg({ quality: 90 });
+    outputMimeType = "image/jpeg";
+  }
+
+  const outputBuffer = await pipeline.toBuffer();
+  const outputMetadata = await sharp(outputBuffer).metadata();
+
+  return {
+    base64: outputBuffer.toString("base64"),
+    mimeType: outputMimeType,
+    width: outputMetadata.width ?? origWidth,
+    height: outputMetadata.height ?? origHeight,
+  };
 }

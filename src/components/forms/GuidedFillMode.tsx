@@ -13,8 +13,8 @@ interface Props {
   onValuesChange: (values: Record<string, string>, states: Record<string, FieldState>) => void;
 }
 
-// Group fields by category based on profileKey or label patterns
-function groupFields(fields: FormField[]): { name: string; fields: FormField[] }[] {
+// Group fields by category
+function groupFields(fields: FormField[]): { name: string; icon: string; fields: FormField[] }[] {
   const groups: Record<string, FormField[]> = {};
 
   for (const field of fields) {
@@ -23,40 +23,26 @@ function groupFields(fields: FormField[]): { name: string; fields: FormField[] }
     const label = field.label.toLowerCase();
 
     if (
-      key.startsWith("address") ||
-      label.includes("address") ||
-      label.includes("city") ||
-      label.includes("state") ||
-      label.includes("zip") ||
-      label.includes("country")
+      key.startsWith("address") || label.includes("address") || label.includes("city") ||
+      label.includes("state") || label.includes("zip") || label.includes("country")
     ) {
       category = "Address";
     } else if (
       ["firstname", "lastname", "email", "phone", "dateofbirth"].includes(key) ||
-      label.includes("name") ||
-      label.includes("email") ||
-      label.includes("phone") ||
-      label.includes("birth") ||
-      label.includes("dob")
+      label.includes("name") || label.includes("email") || label.includes("phone") ||
+      label.includes("birth") || label.includes("dob")
     ) {
       category = "Personal Information";
     } else if (
       ["employername", "jobtitle", "annualincome"].includes(key) ||
-      label.includes("employer") ||
-      label.includes("job") ||
-      label.includes("occupation") ||
-      label.includes("income") ||
-      label.includes("salary") ||
-      label.includes("company")
+      label.includes("employer") || label.includes("job") || label.includes("occupation") ||
+      label.includes("income") || label.includes("salary") || label.includes("company")
     ) {
       category = "Employment";
     } else if (
-      ["ssn", "passportnumber"].includes(key) ||
-      label.includes("ssn") ||
-      label.includes("social security") ||
-      label.includes("passport") ||
-      label.includes("license") ||
-      label.includes("id number")
+      ["ssn", "passportnumber"].includes(key) || label.includes("ssn") ||
+      label.includes("social security") || label.includes("passport") ||
+      label.includes("license") || label.includes("id number")
     ) {
       category = "Identity Documents";
     }
@@ -65,12 +51,31 @@ function groupFields(fields: FormField[]): { name: string; fields: FormField[] }
     groups[category].push(field);
   }
 
-  // Order: Personal → Address → Employment → Identity → Other
+  const categoryMeta: Record<string, string> = {
+    "Personal Information": "user",
+    "Address": "map-pin",
+    "Employment": "briefcase",
+    "Identity Documents": "shield",
+    "Other": "file-text",
+  };
+
   const order = ["Personal Information", "Address", "Employment", "Identity Documents", "Other"];
   return order
     .filter((name) => groups[name]?.length)
-    .map((name) => ({ name, fields: groups[name] }));
+    .map((name) => ({ name, icon: categoryMeta[name] ?? "file-text", fields: groups[name] }));
 }
+
+function confidenceTier(confidence: number): "high" | "medium" | "low" {
+  if (confidence >= 0.8) return "high";
+  if (confidence >= 0.5) return "medium";
+  return "low";
+}
+
+const tierColors = {
+  high: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", bar: "bg-emerald-500" },
+  medium: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", bar: "bg-amber-500" },
+  low: { bg: "bg-red-50", border: "border-red-200", text: "text-red-600", bar: "bg-red-500" },
+};
 
 export default function GuidedFillMode({
   formId,
@@ -141,6 +146,13 @@ export default function GuidedFillMode({
     scheduleSave(newValues, newStates);
   }
 
+  function handleUndoSkip(fieldId: string) {
+    const newStates = { ...fieldStates };
+    delete newStates[fieldId];
+    setFieldStates(newStates);
+    scheduleSave(values, newStates);
+  }
+
   async function handleAutofill() {
     setAutofilling(true);
     try {
@@ -172,22 +184,34 @@ export default function GuidedFillMode({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-white rounded-xl border border-slate-200 p-6">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
-              <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 text-sm font-bold">
+              <span className="inline-flex items-center justify-center w-9 h-9 rounded-xl bg-blue-100 text-blue-700 text-sm font-bold">
                 {currentStep + 1}
               </span>
-              <h2 className="text-lg font-bold text-slate-900">
-                {currentGroup?.name ?? "Complete"}
-              </h2>
+              <div>
+                <h2 className="text-lg font-bold text-slate-900">
+                  {currentGroup?.name ?? "Complete"}
+                </h2>
+                <p className="text-sm text-slate-400 mt-0.5">
+                  Step {currentStep + 1} of {totalSteps}
+                  <span className="mx-1.5">&middot;</span>
+                  {overallProgress}% overall
+                  {saveStatus === "saving" && (
+                    <span className="ml-2 inline-flex items-center gap-1 text-slate-300">
+                      <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                      </svg>
+                      Saving
+                    </span>
+                  )}
+                  {saveStatus === "saved" && <span className="ml-2 text-emerald-500">Saved</span>}
+                </p>
+              </div>
             </div>
-            <p className="text-sm text-slate-500 mt-1">
-              Step {currentStep + 1} of {totalSteps} &middot; {overallProgress}% overall
-              {saveStatus === "saving" && <span className="ml-2 text-slate-400">saving...</span>}
-              {saveStatus === "saved" && <span className="ml-2 text-green-500">saved</span>}
-            </p>
           </div>
 
           <div className="flex gap-2">
@@ -195,32 +219,47 @@ export default function GuidedFillMode({
               <button
                 onClick={handleAutofill}
                 disabled={autofilling}
-                className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors active:scale-[0.98]"
               >
-                {autofilling ? "Filling..." : "Autofill"}
+                {autofilling ? (
+                  <>
+                    <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                    </svg>
+                    Filling...
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
+                    </svg>
+                    Autofill
+                  </>
+                )}
               </button>
             )}
             <button
               onClick={onExit}
-              className="px-3 py-1.5 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50"
+              className="px-3.5 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
             >
               Exit Guided Mode
             </button>
           </div>
         </div>
 
-        {/* Step progress dots */}
-        <div className="flex gap-1.5 mt-4">
+        {/* Step progress */}
+        <div className="flex gap-1.5 mt-5">
           {groups.map((g, i) => (
             <button
               key={g.name}
               onClick={() => setCurrentStep(i)}
-              className={`h-2 rounded-full transition-all ${
+              className={`h-2 rounded-full transition-all duration-300 ${
                 i === currentStep
                   ? "bg-blue-500 flex-[2]"
                   : i < currentStep
-                  ? "bg-green-400 flex-1"
-                  : "bg-slate-200 flex-1"
+                  ? "bg-emerald-400 flex-1 hover:bg-emerald-500"
+                  : "bg-slate-200 flex-1 hover:bg-slate-300"
               }`}
               aria-label={`Go to step ${i + 1}: ${g.name}`}
             />
@@ -228,74 +267,113 @@ export default function GuidedFillMode({
         </div>
 
         {/* Group progress */}
-        <p className="text-xs text-slate-400 mt-2">
+        <p className="text-xs text-slate-400 mt-2.5">
           {filledInGroup}/{totalInGroup} fields completed in this section
         </p>
       </div>
 
-      {/* Fields for current step */}
+      {/* Fields */}
       <div className="space-y-4">
-        {currentGroup?.fields.map((field) => {
+        {currentGroup?.fields.map((field, index) => {
           const state: FieldState = fieldStates[field.id] ?? "pending";
           const hasValue = Boolean(values[field.id]);
           const confidence = field.confidence ?? 0;
+          const tier = confidence > 0 ? confidenceTier(confidence) : null;
+          const colors = tier ? tierColors[tier] : null;
 
           return (
             <div
               key={field.id}
-              className={`bg-white rounded-xl border p-6 space-y-4 transition-all ${
+              className={`bg-white rounded-2xl border p-5 sm:p-6 space-y-4 transition-all shadow-soft animate-fade-in-up ${
                 state === "accepted"
-                  ? "border-green-300 bg-green-50/30"
+                  ? "border-emerald-200 bg-emerald-50/30"
                   : state === "rejected"
                   ? "border-slate-200 opacity-60"
                   : "border-slate-200"
               }`}
+              style={{ animationDelay: `${index * 50}ms` }}
             >
-              {/* Field label */}
-              <div className="flex items-center justify-between">
-                <label htmlFor={`guided-${field.id}`} className="text-base font-semibold text-slate-900">
+              {/* Field label + type */}
+              <div className="flex items-center justify-between gap-3">
+                <label
+                  htmlFor={`guided-${field.id}`}
+                  className="text-base font-semibold text-slate-900"
+                >
                   {field.label}
-                  {field.required && <span className="text-red-500 ml-1">*</span>}
+                  {field.required && <span className="text-red-500 ml-0.5">*</span>}
                 </label>
-                <span className="text-xs text-slate-400">{field.type}</span>
+                <span className="text-xs text-slate-300 font-medium uppercase tracking-wide">
+                  {field.type}
+                </span>
               </div>
 
               {/* Explanation */}
-              <div className="bg-blue-50 rounded-lg p-4 space-y-2">
-                <p className="text-sm text-blue-900">{field.explanation}</p>
-                <p className="text-xs text-blue-700">
-                  <span className="font-medium">Example:</span> {field.example}
-                </p>
-                {field.commonMistakes && (
-                  <p className="text-xs text-amber-600">
-                    <span className="font-medium">Common mistake:</span> {field.commonMistakes}
+              <div className="bg-blue-50/60 rounded-xl p-4 space-y-2">
+                <p className="text-sm text-slate-700 leading-relaxed">{field.explanation}</p>
+                {field.example && (
+                  <p className="text-xs text-slate-500">
+                    <span className="font-medium text-slate-600">Example:</span>{" "}
+                    <span className="font-mono bg-white/60 px-1.5 py-0.5 rounded">{field.example}</span>
                   </p>
+                )}
+                {field.commonMistakes && (
+                  <div className="flex items-start gap-2 pt-2 border-t border-blue-100/80">
+                    <svg className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                      <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-xs text-amber-700">
+                      <span className="font-medium">Common mistake:</span> {field.commonMistakes}
+                    </p>
+                  </div>
                 )}
               </div>
 
-              {/* Autofill suggestion */}
-              {hasValue && confidence > 0 && state === "pending" && (
-                <div className={`rounded-lg p-3 flex items-center justify-between ${
-                  confidence >= 0.8 ? "bg-green-50 border border-green-200" :
-                  confidence >= 0.5 ? "bg-yellow-50 border border-yellow-200" :
-                  "bg-red-50 border border-red-200"
-                }`}>
+              {/* Where to find this */}
+              {field.whereToFind && (
+                <div className="bg-slate-50 rounded-xl p-4 flex items-start gap-2.5">
+                  <svg className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8" />
+                    <path d="m21 21-4.3-4.3" />
+                  </svg>
                   <div>
-                    <p className="text-sm font-medium text-slate-700">
-                      Suggested: <span className="text-slate-900">{values[field.id]}</span>
-                    </p>
-                    <p className="text-xs text-slate-500">{Math.round(confidence * 100)}% confidence</p>
+                    <p className="text-xs font-semibold text-slate-600">Where to find this</p>
+                    <p className="text-sm text-slate-700 leading-relaxed">{field.whereToFind}</p>
                   </div>
-                  <div className="flex gap-2">
+                </div>
+              )}
+
+              {/* Autofill suggestion */}
+              {hasValue && confidence > 0 && state === "pending" && colors && (
+                <div className={`rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 ${colors.bg} border ${colors.border}`}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700">
+                      Suggested: <span className="text-slate-900 font-semibold">{values[field.id]}</span>
+                    </p>
+                    <div className="flex items-center gap-2 mt-1.5">
+                      <div className="w-16 h-1.5 bg-white/60 rounded-full overflow-hidden" aria-hidden="true">
+                        <div
+                          className={`h-full rounded-full ${colors.bar}`}
+                          style={{ width: `${Math.round(confidence * 100)}%` }}
+                        />
+                      </div>
+                      <span className={`text-xs font-medium ${colors.text} tabular-nums`}>
+                        {Math.round(confidence * 100)}% confidence
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 shrink-0">
                     <button
                       onClick={() => handleAccept(field.id)}
-                      className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+                      className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors active:scale-[0.98]"
                     >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
                       Accept
                     </button>
                     <button
                       onClick={() => handleSkip(field.id)}
-                      className="px-3 py-1.5 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50"
+                      className="px-4 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-white transition-colors"
                     >
                       Clear
                     </button>
@@ -304,51 +382,44 @@ export default function GuidedFillMode({
               )}
 
               {/* Input */}
-              {state !== "rejected" && (
+              {state !== "rejected" ? (
                 <input
                   id={`guided-${field.id}`}
                   type={field.type === "date" ? "date" : "text"}
                   value={values[field.id] ?? ""}
                   onChange={(e) => handleValueChange(field.id, e.target.value)}
                   disabled={state === "accepted"}
-                  className={`w-full px-4 py-3 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                  className={`w-full px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all ${
                     state === "accepted"
-                      ? "border-green-200 bg-green-50 cursor-not-allowed"
-                      : "border-slate-200"
+                      ? "border-emerald-200 bg-emerald-50/60 cursor-not-allowed"
+                      : "border-slate-200 bg-white"
                   }`}
                   placeholder={field.example}
                 />
-              )}
-
-              {state === "rejected" && (
+              ) : (
                 <div className="flex items-center gap-2">
                   <input
                     id={`guided-${field.id}`}
                     type={field.type === "date" ? "date" : "text"}
                     value={values[field.id] ?? ""}
                     onChange={(e) => handleValueChange(field.id, e.target.value)}
-                    className="flex-1 px-4 py-3 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
                     placeholder="Enter value manually..."
                   />
                   <button
-                    onClick={() => {
-                      const newStates = { ...fieldStates };
-                      delete newStates[field.id];
-                      setFieldStates(newStates);
-                      scheduleSave(values, newStates);
-                    }}
-                    className="text-xs text-slate-400 hover:text-slate-600 underline whitespace-nowrap"
+                    onClick={() => handleUndoSkip(field.id)}
+                    className="text-xs text-blue-500 hover:text-blue-700 whitespace-nowrap transition-colors"
                   >
                     Undo
                   </button>
                 </div>
               )}
 
-              {/* Skip button for unfilled fields */}
+              {/* Skip for unfilled optional */}
               {!hasValue && state === "pending" && !field.required && (
                 <button
                   onClick={() => handleSkip(field.id)}
-                  className="text-xs text-slate-400 hover:text-slate-600"
+                  className="text-xs text-slate-400 hover:text-slate-600 transition-colors"
                 >
                   Skip this field
                 </button>
@@ -359,31 +430,40 @@ export default function GuidedFillMode({
       </div>
 
       {/* Navigation */}
-      <div className="flex justify-between items-center bg-white rounded-xl border border-slate-200 p-4">
+      <div className="flex justify-between items-center bg-white rounded-2xl border border-slate-200 shadow-soft p-4">
         <button
           onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
           disabled={currentStep === 0}
-          className="px-4 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
         >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="15 18 9 12 15 6" />
+          </svg>
           Previous
         </button>
 
-        <span className="text-sm text-slate-500">
+        <div className="text-sm text-slate-400 tabular-nums">
           {currentStep + 1} / {totalSteps}
-        </span>
+        </div>
 
         {currentStep < totalSteps - 1 ? (
           <button
             onClick={() => setCurrentStep(currentStep + 1)}
-            className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors active:scale-[0.98]"
           >
             Next Section
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
           </button>
         ) : (
           <button
             onClick={onExit}
-            className="px-4 py-2 text-sm bg-green-600 text-white rounded-lg hover:bg-green-700"
+            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors active:scale-[0.98]"
           >
+            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+            </svg>
             Finish
           </button>
         )}
