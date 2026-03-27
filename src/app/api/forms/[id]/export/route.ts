@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fillPDF } from "@/lib/pdf/fill";
+import { validateForm } from "@/lib/validation/validate-form";
 import type { FormField } from "@/lib/ai/analyze-form";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -22,6 +23,27 @@ export async function GET(
 
   const fields = form.fields as unknown as FormField[];
   const filledFields = fields.filter((f) => f.value);
+
+  // Validation gate: block export if there are errors (unless ?force=true)
+  const force = req.nextUrl.searchParams.get("force") === "true";
+  if (!force) {
+    const values: Record<string, string> = {};
+    const fieldStates: Record<string, string> = {};
+    for (const field of fields) {
+      if (field.value) values[field.id] = field.value;
+      if (field.fieldState) fieldStates[field.id] = field.fieldState;
+    }
+    const validation = validateForm(fields, values, fieldStates);
+    if (!validation.valid) {
+      return NextResponse.json(
+        {
+          error: "Validation failed",
+          validation,
+        },
+        { status: 422 }
+      );
+    }
+  }
 
   if (filledFields.length === 0) {
     return NextResponse.json({ error: "No filled fields to export" }, { status: 400 });
