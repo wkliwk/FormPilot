@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import FormViewer from "@/components/forms/FormViewer";
+import FormPageClient from "@/components/forms/FormPageClient";
 import Link from "next/link";
 
 export default async function FormPage({ params }: { params: Promise<{ id: string }> }) {
@@ -30,7 +30,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
       </nav>
 
       <main className="max-w-4xl mx-auto px-6 py-10">
-        <FormViewer form={form} hasProfile={hasProfile} />
+        <FormPageClient form={form} hasProfile={hasProfile} />
       </main>
     </div>
   );
