@@ -24,11 +24,14 @@ export function normalizeLabel(label: string): string {
 }
 
 /**
- * Build the cache key from a field label and type.
- * e.g. ("First Name", "text") -> "first_name:text"
+ * Build the cache key from a field label, type, and optional language.
+ * English (or no language) uses the base key: "first_name:text"
+ * Non-English appends the language code: "first_name:text:es"
  */
-export function buildCacheKey(label: string, type: string): string {
-  return `${normalizeLabel(label)}:${type.toLowerCase().trim()}`;
+export function buildCacheKey(label: string, type: string, language?: string | null): string {
+  const base = `${normalizeLabel(label)}:${type.toLowerCase().trim()}`;
+  if (!language || language === "en") return base;
+  return `${base}:${language.toLowerCase().trim()}`;
 }
 
 /**

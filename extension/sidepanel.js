@@ -6,6 +6,8 @@ const statusDot = document.getElementById("statusDot");
 const statusText = document.getElementById("statusText");
 const content = document.getElementById("content");
 const loginPrompt = document.getElementById("loginPrompt");
+const langRow = document.getElementById("langRow");
+const langSelect = document.getElementById("langSelect");
 
 let currentFields = [];
 let analysisResult = [];
@@ -16,11 +18,13 @@ chrome.runtime.sendMessage({ type: "GET_AUTH_STATUS" }, (response) => {
     statusDot.classList.add("connected");
     statusText.textContent = `Connected as ${response.user.name || response.user.email}`;
     content.style.display = "block";
+    langRow.style.display = "flex";
     loginPrompt.style.display = "none";
   } else {
     statusDot.classList.add("error");
     statusText.textContent = "Not signed in";
     content.style.display = "none";
+    langRow.style.display = "none";
     loginPrompt.style.display = "block";
   }
 });
@@ -42,9 +46,11 @@ scanBtn.addEventListener("click", async () => {
     currentFields = response.fields;
     fieldList.innerHTML = '<div class="loading"><div class="spinner"></div>Analyzing fields with AI...</div>';
 
-    // Send to API for analysis
+    const selectedLang = langSelect.value;
+
+    // Send to API for analysis, including selected language
     chrome.runtime.sendMessage(
-      { type: "ANALYZE_FIELDS", fields: currentFields },
+      { type: "ANALYZE_FIELDS", fields: currentFields, language: selectedLang },
       (result) => {
         scanBtn.disabled = false;
         scanBtn.textContent = "Re-scan";

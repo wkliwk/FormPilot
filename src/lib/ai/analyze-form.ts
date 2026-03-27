@@ -1,9 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { buildCacheKey, lookupCacheEntries, storeCacheEntries } from "./field-cache";
-import { detectCategory, CATEGORY_SYSTEM_PROMPTS, type FormCategory } from "./form-categories";
-
-export type { FormCategory };
 
 // Shared Anthropic client singleton
 let _client: Anthropic | null = null;
@@ -48,7 +45,6 @@ export interface FormAnalysis {
   description: string;
   fields: FormField[];
   estimatedMinutes: number;
-  category: FormCategory;
 }
 
 // Zod schemas for validating AI responses
@@ -87,7 +83,28 @@ export function stripSensitiveFields(profile: Record<string, string>): Record<st
 
 const MAX_TEXT_LENGTH = 50_000;
 
-const FIELD_ANALYSIS_INSTRUCTIONS = `Analyze the form and extract all fillable fields.
+/** Map of ISO 639-1 codes to language names used in the prompt. */
+const LANGUAGE_NAMES: Record<string, string> = {
+  es: "Spanish",
+  zh: "Chinese Simplified",
+  ko: "Korean",
+  vi: "Vietnamese",
+  tl: "Tagalog",
+  ar: "Arabic",
+  hi: "Hindi",
+  fr: "French",
+  pt: "Portuguese",
+};
+
+/** Returns the language instruction suffix when language is non-English, or empty string. */
+function buildLanguageInstruction(language?: string | null): string {
+  if (!language || language === "en") return "";
+  const name = LANGUAGE_NAMES[language];
+  if (!name) return "";
+  return `\n\nProvide the explanation, example, and commonMistakes fields in ${name}. Keep the field label, id, and type in English as they must match the original form.`;
+}
+
+const BASE_ANALYSIS_PROMPT = `You are a form analysis expert. Analyze the following form and extract all fillable fields.
 
 For each field, provide:
 1. A plain-language explanation of what information belongs there
@@ -116,29 +133,31 @@ Return a JSON object matching this schema:
   "estimatedMinutes": 5
 }`;
 
-/** Parse Claude response text, validate with Zod, overlay field cache, and attach category */
-async function parseAndCacheAnalysis(responseText: string, category: FormCategory): Promise<FormAnalysis> {
+/** Parse and validate the AI JSON response, then overlay/store cache entries. */
+async function parseAndCacheAnalysis(
+  responseText: string,
+  language?: string | null
+): Promise<FormAnalysis> {
   const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("No JSON found in AI response");
 
   let analysis: FormAnalysis;
   try {
     const parsed = JSON.parse(jsonMatch[0]);
-    const validated = formAnalysisSchema.parse(parsed);
-    analysis = { ...validated, category } as FormAnalysis;
+    analysis = formAnalysisSchema.parse(parsed) as FormAnalysis;
   } catch (e) {
     throw new Error(`Failed to parse AI response: ${e instanceof Error ? e.message : "invalid JSON"}`);
   }
 
-  // Overlay cached explanations and store new ones
+  // Overlay cached explanations and store new ones (language-aware cache keys)
   try {
-    const cacheKeys = analysis.fields.map((f) => buildCacheKey(f.label, f.type));
+    const cacheKeys = analysis.fields.map((f) => buildCacheKey(f.label, f.type, language));
     const cached = await lookupCacheEntries(cacheKeys);
 
     const misses: Array<{ cacheKey: string; data: { explanation: string; example: string; commonMistakes: string; profileKey: string | null } }> = [];
 
     analysis.fields = analysis.fields.map((field): FormField => {
-      const key = buildCacheKey(field.label, field.type);
+      const key = buildCacheKey(field.label, field.type, language);
       const hit = cached.get(key);
       if (hit) {
         return {
@@ -164,7 +183,8 @@ async function parseAndCacheAnalysis(responseText: string, category: FormCategor
     const hitRate = cacheKeys.length > 0
       ? ((cacheKeys.length - misses.length) / cacheKeys.length * 100).toFixed(0)
       : "0";
-    console.log(`[field-cache] ${cacheKeys.length} fields, ${cacheKeys.length - misses.length} hits (${hitRate}%)`);
+    const langTag = language && language !== "en" ? ` [${language}]` : "";
+    console.log(`[field-cache${langTag}] ${cacheKeys.length} fields, ${cacheKeys.length - misses.length} hits (${hitRate}%)`);
 
     if (misses.length > 0) {
       storeCacheEntries(misses).catch((err) => {
@@ -178,15 +198,13 @@ async function parseAndCacheAnalysis(responseText: string, category: FormCategor
   return analysis;
 }
 
-export async function analyzeFormFields(rawText: string): Promise<FormAnalysis> {
+export async function analyzeFormFields(
+  rawText: string,
+  language?: string | null
+): Promise<FormAnalysis> {
   const client = getClient();
   const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
-
-  // Detect category from the form text, then prepend the domain-specific prompt
-  const category = detectCategory(truncatedText, []);
-  const categoryPrompt = CATEGORY_SYSTEM_PROMPTS[category];
-
-  console.log(`[form-category] Detected category: ${category}`);
+  const langInstruction = buildLanguageInstruction(language);
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
@@ -194,9 +212,7 @@ export async function analyzeFormFields(rawText: string): Promise<FormAnalysis> 
     messages: [
       {
         role: "user",
-        content: `${categoryPrompt}
-
-${FIELD_ANALYSIS_INSTRUCTIONS}
+        content: `${BASE_ANALYSIS_PROMPT}${langInstruction}
 
 FORM CONTENT:
 ${truncatedText}`,
@@ -207,54 +223,7 @@ ${truncatedText}`,
   const content = message.content[0];
   if (content.type !== "text") throw new Error("Unexpected response type");
 
-  return parseAndCacheAnalysis(content.text, category);
-}
-
-export async function analyzeFormFieldsFromImage(
-  base64: string,
-  mimeType: string,
-  titleHint?: string
-): Promise<FormAnalysis> {
-  const client = getClient();
-
-  // For image-based forms we can only use the filename hint for detection
-  const category = detectCategory(titleHint ?? "", []);
-  const categoryPrompt = CATEGORY_SYSTEM_PROMPTS[category];
-
-  console.log(`[form-category] Detected category (image): ${category}`);
-
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: [
-          {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-              data: base64,
-            },
-          },
-          {
-            type: "text",
-            text: `${categoryPrompt}
-
-${FIELD_ANALYSIS_INSTRUCTIONS}
-
-Look at the form image above and extract all fillable fields you can identify.`,
-          },
-        ],
-      },
-    ],
-  });
-
-  const content = message.content[0];
-  if (content.type !== "text") throw new Error("Unexpected response type");
-
-  return parseAndCacheAnalysis(content.text, category);
+  return parseAndCacheAnalysis(content.text, language);
 }
 
 export async function autofillFields(
@@ -281,7 +250,7 @@ FORM FIELDS:
 ${JSON.stringify(fields.map((f) => ({ id: f.id, label: f.label, type: f.type, profileKey: f.profileKey })), null, 2)}
 
 Return a JSON array of { id, value, confidence } for each field you can fill.
-confidence is 0.0-1.0 (1.0 = exact match from profile, 0.5 = inferred/transformed, 0.0 = cannot fill).
+confidence is 0.0–1.0 (1.0 = exact match from profile, 0.5 = inferred/transformed, 0.0 = cannot fill).
 Only include fields with confidence > 0.`,
       },
     ],

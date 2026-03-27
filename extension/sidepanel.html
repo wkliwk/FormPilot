@@ -191,6 +191,34 @@
       text-decoration: none;
       font-weight: 500;
     }
+
+    .lang-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-bottom: 1px solid #e2e8f0;
+      background: white;
+    }
+
+    .lang-row label {
+      font-size: 12px;
+      color: #64748b;
+      white-space: nowrap;
+    }
+
+    .lang-select {
+      flex: 1;
+      font-size: 12px;
+      border: 1px solid #e2e8f0;
+      border-radius: 6px;
+      padding: 4px 8px;
+      background: white;
+      color: #1e293b;
+      cursor: pointer;
+    }
+
+    .lang-select:focus { outline: none; border-color: #3b82f6; }
   </style>
 </head>
 <body>
@@ -202,6 +230,22 @@
   <div class="status-bar">
     <div class="status-dot" id="statusDot"></div>
     <span id="statusText">Checking connection...</span>
+  </div>
+
+  <div class="lang-row" id="langRow" style="display:none">
+    <label for="langSelect">Language:</label>
+    <select class="lang-select" id="langSelect">
+      <option value="en">English</option>
+      <option value="es">Español</option>
+      <option value="zh">中文</option>
+      <option value="ko">한국어</option>
+      <option value="vi">Tiếng Việt</option>
+      <option value="tl">Tagalog</option>
+      <option value="ar">العربية</option>
+      <option value="hi">हिन्दी</option>
+      <option value="fr">Français</option>
+      <option value="pt">Português</option>
+    </select>
   </div>
 
   <div id="content">

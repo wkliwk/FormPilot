@@ -14,29 +14,43 @@ export default async function ProfilePage() {
 
   return (
     <div>
-      <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3 flex items-center gap-4">
-        <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-900">
-          ← Dashboard
-        </Link>
-        <span className="text-slate-300">/</span>
-        <span className="text-sm font-medium text-slate-900">My Profile</span>
+      {/* Breadcrumb */}
+      <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3">
+        <div className="max-w-2xl mx-auto flex items-center gap-2 text-sm">
+          <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors">
+            Dashboard
+          </Link>
+          <svg className="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <span className="font-medium text-slate-900">My Profile</span>
+        </div>
       </nav>
 
-      <main className="max-w-2xl mx-auto px-6 py-10">
-        <div className="bg-white rounded-xl border border-slate-200 p-8 space-y-6">
+      <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-6 sm:p-8 space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Profile Vault</h1>
             <p className="text-slate-500 mt-1 text-sm">
-              Store your personal data once. FormPilot uses it to autofill forms — never shared with third parties.
+              Store your personal data once. FormPilot uses it to autofill forms -- never shared with third parties.
             </p>
           </div>
 
-          <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
-            Your data is encrypted at rest and used only for autofill within your account.
-            We never send it to external services.
+          <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5">
+            <svg className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              <polyline points="9 12 11 14 15 10" />
+            </svg>
+            <p className="text-sm text-amber-800">
+              Your data is encrypted at rest and used only for autofill within your account.
+              We never send it to external services.
+            </p>
           </div>
 
-          <ProfileForm initialData={profile?.data as Record<string, unknown> | null} />
+          <ProfileForm
+            initialData={profile?.data as Record<string, unknown> | null}
+            initialPreferredLanguage={profile?.preferredLanguage ?? null}
+          />
         </div>
       </main>
     </div>

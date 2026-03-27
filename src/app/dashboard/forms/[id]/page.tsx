@@ -15,22 +15,34 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
     notFound();
   }
 
-  const hasProfile = !!(await prisma.profile.findUnique({
+  const profile = await prisma.profile.findUnique({
     where: { userId: session.user.id! },
-  }));
+    select: { id: true, preferredLanguage: true },
+  });
 
   return (
     <div>
-      <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3 flex items-center gap-4">
-        <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-900">
-          ← Dashboard
-        </Link>
-        <span className="text-slate-300">/</span>
-        <span className="text-sm font-medium text-slate-900">{form.title}</span>
+      {/* Breadcrumb */}
+      <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3">
+        <div className="max-w-4xl mx-auto flex items-center gap-2 text-sm">
+          <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors">
+            Dashboard
+          </Link>
+          <svg className="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <span className="font-medium text-slate-900 truncate max-w-[300px]">
+            {form.title}
+          </span>
+        </div>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-6 py-10">
-        <FormPageClient form={form} hasProfile={hasProfile} />
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+        <FormPageClient
+          form={form}
+          hasProfile={!!profile}
+          preferredLanguage={profile?.preferredLanguage ?? null}
+        />
       </main>
     </div>
   );
