@@ -3,6 +3,27 @@ import { auth } from "@/lib/auth";
 import Anthropic from "@anthropic-ai/sdk";
 import { handleCorsPreFlight, withCors } from "@/lib/cors";
 
+const SUPPORTED_LANGUAGES = ["en", "es", "zh", "ko", "vi", "tl", "ar", "hi", "fr", "pt"] as const;
+
+const LANGUAGE_NAMES: Record<string, string> = {
+  es: "Spanish",
+  zh: "Chinese Simplified",
+  ko: "Korean",
+  vi: "Vietnamese",
+  tl: "Tagalog",
+  ar: "Arabic",
+  hi: "Hindi",
+  fr: "French",
+  pt: "Portuguese",
+};
+
+function buildLanguageInstruction(language?: string | null): string {
+  if (!language || language === "en") return "";
+  const name = LANGUAGE_NAMES[language];
+  if (!name) return "";
+  return `\n\nProvide the explanation, example, and commonMistakes fields in ${name}. Keep the field label, id, and type in English as they must match the original form.`;
+}
+
 const client = new Anthropic();
 
 interface WebField {
@@ -31,10 +52,19 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const fields: WebField[] = body.fields;
+  const language: string | undefined = typeof body.language === "string" ? body.language : undefined;
 
   if (!fields || fields.length === 0) {
     return withCors(
       NextResponse.json({ error: "No fields provided" }, { status: 400 }),
+      req
+    );
+  }
+
+  // Validate language if provided
+  if (language && !(SUPPORTED_LANGUAGES as readonly string[]).includes(language)) {
+    return withCors(
+      NextResponse.json({ error: `Unsupported language. Supported: ${SUPPORTED_LANGUAGES.join(", ")}` }, { status: 400 }),
       req
     );
   }
@@ -46,6 +76,8 @@ export async function POST(req: NextRequest) {
         `- Field "${f.label}" (type: ${f.type}, id: ${f.id}${f.required ? ", required" : ""}${f.placeholder ? `, placeholder: "${f.placeholder}"` : ""})`
     )
     .join("\n");
+
+  const langInstruction = buildLanguageInstruction(language);
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
@@ -76,7 +108,7 @@ Return a JSON array matching this schema:
   }
 ]
 
-Profile keys available: firstName, lastName, email, phone, dateOfBirth, address.street, address.city, address.state, address.zip, address.country, ssn, passportNumber, employerName, jobTitle, annualIncome
+Profile keys available: firstName, lastName, email, phone, dateOfBirth, address.street, address.city, address.state, address.zip, address.country, ssn, passportNumber, employerName, jobTitle, annualIncome${langInstruction}
 
 WEB FORM FIELDS:
 ${fieldDescriptions}`,

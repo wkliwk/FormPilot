@@ -8,7 +8,7 @@ chrome.action.onClicked.addListener((tab) => {
 // Listen for messages from content script and side panel
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "ANALYZE_FIELDS") {
-    analyzeFields(message.fields)
+    analyzeFields(message.fields, message.language)
       .then((result) => sendResponse({ success: true, data: result }))
       .catch((err) => sendResponse({ success: false, error: err.message }));
     return true; // async response
@@ -46,12 +46,12 @@ async function getAuthStatus() {
   }
 }
 
-async function analyzeFields(fields) {
+async function analyzeFields(fields, language) {
   const response = await fetch(`${API_BASE}/api/forms/analyze-web`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ fields }),
+    body: JSON.stringify({ fields, language: language || "en" }),
   });
 
   if (!response.ok) {
