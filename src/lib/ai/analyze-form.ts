@@ -232,7 +232,8 @@ export async function analyzeFormFields(
   const content = message.content[0];
   if (content.type !== "text") throw new Error("Unexpected response type");
   const analysis = await parseAndCacheAnalysis(content.text, language);
-  return { ...analysis, category };
+  analysis.category = category;
+  return analysis;
 }
 
 export async function analyzeFormFieldsFromImage(
