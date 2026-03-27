@@ -1,18 +1,39 @@
 import Anthropic from "@anthropic-ai/sdk";
+import { z } from "zod";
 
-const client = new Anthropic();
+// Shared Anthropic client singleton
+let _client: Anthropic | null = null;
+function getClient(): Anthropic {
+  if (!_client) {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY is not set");
+    }
+    _client = new Anthropic();
+  }
+  return _client;
+}
+
+// Sensitive profile keys that must never be sent to external APIs
+const SENSITIVE_KEYS = new Set([
+  "ssn",
+  "passportNumber",
+  "driverLicense",
+  "bankAccount",
+  "routingNumber",
+  "creditCard",
+]);
 
 export interface FormField {
   id: string;
   label: string;
   type: string;
   required: boolean;
-  explanation: string;     // Plain-language explanation of what this field means
-  example: string;         // Example answer
-  commonMistakes: string;  // What people often get wrong
-  profileKey?: string;     // Key in user profile to autofill from
-  value?: string;          // Filled value
-  confidence?: number;     // 0–1 autofill confidence
+  explanation: string;
+  example: string;
+  commonMistakes: string;
+  profileKey?: string;
+  value?: string;
+  confidence?: number;
 }
 
 export interface FormAnalysis {
@@ -22,7 +43,46 @@ export interface FormAnalysis {
   estimatedMinutes: number;
 }
 
+// Zod schemas for validating AI responses
+const formAnalysisSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  fields: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    type: z.string(),
+    required: z.boolean(),
+    explanation: z.string(),
+    example: z.string(),
+    commonMistakes: z.string(),
+    profileKey: z.string().nullable().optional(),
+  })),
+  estimatedMinutes: z.number(),
+});
+
+const autofillResponseSchema = z.array(z.object({
+  id: z.string(),
+  value: z.string(),
+  confidence: z.number().min(0).max(1),
+}));
+
+/** Strip sensitive fields from profile before sending to AI */
+export function stripSensitiveFields(profile: Record<string, string>): Record<string, string> {
+  const safe: Record<string, string> = {};
+  for (const [key, value] of Object.entries(profile)) {
+    if (!SENSITIVE_KEYS.has(key)) {
+      safe[key] = value;
+    }
+  }
+  return safe;
+}
+
+const MAX_TEXT_LENGTH = 50_000;
+
 export async function analyzeFormFields(rawText: string): Promise<FormAnalysis> {
+  const client = getClient();
+  const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
+
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
@@ -59,7 +119,7 @@ Return a JSON object matching this schema:
 }
 
 FORM CONTENT:
-${rawText}`,
+${truncatedText}`,
       },
     ],
   });
@@ -68,15 +128,25 @@ ${rawText}`,
   if (content.type !== "text") throw new Error("Unexpected response type");
 
   const jsonMatch = content.text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) throw new Error("No JSON found in response");
+  if (!jsonMatch) throw new Error("No JSON found in AI response");
 
-  return JSON.parse(jsonMatch[0]) as FormAnalysis;
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    return formAnalysisSchema.parse(parsed) as FormAnalysis;
+  } catch (e) {
+    throw new Error(`Failed to parse AI response: ${e instanceof Error ? e.message : "invalid JSON"}`);
+  }
 }
 
 export async function autofillFields(
   fields: FormField[],
   profile: Record<string, string>
 ): Promise<FormField[]> {
+  const client = getClient();
+
+  // Strip sensitive fields before sending to AI
+  const safeProfile = stripSensitiveFields(profile);
+
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 2048,
@@ -86,7 +156,7 @@ export async function autofillFields(
         content: `You are filling out a form on behalf of the user. Use their profile data to fill as many fields as possible.
 
 USER PROFILE:
-${JSON.stringify(profile, null, 2)}
+${JSON.stringify(safeProfile, null, 2)}
 
 FORM FIELDS:
 ${JSON.stringify(fields.map((f) => ({ id: f.id, label: f.label, type: f.type, profileKey: f.profileKey })), null, 2)}
@@ -104,14 +174,31 @@ Only include fields with confidence > 0.`,
   const jsonMatch = content.text.match(/\[[\s\S]*\]/);
   if (!jsonMatch) return fields;
 
-  const fills: Array<{ id: string; value: string; confidence: number }> = JSON.parse(jsonMatch[0]);
+  let fills: Array<{ id: string; value: string; confidence: number }>;
+  try {
+    const parsed = JSON.parse(jsonMatch[0]);
+    fills = autofillResponseSchema.parse(parsed);
+  } catch {
+    return fields;
+  }
+
   const fillMap = new Map(fills.map((f) => [f.id, f]));
 
-  return fields.map((field) => {
+  let result = fields.map((field) => {
     const fill = fillMap.get(field.id);
     if (fill) {
       return { ...field, value: fill.value, confidence: fill.confidence };
     }
     return field;
   });
+
+  // Direct-fill sensitive fields without AI (exact profile match only)
+  result = result.map((field) => {
+    if (field.profileKey && SENSITIVE_KEYS.has(field.profileKey) && profile[field.profileKey] && !field.value) {
+      return { ...field, value: profile[field.profileKey], confidence: 1.0 };
+    }
+    return field;
+  });
+
+  return result;
 }
