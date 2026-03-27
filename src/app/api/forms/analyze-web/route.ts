@@ -1,19 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { auth } from "@/lib/auth";
-import Anthropic from "@anthropic-ai/sdk";
+import { getClient } from "@/lib/ai/analyze-form";
+import { prisma } from "@/lib/prisma";
 
-const client = new Anthropic();
+// ---------------------------------------------------------------------------
+// Input schema
+// ---------------------------------------------------------------------------
 
-interface WebField {
-  id: string;
-  label: string;
-  type: string;
-  tagName: string;
-  placeholder: string;
-  required: boolean;
-  value: string;
-  index: number;
+const WebFieldSchema = z.object({
+  id: z.string().max(100),
+  label: z.string().max(200),
+  type: z.string().max(50),
+  tagName: z.string().max(50),
+  placeholder: z.string().max(500),
+  required: z.boolean(),
+  value: z.string().max(1000),
+  index: z.number().int().nonnegative(),
+});
+
+const RequestBodySchema = z.object({
+  fields: z
+    .array(WebFieldSchema)
+    .min(1, "At least one field is required")
+    .max(100, "A maximum of 100 fields is allowed per request"),
+});
+
+// ---------------------------------------------------------------------------
+// Sanitization
+// ---------------------------------------------------------------------------
+
+// Strip patterns commonly used in prompt injection attacks:
+// - HTML/XML tags that can confuse instruction parsing
+// - Instruction delimiter sequences (###, ---, ===, ```)
+// - Role-switching keywords (system:, assistant:, user:)
+// - Zero-width / invisible Unicode characters
+// - Common jailbreak phrases
+const PROMPT_INJECTION_PATTERN =
+  /(<\/?[a-z][^>]*>|#\{.*?\}|\[\[.*?\]\]|system:|assistant:|user:|ignore previous|ignore all|disregard|you are now|act as|jailbreak|```[\s\S]*?```|#{3,}|-{3,}|={3,}|\u200b|\u200c|\u200d|\ufeff)/gi;
+
+function sanitize(value: string): string {
+  return value.replace(PROMPT_INJECTION_PATTERN, " ").trim();
 }
+
+// ---------------------------------------------------------------------------
+// Route handler
+// ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
   const session = await auth();
@@ -21,28 +53,54 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const body = await req.json();
-  const fields: WebField[] = body.fields;
-
-  if (!fields || fields.length === 0) {
-    return NextResponse.json({ error: "No fields provided" }, { status: 400 });
+  // Parse and validate request body
+  let rawBody: unknown;
+  try {
+    rawBody = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
+  const parseResult = RequestBodySchema.safeParse(rawBody);
+  if (!parseResult.success) {
+    return NextResponse.json(
+      {
+        error: "Invalid request",
+        details: parseResult.error.flatten().fieldErrors,
+      },
+      { status: 400 }
+    );
+  }
+
+  const { fields } = parseResult.data;
+
+  // Sanitize user-controlled strings before interpolating into the Claude prompt
+  const sanitizedFields = fields.map((f) => ({
+    ...f,
+    id: sanitize(f.id),
+    label: sanitize(f.label),
+    placeholder: sanitize(f.placeholder),
+  }));
+
   // Build a text representation of the form fields for Claude
-  const fieldDescriptions = fields
+  const fieldDescriptions = sanitizedFields
     .map(
       (f) =>
         `- Field "${f.label}" (type: ${f.type}, id: ${f.id}${f.required ? ", required" : ""}${f.placeholder ? `, placeholder: "${f.placeholder}"` : ""})`
     )
     .join("\n");
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `You are a form analysis expert. Analyze these web form fields and provide explanations.
+  const client = getClient();
+
+  let message: Awaited<ReturnType<typeof client.messages.create>>;
+  try {
+    message = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: `You are a form analysis expert. Analyze these web form fields and provide explanations.
 
 For each field, provide:
 1. A plain-language explanation of what information belongs there
@@ -69,9 +127,13 @@ Profile keys available: firstName, lastName, email, phone, dateOfBirth, address.
 
 WEB FORM FIELDS:
 ${fieldDescriptions}`,
-      },
-    ],
-  });
+        },
+      ],
+    });
+  } catch (err) {
+    console.error("[analyze-web] Claude API error:", err);
+    return NextResponse.json({ error: "AI service error" }, { status: 502 });
+  }
 
   const content = message.content[0];
   if (content.type !== "text") {
@@ -83,10 +145,14 @@ ${fieldDescriptions}`,
     return NextResponse.json({ error: "Could not parse AI response" }, { status: 500 });
   }
 
-  const analyzedFields = JSON.parse(jsonMatch[0]);
+  let analyzedFields: unknown[];
+  try {
+    analyzedFields = JSON.parse(jsonMatch[0]) as unknown[];
+  } catch {
+    return NextResponse.json({ error: "Could not parse AI response" }, { status: 500 });
+  }
 
   // Try to autofill from user profile
-  const { prisma } = await import("@/lib/prisma");
   const profile = await prisma.profile.findUnique({
     where: { userId: session.user.id },
   });
@@ -96,9 +162,10 @@ ${fieldDescriptions}`,
     const flat = flattenProfile(profileData);
 
     for (const field of analyzedFields) {
-      if (field.profileKey && flat[field.profileKey]) {
-        field.value = flat[field.profileKey];
-        field.confidence = 0.9;
+      const f = field as Record<string, unknown>;
+      if (typeof f.profileKey === "string" && flat[f.profileKey]) {
+        f.value = flat[f.profileKey];
+        f.confidence = 0.9;
       }
     }
   }
