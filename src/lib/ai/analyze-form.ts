@@ -1,6 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { buildCacheKey, lookupCacheEntries, storeCacheEntries } from "./field-cache";
+import { detectCategory, CATEGORY_SYSTEM_PROMPTS } from "./form-categories";
 
 // Shared Anthropic client singleton
 let _client: Anthropic | null = null;
@@ -210,18 +211,24 @@ export async function analyzeFormFields(
   const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
   const langInstruction = buildLanguageInstruction(language);
 
+  // Detect category from raw text to use category-specific prompts
+  const category = detectCategory(truncatedText, []);
+  const categoryPrompt = CATEGORY_SYSTEM_PROMPTS[category];
+
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
     max_tokens: 4096,
     messages: [{
       role: "user",
-      content: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nFORM CONTENT:\n${truncatedText}`,
+      content: `${categoryPrompt}\n\n${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nFORM CONTENT:\n${truncatedText}`,
     }],
   });
 
   const content = message.content[0];
   if (content.type !== "text") throw new Error("Unexpected response type");
-  return parseAndCacheAnalysis(content.text, language);
+  const analysis = await parseAndCacheAnalysis(content.text, language);
+  analysis.category = category;
+  return analysis;
 }
 
 export async function analyzeFormFieldsFromImage(
