@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import Anthropic from "@anthropic-ai/sdk";
+import { getClient } from "@/lib/ai/analyze-form";
 import { handleCorsPreFlight, withCors } from "@/lib/cors";
+import { handleApiError } from "@/lib/api-error";
+import { log } from "@/lib/logger";
 
 const SUPPORTED_LANGUAGES = ["en", "es", "zh", "ko", "vi", "tl", "ar", "hi", "fr", "pt"] as const;
 
@@ -23,8 +25,6 @@ function buildLanguageInstruction(language?: string | null): string {
   if (!name) return "";
   return `\n\nProvide the explanation, example, and commonMistakes fields in ${name}. Keep the field label, id, and type in English as they must match the original form.`;
 }
-
-const client = new Anthropic();
 
 interface WebField {
   id: string;
@@ -69,6 +69,8 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const start = Date.now();
+
   // Build a text representation of the form fields for Claude
   const fieldDescriptions = fields
     .map(
@@ -79,13 +81,17 @@ export async function POST(req: NextRequest) {
 
   const langInstruction = buildLanguageInstruction(language);
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `You are a form analysis expert. Analyze these web form fields and provide explanations.
+  let analyzedFields: Array<Record<string, unknown>>;
+
+  try {
+    const client = getClient();
+    const message = await client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      messages: [
+        {
+          role: "user",
+          content: `You are a form analysis expert. Analyze these web form fields and provide explanations.
 
 For each field, provide:
 1. A plain-language explanation of what information belongs there
@@ -112,45 +118,62 @@ Profile keys available: firstName, lastName, email, phone, dateOfBirth, address.
 
 WEB FORM FIELDS:
 ${fieldDescriptions}`,
-      },
-    ],
-  });
+        },
+      ],
+    });
 
-  const content = message.content[0];
-  if (content.type !== "text") {
-    return withCors(
-      NextResponse.json({ error: "Unexpected AI response" }, { status: 500 }),
-      req
-    );
+    const content = message.content[0];
+    if (content.type !== "text") {
+      return withCors(
+        NextResponse.json({ error: "Unexpected AI response", code: "AI_PARSE_ERROR" }, { status: 500 }),
+        req
+      );
+    }
+
+    const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+    if (!jsonMatch) {
+      return withCors(
+        NextResponse.json({ error: "Could not parse AI response", code: "AI_PARSE_ERROR" }, { status: 500 }),
+        req
+      );
+    }
+
+    analyzedFields = JSON.parse(jsonMatch[0]);
+  } catch (err) {
+    const errorResponse = handleApiError(err, "POST /api/forms/analyze-web");
+    return withCors(errorResponse, req);
   }
-
-  const jsonMatch = content.text.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) {
-    return withCors(
-      NextResponse.json({ error: "Could not parse AI response" }, { status: 500 }),
-      req
-    );
-  }
-
-  const analyzedFields = JSON.parse(jsonMatch[0]);
 
   // Try to autofill from user profile
-  const { prisma } = await import("@/lib/prisma");
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id },
-  });
+  try {
+    const { prisma } = await import("@/lib/prisma");
+    const profile = await prisma.profile.findUnique({
+      where: { userId: session.user.id },
+    });
 
-  if (profile) {
-    const profileData = profile.data as Record<string, unknown>;
-    const flat = flattenProfile(profileData);
+    if (profile) {
+      const profileData = profile.data as Record<string, unknown>;
+      const flat = flattenProfile(profileData);
 
-    for (const field of analyzedFields) {
-      if (field.profileKey && flat[field.profileKey]) {
-        field.value = flat[field.profileKey];
-        field.confidence = 0.9;
+      for (const field of analyzedFields) {
+        if (field.profileKey && flat[field.profileKey as string]) {
+          field.value = flat[field.profileKey as string];
+          field.confidence = 0.9;
+        }
       }
     }
+  } catch (err) {
+    log.warn("Profile autofill failed, returning analysis without autofill", {
+      route: "POST /api/forms/analyze-web",
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
+
+  log.info("Web form analyzed", {
+    route: "POST /api/forms/analyze-web",
+    durationMs: Date.now() - start,
+    fieldCount: analyzedFields.length,
+  });
 
   return withCors(NextResponse.json({ fields: analyzedFields }), req);
 }

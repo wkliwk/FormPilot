@@ -1,6 +1,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { buildCacheKey, lookupCacheEntries, storeCacheEntries } from "./field-cache";
+import { withRetry } from "./retry";
+import { detectCategory, CATEGORY_SYSTEM_PROMPTS } from "./form-categories";
 
 // Shared Anthropic client singleton
 let _client: Anthropic | null = null;
@@ -210,18 +212,28 @@ export async function analyzeFormFields(
   const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
   const langInstruction = buildLanguageInstruction(language);
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [{
-      role: "user",
-      content: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nFORM CONTENT:\n${truncatedText}`,
-    }],
-  });
+  // Detect category from raw text before sending to Claude.
+  const category = detectCategory(truncatedText, []);
+  const categoryPrompt = CATEGORY_SYSTEM_PROMPTS[category];
+  const fullPrompt = `${categoryPrompt}\n\n${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nFORM CONTENT:\n${truncatedText}`;
+
+  const message = await withRetry(
+    () => client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      messages: [{
+        role: "user",
+        content: fullPrompt,
+      }],
+    }),
+    "analyzeFormFields"
+  );
 
   const content = message.content[0];
   if (content.type !== "text") throw new Error("Unexpected response type");
-  return parseAndCacheAnalysis(content.text, language);
+  const analysis = await parseAndCacheAnalysis(content.text, language);
+  analysis.category = category;
+  return analysis;
 }
 
 export async function analyzeFormFieldsFromImage(
@@ -233,27 +245,30 @@ export async function analyzeFormFieldsFromImage(
   const client = getClient();
   const langInstruction = buildLanguageInstruction(language);
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [{
-      role: "user",
-      content: [
-        {
-          type: "image",
-          source: {
-            type: "base64",
-            media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-            data: base64,
+  const message = await withRetry(
+    () => client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 4096,
+      messages: [{
+        role: "user",
+        content: [
+          {
+            type: "image",
+            source: {
+              type: "base64",
+              media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+              data: base64,
+            },
           },
-        },
-        {
-          type: "text",
-          text: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nLook at the form image above and extract all fillable fields you can identify.`,
-        },
-      ],
-    }],
-  });
+          {
+            type: "text",
+            text: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nLook at the form image above and extract all fillable fields you can identify.`,
+          },
+        ],
+      }],
+    }),
+    "analyzeFormFieldsFromImage"
+  );
 
   const content = message.content[0];
   if (content.type !== "text") throw new Error("Unexpected response type");
@@ -289,13 +304,14 @@ export async function autofillFields(
         )}`
       : "";
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 2048,
-    messages: [
-      {
-        role: "user",
-        content: `You are filling out a form on behalf of the user. Use their profile data to fill as many fields as possible. For fields the profile cannot fill, you may use the history suggestions provided.
+  const message = await withRetry(
+    () => client.messages.create({
+      model: "claude-sonnet-4-6",
+      max_tokens: 2048,
+      messages: [
+        {
+          role: "user",
+          content: `You are filling out a form on behalf of the user. Use their profile data to fill as many fields as possible. For fields the profile cannot fill, you may use the history suggestions provided.
 
 USER PROFILE:
 ${JSON.stringify(safeProfile, null, 2)}${historySectionText}
@@ -307,9 +323,11 @@ Return a JSON array of { id, value, confidence } for each field you can fill.
 confidence is 0.0–1.0 (1.0 = exact match from profile, 0.5 = inferred/transformed, 0.0 = cannot fill).
 For fields filled from history suggestions, use confidence 0.6.
 Only include fields with confidence > 0.`,
-      },
-    ],
-  });
+        },
+      ],
+    }),
+    "autofillFields"
+  );
 
   const content = message.content[0];
   if (content.type !== "text") throw new Error("Unexpected response type");
