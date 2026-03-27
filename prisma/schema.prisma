@@ -68,7 +68,8 @@ model Form {
   title       String
   sourceType  SourceType
   sourceUrl   String?    // For web forms
-  fileKey     String?    // S3/storage key for uploaded files
+  fileKey     String?    // S3/storage key for uploaded files (reserved for future use)
+  fileBytes   Bytes?     // Raw uploaded file bytes for PDF re-fill on export
   fields      Json       // Parsed field definitions
   filledData  Json?      // Autofilled values
   status      FormStatus @default(PENDING)
