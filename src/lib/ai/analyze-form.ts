@@ -198,42 +198,34 @@ async function parseAndCacheAnalysis(
   return analysis;
 }
 
-export async function analyzeFormFields(
-  rawText: string,
-  language?: string | null
-): Promise<FormAnalysis> {
-  const client = getClient();
-  const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
-  const langInstruction = buildLanguageInstruction(language);
-
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `${BASE_ANALYSIS_PROMPT}${langInstruction}
-
-FORM CONTENT:
-${truncatedText}`,
-      },
-    ],
-  });
-
-  const content = message.content[0];
-  if (content.type !== "text") throw new Error("Unexpected response type");
-
-  return parseAndCacheAnalysis(content.text, language);
+export interface HistorySuggestion {
+  fieldId: string;
+  value: string;
+  source: string; // Source form title
 }
 
 export async function autofillFields(
   fields: FormField[],
-  profile: Record<string, string>
+  profile: Record<string, string>,
+  historicalSuggestions?: HistorySuggestion[]
 ): Promise<FormField[]> {
   const client = getClient();
 
   // Strip sensitive fields before sending to AI
   const safeProfile = stripSensitiveFields(profile);
+
+  const historySectionText =
+    historicalSuggestions && historicalSuggestions.length > 0
+      ? `\n\nHISTORY SUGGESTIONS (from user's past forms — use these when profile cannot fill a field, but prefer profile data for identity fields):\n${JSON.stringify(
+          historicalSuggestions.map((s) => ({
+            fieldId: s.fieldId,
+            value: s.value,
+            source: s.source,
+          })),
+          null,
+          2
+        )}`
+      : "";
 
   const message = await client.messages.create({
     model: "claude-sonnet-4-6",
@@ -241,16 +233,17 @@ export async function autofillFields(
     messages: [
       {
         role: "user",
-        content: `You are filling out a form on behalf of the user. Use their profile data to fill as many fields as possible.
+        content: `You are filling out a form on behalf of the user. Use their profile data to fill as many fields as possible. For fields the profile cannot fill, you may use the history suggestions provided.
 
 USER PROFILE:
-${JSON.stringify(safeProfile, null, 2)}
+${JSON.stringify(safeProfile, null, 2)}${historySectionText}
 
 FORM FIELDS:
 ${JSON.stringify(fields.map((f) => ({ id: f.id, label: f.label, type: f.type, profileKey: f.profileKey })), null, 2)}
 
 Return a JSON array of { id, value, confidence } for each field you can fill.
 confidence is 0.0–1.0 (1.0 = exact match from profile, 0.5 = inferred/transformed, 0.0 = cannot fill).
+For fields filled from history suggestions, use confidence 0.6.
 Only include fields with confidence > 0.`,
       },
     ],

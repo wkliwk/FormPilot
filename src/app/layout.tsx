@@ -2,11 +2,16 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({
+  subsets: ["latin"],
+  display: "swap",
+  variable: "--font-inter",
+});
 
 export const metadata: Metadata = {
-  title: "FormPilot — AI Form Assistant",
-  description: "Fill any form with AI guidance. Upload a PDF, get plain-language explanations, and auto-fill from your profile.",
+  title: "FormPilot -- AI Form Assistant",
+  description:
+    "Fill any form with AI guidance. Upload a PDF, get plain-language explanations, and auto-fill from your profile.",
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
@@ -15,8 +20,9 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "FormPilot — AI Form Assistant",
-    description: "Fill any form with AI guidance. Upload a PDF, get plain-language explanations, and auto-fill from your profile.",
+    title: "FormPilot -- AI Form Assistant",
+    description:
+      "Fill any form with AI guidance. Upload a PDF, get plain-language explanations, and auto-fill from your profile.",
     type: "website",
     images: [
       {
@@ -35,8 +41,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
-      <body className={inter.className}>{children}</body>
+    <html lang="en" className={inter.variable}>
+      <body className={`${inter.className} antialiased`}>{children}</body>
     </html>
   );
 }
