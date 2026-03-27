@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { autofillFields, FormField } from "@/lib/ai/analyze-form";
+import { getSuggestionsFromHistory } from "@/lib/ai/suggestion-engine";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export async function POST(
@@ -41,7 +42,16 @@ export async function POST(
 
   const fields = form.fields as unknown as FormField[];
   const profileData = profile.data as Record<string, string>;
-  const filledFields = await autofillFields(fields, profileData);
+
+  // Fetch historical suggestions to augment autofill (non-blocking — degrade gracefully)
+  let historicalSuggestions: Awaited<ReturnType<typeof getSuggestionsFromHistory>> = [];
+  try {
+    historicalSuggestions = await getSuggestionsFromHistory(session.user.id, fields);
+  } catch (err) {
+    console.error("[autofill] Failed to fetch historical suggestions:", err);
+  }
+
+  const filledFields = await autofillFields(fields, profileData, historicalSuggestions);
 
   await prisma.form.update({
     where: { id },
