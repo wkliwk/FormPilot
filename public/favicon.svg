@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <!-- Blue background -->
+  <rect width="256" height="256" fill="#3B82F6" rx="32"/>
+
+  <!-- White "F" letter -->
+  <text
+    x="128"
+    y="180"
+    font-family="Arial, sans-serif"
+    font-size="160"
+    font-weight="bold"
+    fill="white"
+    text-anchor="middle"
+    dominant-baseline="middle"
+  >F</text>
+</svg>
