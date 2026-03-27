@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { encryptSensitiveFields, decryptSensitiveFields } from "@/lib/crypto";
+import { handleApiError } from "@/lib/api-error";
 
 const SUPPORTED_LANGUAGES = ["en", "es", "zh", "ko", "vi", "tl", "ar", "hi", "fr", "pt"] as const;
 type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
@@ -78,18 +79,22 @@ export async function POST(req: NextRequest) {
   // Encrypt sensitive fields before storage
   const encryptedData = encryptSensitiveFields(profileFields as Record<string, unknown>);
 
-  const profile = await prisma.profile.upsert({
-    where: { userId: session.user.id },
-    create: {
-      userId: session.user.id,
-      data: encryptedData as object,
-      preferredLanguage: preferredLanguage ?? null,
-    },
-    update: {
-      data: encryptedData as object,
-      preferredLanguage: preferredLanguage ?? null,
-    },
-  });
+  try {
+    const profile = await prisma.profile.upsert({
+      where: { userId: session.user.id },
+      create: {
+        userId: session.user.id,
+        data: encryptedData as object,
+        preferredLanguage: preferredLanguage ?? null,
+      },
+      update: {
+        data: encryptedData as object,
+        preferredLanguage: preferredLanguage ?? null,
+      },
+    });
 
-  return NextResponse.json({ success: true, updatedAt: profile.updatedAt });
+    return NextResponse.json({ success: true, updatedAt: profile.updatedAt });
+  } catch (err) {
+    return handleApiError(err, "POST /api/profile");
+  }
 }

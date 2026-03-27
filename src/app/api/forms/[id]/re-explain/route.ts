@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { analyzeFormFields } from "@/lib/ai/analyze-form";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-error";
+import { log } from "@/lib/logger";
 import type { FormField } from "@/lib/ai/analyze-form";
 
 const SUPPORTED_LANGUAGES = ["en", "es", "zh", "ko", "vi", "tl", "ar", "hi", "fr", "pt"] as const;
@@ -43,6 +45,8 @@ export async function POST(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
+  const start = Date.now();
+
   // Re-analyze the form text in the requested language.
   // We reconstruct a minimal text representation from the stored fields so we
   // don't need to re-parse the original file. The labels and types are preserved.
@@ -54,30 +58,41 @@ export async function POST(
 
   const formText = `Form: ${form.title}\n\n${fieldSummary}`;
 
-  const analysis = await analyzeFormFields(formText, lang);
+  try {
+    const analysis = await analyzeFormFields(formText, lang);
 
-  // Build a lookup map from the re-analyzed fields by label (normalized) so we
-  // can update just explanation/example/commonMistakes while preserving every
-  // other property (value, fieldState, confidence, profileKey, id, etc.).
-  const explanationMap = new Map(
-    analysis.fields.map((f) => [f.label.toLowerCase().trim(), f])
-  );
+    // Build a lookup map from the re-analyzed fields by label (normalized) so we
+    // can update just explanation/example/commonMistakes while preserving every
+    // other property (value, fieldState, confidence, profileKey, id, etc.).
+    const explanationMap = new Map(
+      analysis.fields.map((f) => [f.label.toLowerCase().trim(), f])
+    );
 
-  const updatedFields: FormField[] = existingFields.map((field) => {
-    const hit = explanationMap.get(field.label.toLowerCase().trim());
-    if (!hit) return field;
-    return {
-      ...field,
-      explanation: hit.explanation,
-      example: hit.example,
-      commonMistakes: hit.commonMistakes,
-    };
-  });
+    const updatedFields: FormField[] = existingFields.map((field) => {
+      const hit = explanationMap.get(field.label.toLowerCase().trim());
+      if (!hit) return field;
+      return {
+        ...field,
+        explanation: hit.explanation,
+        example: hit.example,
+        commonMistakes: hit.commonMistakes,
+      };
+    });
 
-  await prisma.form.update({
-    where: { id },
-    data: { fields: updatedFields as object },
-  });
+    await prisma.form.update({
+      where: { id },
+      data: { fields: updatedFields as object },
+    });
 
-  return NextResponse.json({ fields: updatedFields, language: lang });
+    log.info("Form re-explained", {
+      route: "POST /api/forms/[id]/re-explain",
+      durationMs: Date.now() - start,
+      language: lang,
+      fieldCount: updatedFields.length,
+    });
+
+    return NextResponse.json({ fields: updatedFields, language: lang });
+  } catch (err) {
+    return handleApiError(err, "POST /api/forms/[id]/re-explain");
+  }
 }
