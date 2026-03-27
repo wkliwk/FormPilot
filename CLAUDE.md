@@ -31,7 +31,7 @@ src/
 │   ├── auth/         # NextAuth config
 │   ├── pdf/          # PDF parsing and generation
 │   └── prisma.ts     # Prisma client singleton
-├── middleware.ts      # Auth middleware
+├── proxy.ts           # Auth proxy (Next.js 16 convention, replaces middleware.ts)
 └── types/            # Shared TypeScript types
 prisma/
 ├── schema.prisma     # Database schema
