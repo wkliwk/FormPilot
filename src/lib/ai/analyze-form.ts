@@ -34,6 +34,7 @@ export interface FormField {
   explanation: string;
   example: string;
   commonMistakes: string;
+  whereToFind?: string;
   profileKey?: string;
   value?: string;
   confidence?: number;
@@ -45,6 +46,7 @@ export interface FormAnalysis {
   description: string;
   fields: FormField[];
   estimatedMinutes: number;
+  category?: string;
 }
 
 // Zod schemas for validating AI responses
@@ -154,7 +156,7 @@ async function parseAndCacheAnalysis(
     const cacheKeys = analysis.fields.map((f) => buildCacheKey(f.label, f.type, language));
     const cached = await lookupCacheEntries(cacheKeys);
 
-    const misses: Array<{ cacheKey: string; data: { explanation: string; example: string; commonMistakes: string; profileKey: string | null } }> = [];
+    const misses: Array<{ cacheKey: string; data: { explanation: string; example: string; commonMistakes: string; whereToFind: string | null; profileKey: string | null } }> = [];
 
     analysis.fields = analysis.fields.map((field): FormField => {
       const key = buildCacheKey(field.label, field.type, language);
@@ -165,6 +167,7 @@ async function parseAndCacheAnalysis(
           explanation: hit.explanation,
           example: hit.example,
           commonMistakes: hit.commonMistakes,
+          ...(hit.whereToFind ? { whereToFind: hit.whereToFind } : {}),
           ...(hit.profileKey ? { profileKey: hit.profileKey } : {}),
         };
       }
@@ -174,6 +177,7 @@ async function parseAndCacheAnalysis(
           explanation: field.explanation,
           example: field.example,
           commonMistakes: field.commonMistakes,
+          whereToFind: field.whereToFind ?? null,
           profileKey: field.profileKey ?? null,
         },
       });
@@ -196,6 +200,64 @@ async function parseAndCacheAnalysis(
   }
 
   return analysis;
+}
+
+export async function analyzeFormFields(
+  rawText: string,
+  language?: string | null
+): Promise<FormAnalysis> {
+  const client = getClient();
+  const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
+  const langInstruction = buildLanguageInstruction(language);
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    messages: [{
+      role: "user",
+      content: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nFORM CONTENT:\n${truncatedText}`,
+    }],
+  });
+
+  const content = message.content[0];
+  if (content.type !== "text") throw new Error("Unexpected response type");
+  return parseAndCacheAnalysis(content.text, language);
+}
+
+export async function analyzeFormFieldsFromImage(
+  base64: string,
+  mimeType: string,
+  titleHint?: string,
+  language?: string | null
+): Promise<FormAnalysis> {
+  const client = getClient();
+  const langInstruction = buildLanguageInstruction(language);
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    messages: [{
+      role: "user",
+      content: [
+        {
+          type: "image",
+          source: {
+            type: "base64",
+            media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+            data: base64,
+          },
+        },
+        {
+          type: "text",
+          text: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nLook at the form image above and extract all fillable fields you can identify.`,
+        },
+      ],
+    }],
+  });
+
+  const content = message.content[0];
+  if (content.type !== "text") throw new Error("Unexpected response type");
+  return parseAndCacheAnalysis(content.text, language);
 }
 
 export interface HistorySuggestion {
@@ -284,25 +346,3 @@ Only include fields with confidence > 0.`,
   return result;
 }
 
-/**
- * Analyze form fields from an image using Claude vision API.
- *
- * Full implementation lives on feat/form-category-detection (PR #57).
- * This stub exists so TypeScript can resolve the import and integration
- * tests can mock it with jest.mock(). Once PR #57 is merged, this stub
- * is replaced by the real multi-modal Claude vision call.
- *
- * @param base64 - Base64-encoded image data (output of preprocessImage)
- * @param mimeType - Image MIME type (image/jpeg | image/png | image/webp)
- * @param titleHint - Optional filename hint for category detection
- * @throws Error - Stub always throws; real impl added by PR #57
- */
-export async function analyzeFormFieldsFromImage(
-  _base64: string,
-  _mimeType: string,
-  _titleHint?: string
-): Promise<FormAnalysis> {
-  throw new Error(
-    "analyzeFormFieldsFromImage is not yet implemented. This stub will be replaced by PR #57 (feat/form-category-detection)."
-  );
-}
