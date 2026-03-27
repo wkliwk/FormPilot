@@ -283,3 +283,26 @@ Only include fields with confidence > 0.`,
 
   return result;
 }
+
+/**
+ * Analyze form fields from an image using Claude vision API.
+ *
+ * Full implementation lives on feat/form-category-detection (PR #57).
+ * This stub exists so TypeScript can resolve the import and integration
+ * tests can mock it with jest.mock(). Once PR #57 is merged, this stub
+ * is replaced by the real multi-modal Claude vision call.
+ *
+ * @param base64 - Base64-encoded image data (output of preprocessImage)
+ * @param mimeType - Image MIME type (image/jpeg | image/png | image/webp)
+ * @param titleHint - Optional filename hint for category detection
+ * @throws Error - Stub always throws; real impl added by PR #57
+ */
+export async function analyzeFormFieldsFromImage(
+  _base64: string,
+  _mimeType: string,
+  _titleHint?: string
+): Promise<FormAnalysis> {
+  throw new Error(
+    "analyzeFormFieldsFromImage is not yet implemented. This stub will be replaced by PR #57 (feat/form-category-detection)."
+  );
+}

@@ -107,7 +107,6 @@ export const TAX_FORM_ANALYSIS: FormAnalysis = {
     },
   ],
   estimatedMinutes: 10,
-  category: "TAX",
 };
 
 export const LEASE_FORM_ANALYSIS: FormAnalysis = {
@@ -177,7 +176,6 @@ export const LEASE_FORM_ANALYSIS: FormAnalysis = {
     },
   ],
   estimatedMinutes: 15,
-  category: "LEGAL",
 };
 
 // ---------------------------------------------------------------------------
