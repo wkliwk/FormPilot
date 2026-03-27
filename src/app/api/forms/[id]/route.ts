@@ -23,10 +23,15 @@ export async function GET(
 }
 
 const updateSchema = z.object({
-  fields: z.array(z.object({
-    id: z.string(),
-    value: z.string().optional(),
-  })).optional(),
+  fields: z
+    .array(
+      z.object({
+        id: z.string(),
+        value: z.string().optional(),
+        fieldState: z.enum(["pending", "accepted", "rejected"]).optional(),
+      })
+    )
+    .optional(),
   status: z.enum(["PENDING", "ANALYZED", "FILLING", "COMPLETED"]).optional(),
 });
 
@@ -60,14 +65,17 @@ export async function PATCH(
   }
 
   if (parsed.data.fields) {
-    // Merge new values into existing fields
+    // Merge new values and fieldState into existing fields
     const existingFields = form.fields as Array<Record<string, unknown>>;
-    const updates = new Map(parsed.data.fields.map((f) => [f.id, f.value]));
+    const updates = new Map(parsed.data.fields.map((f) => [f.id, f]));
 
     const mergedFields = existingFields.map((f) => {
-      const newValue = updates.get(f.id as string);
-      if (newValue !== undefined) {
-        return { ...f, value: newValue };
+      const update = updates.get(f.id as string);
+      if (update) {
+        const merged: Record<string, unknown> = { ...f };
+        if (update.value !== undefined) merged.value = update.value;
+        if (update.fieldState !== undefined) merged.fieldState = update.fieldState;
+        return merged;
       }
       return f;
     });

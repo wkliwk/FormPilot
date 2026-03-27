@@ -23,6 +23,8 @@ const SENSITIVE_KEYS = new Set([
   "creditCard",
 ]);
 
+export type FieldState = "pending" | "accepted" | "rejected";
+
 export interface FormField {
   id: string;
   label: string;
@@ -34,6 +36,7 @@ export interface FormField {
   profileKey?: string;
   value?: string;
   confidence?: number;
+  fieldState?: FieldState;
 }
 
 export interface FormAnalysis {
@@ -187,7 +190,7 @@ Only include fields with confidence > 0.`,
   let result = fields.map((field) => {
     const fill = fillMap.get(field.id);
     if (fill) {
-      return { ...field, value: fill.value, confidence: fill.confidence };
+      return { ...field, value: fill.value, confidence: fill.confidence, fieldState: "pending" as FieldState };
     }
     return field;
   });
