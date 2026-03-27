@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { fillPDF } from "@/lib/pdf/fill";
 import type { FormField } from "@/lib/ai/analyze-form";
 
 export async function GET(
@@ -26,8 +27,26 @@ export async function GET(
     return NextResponse.json({ error: "No filled fields to export" }, { status: 400 });
   }
 
-  // If we have a stored file, try to fill it — otherwise return JSON export
-  // (File storage is a future feature; for now always return structured JSON)
+  // PDF export: use stored file bytes to produce a filled PDF
+  if (form.sourceType === "PDF" && form.fileBytes) {
+    try {
+      const originalBuffer = Buffer.from(form.fileBytes);
+      const filledBuffer = await fillPDF(originalBuffer, fields);
+      const safeTitle = form.title.replace(/[^a-z0-9]/gi, "_");
+
+      return new NextResponse(new Uint8Array(filledBuffer), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${safeTitle}_filled.pdf"`,
+        },
+      });
+    } catch (err) {
+      console.error("[export] PDF fill failed, falling back to JSON:", err);
+      // Fall through to JSON export on error
+    }
+  }
+
+  // Fallback: JSON export (DOCX, WEB, SPREADSHEET sources, or if PDF fill fails)
   const exportData = {
     title: form.title,
     exportedAt: new Date().toISOString(),

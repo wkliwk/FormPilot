@@ -65,6 +65,7 @@ export async function POST(req: NextRequest) {
       userId: session.user.id,
       title: analysis.title || file.name,
       sourceType,
+      fileBytes: buffer,
       fields: analysis.fields as object,
       status: "ANALYZED",
     },
