@@ -5,6 +5,8 @@ import { extractTextFromBuffer } from "@/lib/pdf/extract";
 import { analyzeFormFields, analyzeFormFieldsFromImage } from "@/lib/ai/analyze-form";
 import { preprocessImage } from "@/lib/image/preprocess";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { handleApiError } from "@/lib/api-error";
+import { log } from "@/lib/logger";
 import type { FormAnalysis } from "@/lib/ai/analyze-form";
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
@@ -46,54 +48,67 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const start = Date.now();
   const buffer = Buffer.from(await file.arrayBuffer());
   const isImage = IMAGE_TYPES.includes(file.type);
 
   let analysis: FormAnalysis;
   let sourceType: "PDF" | "WORD" | "IMAGE";
 
-  if (isImage) {
-    try {
+  try {
+    if (isImage) {
       const processed = await preprocessImage(buffer, file.type);
       analysis = await analyzeFormFieldsFromImage(processed.base64, processed.mimeType, file.name);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Image processing failed";
-      if (message.includes("too small")) {
-        return NextResponse.json({ error: message }, { status: 422 });
-      }
-      if (message.includes("No JSON found")) {
+      sourceType = "IMAGE";
+    } else {
+      const text = await extractTextFromBuffer(buffer, file.type);
+      if (!text || text.trim().length < 50) {
         return NextResponse.json(
-          { error: "Could not identify any form fields in this image. Make sure the form is clearly visible and well-lit." },
+          { error: "Could not extract readable text from this file. Is it a scanned image PDF?", code: "EXTRACTION_FAILED" },
           { status: 422 }
         );
       }
-      throw err;
+      analysis = await analyzeFormFields(text);
+      sourceType = file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        ? "WORD" : "PDF";
     }
-    sourceType = "IMAGE";
-  } else {
-    const text = await extractTextFromBuffer(buffer, file.type);
-    if (!text || text.trim().length < 50) {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Processing failed";
+    if (message.includes("too small")) {
+      return NextResponse.json({ error: message, code: "IMAGE_TOO_SMALL" }, { status: 422 });
+    }
+    if (message.includes("No JSON found")) {
       return NextResponse.json(
-        { error: "Could not extract readable text from this file. Is it a scanned image PDF?" },
+        { error: "Could not identify any form fields. Make sure the document is clearly readable.", code: "AI_PARSE_ERROR" },
         { status: 422 }
       );
     }
-    analysis = await analyzeFormFields(text);
-    sourceType = file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-      ? "WORD" : "PDF";
+    return handleApiError(err, "POST /api/forms/upload");
   }
 
-  const form = await prisma.form.create({
-    data: {
-      userId: session.user.id,
-      title: analysis.title || file.name,
-      sourceType,
-      fileBytes: buffer,
-      fields: analysis.fields as object,
-      status: "ANALYZED",
-      category: analysis.category,
-    },
-  });
+  try {
+    const form = await prisma.form.create({
+      data: {
+        userId: session.user.id,
+        title: analysis.title || file.name,
+        sourceType,
+        fileBytes: buffer,
+        fields: analysis.fields as object,
+        status: "ANALYZED",
+        category: analysis.category,
+      },
+    });
 
-  return NextResponse.json({ formId: form.id });
+    log.info("Form uploaded and analyzed", {
+      route: "POST /api/forms/upload",
+      durationMs: Date.now() - start,
+      userId: session.user.id,
+      sourceType,
+      fieldCount: analysis.fields.length,
+    });
+
+    return NextResponse.json({ formId: form.id });
+  } catch (err) {
+    return handleApiError(err, "POST /api/forms/upload");
+  }
 }

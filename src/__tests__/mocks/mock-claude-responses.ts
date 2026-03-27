@@ -62,7 +62,7 @@ export const TAX_FORM_ANALYSIS: FormAnalysis = {
       explanation: "Your city, state abbreviation, and ZIP code.",
       example: "Springfield, IL 62704",
       commonMistakes: "Forgetting the ZIP code or using wrong state abbreviation.",
-      profileKey: null,
+      profileKey: undefined,
     },
     {
       id: "multiple_jobs",
@@ -73,7 +73,7 @@ export const TAX_FORM_ANALYSIS: FormAnalysis = {
         "Check this if you hold more than one job or if married filing jointly and spouse also works.",
       example: "Checked",
       commonMistakes: "Not checking this when applicable, leading to under-withholding.",
-      profileKey: null,
+      profileKey: undefined,
     },
     {
       id: "dependents_total",
@@ -83,7 +83,7 @@ export const TAX_FORM_ANALYSIS: FormAnalysis = {
       explanation: "Total dollar amount for dependent credits.",
       example: "4000",
       commonMistakes: "Entering the number of dependents instead of the dollar amount.",
-      profileKey: null,
+      profileKey: undefined,
     },
     {
       id: "signature",
@@ -93,7 +93,7 @@ export const TAX_FORM_ANALYSIS: FormAnalysis = {
       explanation: "Your handwritten or electronic signature certifying the information.",
       example: "Jane M. Doe",
       commonMistakes: "Forgetting to sign the form.",
-      profileKey: null,
+      profileKey: undefined,
     },
     {
       id: "date",
@@ -103,7 +103,7 @@ export const TAX_FORM_ANALYSIS: FormAnalysis = {
       explanation: "The date you are completing this form in MM/DD/YYYY format.",
       example: "03/15/2026",
       commonMistakes: "Using the wrong date format.",
-      profileKey: null,
+      profileKey: undefined,
     },
   ],
   estimatedMinutes: 10,
@@ -122,7 +122,7 @@ export const LEASE_FORM_ANALYSIS: FormAnalysis = {
       explanation: "Full legal name of the tenant.",
       example: "Jane Doe",
       commonMistakes: "Using a nickname.",
-      profileKey: null,
+      profileKey: undefined,
     },
     {
       id: "tenant_email",
@@ -152,7 +152,7 @@ export const LEASE_FORM_ANALYSIS: FormAnalysis = {
       explanation: "Full address of the rental property.",
       example: "456 Oak Ave",
       commonMistakes: "Inconsistent address across documents.",
-      profileKey: null,
+      profileKey: undefined,
     },
     {
       id: "lease_start",
@@ -162,7 +162,7 @@ export const LEASE_FORM_ANALYSIS: FormAnalysis = {
       explanation: "The date the lease begins.",
       example: "04/01/2026",
       commonMistakes: "Confusing move-in date with lease start.",
-      profileKey: null,
+      profileKey: undefined,
     },
     {
       id: "monthly_rent",
@@ -172,7 +172,7 @@ export const LEASE_FORM_ANALYSIS: FormAnalysis = {
       explanation: "Monthly rent amount in dollars.",
       example: "1500",
       commonMistakes: "Not including utilities in the total.",
-      profileKey: null,
+      profileKey: undefined,
     },
   ],
   estimatedMinutes: 15,

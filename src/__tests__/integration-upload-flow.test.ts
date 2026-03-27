@@ -116,11 +116,12 @@ describe("upload -> parse -> analyze integration", () => {
   });
 
   it("handles Claude API failure gracefully", async () => {
-    mockCreate.mockRejectedValueOnce(new Error("API rate limit exceeded"));
+    const apiError = Object.assign(new Error("Bad request"), { status: 400 });
+    mockCreate.mockRejectedValueOnce(apiError);
 
     await expect(
       analyzeFormFields("First Name: ___\nLast Name: ___\nEmail: ___")
-    ).rejects.toThrow("API rate limit exceeded");
+    ).rejects.toThrow("Bad request");
   });
 
   it("handles Claude returning non-JSON response", async () => {
