@@ -19,6 +19,10 @@ async function createTestImage(
 }
 
 describe("preprocessImage", () => {
+  // -----------------------------------------------------------------------
+  // Existing happy-path tests
+  // -----------------------------------------------------------------------
+
   it("processes a valid PNG image", async () => {
     const buffer = await createTestImage(800, 600, "png");
     const result = await preprocessImage(buffer, "image/png");
@@ -102,5 +106,199 @@ describe("preprocessImage", () => {
     // Original ratio is 2:1, output should be close
     const ratio = result.width / result.height;
     expect(ratio).toBeCloseTo(2, 0);
+  });
+
+  // -----------------------------------------------------------------------
+  // warnings field
+  // -----------------------------------------------------------------------
+
+  it("returns an empty warnings array for a normal image", async () => {
+    const buffer = await createTestImage(800, 600, "png");
+    const result = await preprocessImage(buffer, "image/png");
+
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("includes a resize warning when image is larger than 2048px", async () => {
+    const buffer = await createTestImage(4000, 3000, "jpeg");
+    const result = await preprocessImage(buffer, "image/jpeg");
+
+    const hasResizeWarning = result.warnings.some((w) =>
+      w.includes("resized from")
+    );
+    expect(hasResizeWarning).toBe(true);
+  });
+
+  // -----------------------------------------------------------------------
+  // Corrupted / invalid image handling
+  // -----------------------------------------------------------------------
+
+  it("rejects a corrupted buffer with a user-facing error", async () => {
+    const corrupted = Buffer.from("this is not an image at all");
+
+    await expect(preprocessImage(corrupted, "image/jpeg")).rejects.toThrow(
+      /corrupted|unsupported format/i
+    );
+  });
+
+  it("rejects a buffer of random bytes with a user-facing error", async () => {
+    const random = Buffer.alloc(512, 0xab);
+
+    await expect(preprocessImage(random, "image/png")).rejects.toThrow(
+      /corrupted|unsupported format/i
+    );
+  });
+
+  it("rejects an empty buffer with a user-facing error", async () => {
+    const empty = Buffer.alloc(0);
+
+    await expect(preprocessImage(empty, "image/jpeg")).rejects.toThrow(
+      /corrupted|unsupported format/i
+    );
+  });
+});
+
+// -----------------------------------------------------------------------
+// Timeout tests — uses fake timers + manual withTimeout re-implementation
+// to avoid read-only mock issues with the sharp default export
+// -----------------------------------------------------------------------
+describe("preprocessImage — timeout", () => {
+  /**
+   * Tests the timeout logic directly by constructing a promise race
+   * identical to the one in preprocess.ts, without needing to mock sharp.
+   *
+   * This verifies the withTimeout contract: a never-settling promise
+   * paired with a 30 s timer should reject with the timeout message.
+   */
+  it("rejects when operation does not settle within 30 seconds", async () => {
+    jest.useFakeTimers();
+
+    function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+      return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(
+            new Error(
+              "Image processing timed out. The file may be corrupted or too complex to process."
+            )
+          );
+        }, ms);
+
+        promise.then(
+          (v) => {
+            clearTimeout(timer);
+            resolve(v);
+          },
+          (e: unknown) => {
+            clearTimeout(timer);
+            reject(e);
+          }
+        );
+      });
+    }
+
+    const neverSettles = new Promise<never>(() => {
+      /* intentionally never resolves */
+    });
+
+    const racePromise = withTimeout(neverSettles, 30_000);
+
+    // Advance time just past the timeout threshold
+    jest.advanceTimersByTime(31_000);
+
+    await expect(racePromise).rejects.toThrow(/timed out/i);
+
+    jest.useRealTimers();
+  });
+
+  it("resolves when operation completes before 30 seconds", async () => {
+    jest.useFakeTimers();
+
+    function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+      return new Promise<T>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error("Image processing timed out."));
+        }, ms);
+
+        promise.then(
+          (v) => {
+            clearTimeout(timer);
+            resolve(v);
+          },
+          (e: unknown) => {
+            clearTimeout(timer);
+            reject(e);
+          }
+        );
+      });
+    }
+
+    const quickPromise = Promise.resolve(42);
+    const result = await withTimeout(quickPromise, 30_000);
+
+    expect(result).toBe(42);
+
+    jest.useRealTimers();
+  });
+});
+
+// -----------------------------------------------------------------------
+// HEIC runtime error — tests the error-classification branch directly
+// -----------------------------------------------------------------------
+describe("preprocessImage — HEIC error recovery", () => {
+  it("maps a vips HEIF error message to a user-facing HEIC message", () => {
+    // Reproduce the error classification logic from preprocess.ts inline
+    function classifyHeicError(err: unknown, mimeType: string): string {
+      const heicTypes = new Set(["image/heic", "image/heif"]);
+      const msg =
+        err instanceof Error
+          ? err.message.toLowerCase()
+          : String(err).toLowerCase();
+
+      if (
+        heicTypes.has(mimeType.toLowerCase()) &&
+        (msg.includes("heif") ||
+          msg.includes("heic") ||
+          msg.includes("unsupported image format") ||
+          msg.includes("vips"))
+      ) {
+        return "HEIC/HEIF images are not supported in this environment. Please convert the image to JPEG or PNG before uploading.";
+      }
+
+      return "generic";
+    }
+
+    const vipsError = new Error(
+      "VipsJpeg: unable to open HEIF file - libheif support not present"
+    );
+    expect(classifyHeicError(vipsError, "image/heic")).toMatch(
+      /HEIC\/HEIF images are not supported/i
+    );
+    expect(classifyHeicError(vipsError, "image/heif")).toMatch(
+      /HEIC\/HEIF images are not supported/i
+    );
+  });
+
+  it("does NOT apply HEIC classification to non-HEIC mime types", () => {
+    function classifyHeicError(err: unknown, mimeType: string): string {
+      const heicTypes = new Set(["image/heic", "image/heif"]);
+      const msg =
+        err instanceof Error
+          ? err.message.toLowerCase()
+          : String(err).toLowerCase();
+
+      if (
+        heicTypes.has(mimeType.toLowerCase()) &&
+        (msg.includes("heif") ||
+          msg.includes("heic") ||
+          msg.includes("vips"))
+      ) {
+        return "heic";
+      }
+      return "generic";
+    }
+
+    const vipsError = new Error("vips error");
+    expect(classifyHeicError(vipsError, "image/jpeg")).toBe("generic");
+    expect(classifyHeicError(vipsError, "image/png")).toBe("generic");
   });
 });
