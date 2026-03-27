@@ -84,6 +84,7 @@ enum SourceType {
   WORD
   WEB
   SPREADSHEET
+  IMAGE
 }
 
 enum FormStatus {
