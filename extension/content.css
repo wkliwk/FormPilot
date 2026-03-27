@@ -1,0 +1,50 @@
+.formpilot-highlight {
+  outline: 2px solid #3b82f6 !important;
+  outline-offset: 2px;
+  transition: outline-color 0.2s;
+}
+
+.formpilot-highlight:hover {
+  outline-color: #2563eb !important;
+}
+
+.formpilot-filled {
+  outline: 2px solid #22c55e !important;
+  outline-offset: 2px;
+  background-color: #f0fdf4 !important;
+  transition: all 0.3s;
+}
+
+.formpilot-tooltip {
+  position: absolute;
+  z-index: 2147483647;
+  max-width: 320px;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+  color: #1e293b;
+}
+
+.formpilot-tooltip-header {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+  color: #0f172a;
+}
+
+.formpilot-tooltip-body {
+  margin-bottom: 8px;
+  color: #475569;
+}
+
+.formpilot-tooltip-example {
+  padding-top: 6px;
+  border-top: 1px solid #f1f5f9;
+  color: #64748b;
+  font-size: 12px;
+}
