@@ -1,0 +1,13 @@
+node_modules
+.next
+.git
+.gitignore
+.env
+.env.*
+.vercel
+.DS_Store
+*.md
+coverage
+out
+build
+npm-debug.log*
