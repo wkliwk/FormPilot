@@ -508,6 +508,20 @@ export default function FormViewer({ form, hasProfile }: Props) {
                     </p>
                   )}
                 </div>
+
+                {/* Where to find this */}
+                {field.whereToFind && (
+                  <div className="bg-slate-50 rounded-lg p-3 flex items-start gap-2">
+                    <svg className="w-4 h-4 text-slate-400 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="11" cy="11" r="8" />
+                      <path d="m21 21-4.3-4.3" />
+                    </svg>
+                    <div>
+                      <p className="text-xs font-semibold text-slate-600">Where to find this</p>
+                      <p className="text-sm text-slate-700">{field.whereToFind}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );
