@@ -7,6 +7,7 @@ export interface CachedFieldData {
   explanation: string;
   example: string;
   commonMistakes: string;
+  whereToFind: string | null;
   profileKey: string | null;
 }
 
@@ -53,6 +54,7 @@ export async function lookupCacheEntries(
       explanation: true,
       example: true,
       commonMistakes: true,
+      whereToFind: true,
       profileKey: true,
     },
   });
@@ -76,6 +78,7 @@ export async function lookupCacheEntries(
       explanation: row.explanation,
       example: row.example,
       commonMistakes: row.commonMistakes,
+      whereToFind: row.whereToFind,
       profileKey: row.profileKey,
     });
   }
@@ -104,6 +107,7 @@ export async function storeCacheEntries(
           explanation: data.explanation,
           example: data.example,
           commonMistakes: data.commonMistakes,
+          whereToFind: data.whereToFind,
           profileKey: data.profileKey,
           expiresAt,
         },
@@ -111,6 +115,7 @@ export async function storeCacheEntries(
           explanation: data.explanation,
           example: data.example,
           commonMistakes: data.commonMistakes,
+          whereToFind: data.whereToFind,
           profileKey: data.profileKey,
           expiresAt,
         },
