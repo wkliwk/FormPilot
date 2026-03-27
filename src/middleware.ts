@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
+export const runtime = "nodejs";
+
 export default auth((req) => {
   const isLoggedIn = !!req.auth;
   const isOnDashboard = req.nextUrl.pathname.startsWith("/dashboard");
