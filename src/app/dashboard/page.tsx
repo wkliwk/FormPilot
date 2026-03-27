@@ -14,19 +14,7 @@ export default async function DashboardPage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex items-center justify-between">
-        <Link href="/" className="text-xl font-bold text-slate-900">
-          Form<span className="text-blue-600">Pilot</span>
-        </Link>
-        <div className="flex items-center gap-4">
-          <Link href="/dashboard/profile" className="text-sm text-slate-600 hover:text-slate-900">
-            My Profile
-          </Link>
-          <span className="text-sm text-slate-400">{session.user.email}</span>
-        </div>
-      </nav>
-
+    <div>
       <main className="max-w-4xl mx-auto px-6 py-10 space-y-8">
         <div className="flex items-center justify-between">
           <h1 className="text-2xl font-bold text-slate-900">My Forms</h1>
@@ -86,3 +74,4 @@ export default async function DashboardPage() {
     </div>
   );
 }
+

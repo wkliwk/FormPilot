@@ -86,12 +86,12 @@ export default function ProfileForm({ initialData }: Props) {
     <form onSubmit={handleSubmit} className="space-y-6">
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Personal</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="First Name" value={form.firstName ?? ""} onChange={(v) => set("firstName", v)} required />
           <Field label="Last Name" value={form.lastName ?? ""} onChange={(v) => set("lastName", v)} required />
         </div>
         <Field label="Email" type="email" value={form.email ?? ""} onChange={(v) => set("email", v)} required />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Phone" value={form.phone ?? ""} onChange={(v) => set("phone", v)} />
           <Field label="Date of Birth" type="date" value={form.dateOfBirth ?? ""} onChange={(v) => set("dateOfBirth", v)} />
         </div>
@@ -100,11 +100,11 @@ export default function ProfileForm({ initialData }: Props) {
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Address</h2>
         <Field label="Street" value={form.address?.street ?? ""} onChange={(v) => setAddress("street", v)} />
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="City" value={form.address?.city ?? ""} onChange={(v) => setAddress("city", v)} />
           <Field label="State / Province" value={form.address?.state ?? ""} onChange={(v) => setAddress("state", v)} />
         </div>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="ZIP / Postal Code" value={form.address?.zip ?? ""} onChange={(v) => setAddress("zip", v)} />
           <Field label="Country" value={form.address?.country ?? ""} onChange={(v) => setAddress("country", v)} />
         </div>
@@ -112,7 +112,7 @@ export default function ProfileForm({ initialData }: Props) {
 
       <section className="space-y-4">
         <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Employment</h2>
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Employer Name" value={form.employerName ?? ""} onChange={(v) => set("employerName", v)} />
           <Field label="Job Title" value={form.jobTitle ?? ""} onChange={(v) => set("jobTitle", v)} />
         </div>

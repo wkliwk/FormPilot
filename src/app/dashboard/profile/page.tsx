@@ -13,8 +13,8 @@ export default async function ProfilePage() {
   });
 
   return (
-    <div className="min-h-screen bg-slate-50">
-      <nav className="bg-white border-b border-slate-200 px-6 py-4 flex items-center gap-4">
+    <div>
+      <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3 flex items-center gap-4">
         <Link href="/dashboard" className="text-sm text-slate-500 hover:text-slate-900">
           ← Dashboard
         </Link>
