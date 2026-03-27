@@ -1,9 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { buildCacheKey, lookupCacheEntries, storeCacheEntries } from "./field-cache";
-import { detectCategory, CATEGORY_SYSTEM_PROMPTS, type FormCategory } from "./form-categories";
-
-export type { FormCategory };
 
 // Shared Anthropic client singleton
 let _client: Anthropic | null = null;
@@ -48,7 +45,6 @@ export interface FormAnalysis {
   description: string;
   fields: FormField[];
   estimatedMinutes: number;
-  category: FormCategory;
 }
 
 // Zod schemas for validating AI responses
@@ -87,7 +83,28 @@ export function stripSensitiveFields(profile: Record<string, string>): Record<st
 
 const MAX_TEXT_LENGTH = 50_000;
 
-const FIELD_ANALYSIS_INSTRUCTIONS = `Analyze the form and extract all fillable fields.
+/** Map of ISO 639-1 codes to language names used in the prompt. */
+const LANGUAGE_NAMES: Record<string, string> = {
+  es: "Spanish",
+  zh: "Chinese Simplified",
+  ko: "Korean",
+  vi: "Vietnamese",
+  tl: "Tagalog",
+  ar: "Arabic",
+  hi: "Hindi",
+  fr: "French",
+  pt: "Portuguese",
+};
+
+/** Returns the language instruction suffix when language is non-English, or empty string. */
+function buildLanguageInstruction(language?: string | null): string {
+  if (!language || language === "en") return "";
+  const name = LANGUAGE_NAMES[language];
+  if (!name) return "";
+  return `\n\nProvide the explanation, example, and commonMistakes fields in ${name}. Keep the field label, id, and type in English as they must match the original form.`;
+}
+
+const BASE_ANALYSIS_PROMPT = `You are a form analysis expert. Analyze the following form and extract all fillable fields.
 
 For each field, provide:
 1. A plain-language explanation of what information belongs there
@@ -116,29 +133,31 @@ Return a JSON object matching this schema:
   "estimatedMinutes": 5
 }`;
 
-/** Parse Claude response text, validate with Zod, overlay field cache, and attach category */
-async function parseAndCacheAnalysis(responseText: string, category: FormCategory): Promise<FormAnalysis> {
+/** Parse and validate the AI JSON response, then overlay/store cache entries. */
+async function parseAndCacheAnalysis(
+  responseText: string,
+  language?: string | null
+): Promise<FormAnalysis> {
   const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("No JSON found in AI response");
 
   let analysis: FormAnalysis;
   try {
     const parsed = JSON.parse(jsonMatch[0]);
-    const validated = formAnalysisSchema.parse(parsed);
-    analysis = { ...validated, category } as FormAnalysis;
+    analysis = formAnalysisSchema.parse(parsed) as FormAnalysis;
   } catch (e) {
     throw new Error(`Failed to parse AI response: ${e instanceof Error ? e.message : "invalid JSON"}`);
   }
 
-  // Overlay cached explanations and store new ones
+  // Overlay cached explanations and store new ones (language-aware cache keys)
   try {
-    const cacheKeys = analysis.fields.map((f) => buildCacheKey(f.label, f.type));
+    const cacheKeys = analysis.fields.map((f) => buildCacheKey(f.label, f.type, language));
     const cached = await lookupCacheEntries(cacheKeys);
 
     const misses: Array<{ cacheKey: string; data: { explanation: string; example: string; commonMistakes: string; profileKey: string | null } }> = [];
 
     analysis.fields = analysis.fields.map((field): FormField => {
-      const key = buildCacheKey(field.label, field.type);
+      const key = buildCacheKey(field.label, field.type, language);
       const hit = cached.get(key);
       if (hit) {
         return {
@@ -164,7 +183,8 @@ async function parseAndCacheAnalysis(responseText: string, category: FormCategor
     const hitRate = cacheKeys.length > 0
       ? ((cacheKeys.length - misses.length) / cacheKeys.length * 100).toFixed(0)
       : "0";
-    console.log(`[field-cache] ${cacheKeys.length} fields, ${cacheKeys.length - misses.length} hits (${hitRate}%)`);
+    const langTag = language && language !== "en" ? ` [${language}]` : "";
+    console.log(`[field-cache${langTag}] ${cacheKeys.length} fields, ${cacheKeys.length - misses.length} hits (${hitRate}%)`);
 
     if (misses.length > 0) {
       storeCacheEntries(misses).catch((err) => {
