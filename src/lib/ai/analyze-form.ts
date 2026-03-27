@@ -83,17 +83,28 @@ export function stripSensitiveFields(profile: Record<string, string>): Record<st
 
 const MAX_TEXT_LENGTH = 50_000;
 
-export async function analyzeFormFields(rawText: string): Promise<FormAnalysis> {
-  const client = getClient();
-  const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
+/** Map of ISO 639-1 codes to language names used in the prompt. */
+const LANGUAGE_NAMES: Record<string, string> = {
+  es: "Spanish",
+  zh: "Chinese Simplified",
+  ko: "Korean",
+  vi: "Vietnamese",
+  tl: "Tagalog",
+  ar: "Arabic",
+  hi: "Hindi",
+  fr: "French",
+  pt: "Portuguese",
+};
 
-  const message = await client.messages.create({
-    model: "claude-sonnet-4-6",
-    max_tokens: 4096,
-    messages: [
-      {
-        role: "user",
-        content: `You are a form analysis expert. Analyze the following form and extract all fillable fields.
+/** Returns the language instruction suffix when language is non-English, or empty string. */
+function buildLanguageInstruction(language?: string | null): string {
+  if (!language || language === "en") return "";
+  const name = LANGUAGE_NAMES[language];
+  if (!name) return "";
+  return `\n\nProvide the explanation, example, and commonMistakes fields in ${name}. Keep the field label, id, and type in English as they must match the original form.`;
+}
+
+const BASE_ANALYSIS_PROMPT = `You are a form analysis expert. Analyze the following form and extract all fillable fields.
 
 For each field, provide:
 1. A plain-language explanation of what information belongs there
@@ -116,22 +127,18 @@ Return a JSON object matching this schema:
       "explanation": "Plain language explanation",
       "example": "Example answer",
       "commonMistakes": "What people often get wrong",
-      "profileKey": "firstName" // or null if not auto-fillable
+      "profileKey": "firstName"
     }
   ],
   "estimatedMinutes": 5
-}
+}`;
 
-FORM CONTENT:
-${truncatedText}`,
-      },
-    ],
-  });
-
-  const content = message.content[0];
-  if (content.type !== "text") throw new Error("Unexpected response type");
-
-  const jsonMatch = content.text.match(/\{[\s\S]*\}/);
+/** Parse and validate the AI JSON response, then overlay/store cache entries. */
+async function parseAndCacheAnalysis(
+  responseText: string,
+  language?: string | null
+): Promise<FormAnalysis> {
+  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("No JSON found in AI response");
 
   let analysis: FormAnalysis;
@@ -142,15 +149,15 @@ ${truncatedText}`,
     throw new Error(`Failed to parse AI response: ${e instanceof Error ? e.message : "invalid JSON"}`);
   }
 
-  // Overlay cached explanations and store new ones
+  // Overlay cached explanations and store new ones (language-aware cache keys)
   try {
-    const cacheKeys = analysis.fields.map((f) => buildCacheKey(f.label, f.type));
+    const cacheKeys = analysis.fields.map((f) => buildCacheKey(f.label, f.type, language));
     const cached = await lookupCacheEntries(cacheKeys);
 
     const misses: Array<{ cacheKey: string; data: { explanation: string; example: string; commonMistakes: string; profileKey: string | null } }> = [];
 
     analysis.fields = analysis.fields.map((field): FormField => {
-      const key = buildCacheKey(field.label, field.type);
+      const key = buildCacheKey(field.label, field.type, language);
       const hit = cached.get(key);
       if (hit) {
         return {
@@ -176,9 +183,9 @@ ${truncatedText}`,
     const hitRate = cacheKeys.length > 0
       ? ((cacheKeys.length - misses.length) / cacheKeys.length * 100).toFixed(0)
       : "0";
-    console.log(`[field-cache] ${cacheKeys.length} fields, ${cacheKeys.length - misses.length} hits (${hitRate}%)`);
+    const langTag = language && language !== "en" ? ` [${language}]` : "";
+    console.log(`[field-cache${langTag}] ${cacheKeys.length} fields, ${cacheKeys.length - misses.length} hits (${hitRate}%)`);
 
-    // Store misses in background
     if (misses.length > 0) {
       storeCacheEntries(misses).catch((err) => {
         console.error("[field-cache] Failed to store cache entries:", err);
@@ -189,6 +196,34 @@ ${truncatedText}`,
   }
 
   return analysis;
+}
+
+export async function analyzeFormFields(
+  rawText: string,
+  language?: string | null
+): Promise<FormAnalysis> {
+  const client = getClient();
+  const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
+  const langInstruction = buildLanguageInstruction(language);
+
+  const message = await client.messages.create({
+    model: "claude-sonnet-4-6",
+    max_tokens: 4096,
+    messages: [
+      {
+        role: "user",
+        content: `${BASE_ANALYSIS_PROMPT}${langInstruction}
+
+FORM CONTENT:
+${truncatedText}`,
+      },
+    ],
+  });
+
+  const content = message.content[0];
+  if (content.type !== "text") throw new Error("Unexpected response type");
+
+  return parseAndCacheAnalysis(content.text, language);
 }
 
 export async function autofillFields(

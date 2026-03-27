@@ -4,6 +4,9 @@ import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { encryptSensitiveFields, decryptSensitiveFields } from "@/lib/crypto";
 
+const SUPPORTED_LANGUAGES = ["en", "es", "zh", "ko", "vi", "tl", "ar", "hi", "fr", "pt"] as const;
+type SupportedLanguage = typeof SUPPORTED_LANGUAGES[number];
+
 const profileSchema = z.object({
   firstName: z.string().min(1).max(100),
   lastName: z.string().min(1).max(100),
@@ -27,7 +30,12 @@ const profileSchema = z.object({
   passportNumber: z.string().max(30).optional(),
   driverLicense: z.string().max(30).optional(),
   taxId: z.string().max(30).optional(),
+  // Language preference — stored outside encrypted data blob
+  preferredLanguage: z.enum(SUPPORTED_LANGUAGES).nullable().optional(),
 });
+
+// Re-export for use in other modules
+export type { SupportedLanguage };
 
 export async function GET() {
   const session = await auth();
@@ -40,12 +48,12 @@ export async function GET() {
   });
 
   if (!profile) {
-    return NextResponse.json({ data: null });
+    return NextResponse.json({ data: null, preferredLanguage: null });
   }
 
   // Decrypt sensitive fields before sending to client
   const decryptedData = decryptSensitiveFields(profile.data as Record<string, unknown>);
-  return NextResponse.json({ data: decryptedData });
+  return NextResponse.json({ data: decryptedData, preferredLanguage: profile.preferredLanguage ?? null });
 }
 
 export async function POST(req: NextRequest) {
@@ -64,17 +72,22 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Separate preferredLanguage from the profile data blob before encryption
+  const { preferredLanguage, ...profileFields } = parsed.data;
+
   // Encrypt sensitive fields before storage
-  const encryptedData = encryptSensitiveFields(parsed.data as Record<string, unknown>);
+  const encryptedData = encryptSensitiveFields(profileFields as Record<string, unknown>);
 
   const profile = await prisma.profile.upsert({
     where: { userId: session.user.id },
     create: {
       userId: session.user.id,
       data: encryptedData as object,
+      preferredLanguage: preferredLanguage ?? null,
     },
     update: {
       data: encryptedData as object,
+      preferredLanguage: preferredLanguage ?? null,
     },
   });
 
