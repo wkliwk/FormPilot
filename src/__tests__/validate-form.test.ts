@@ -248,4 +248,167 @@ describe("validateForm", () => {
     expect(result.errors).toHaveLength(1);
     expect(result.errors[0].rule).toBe("invalid_format");
   });
+
+  // --- Currency/amount format ---
+
+  it("validates currency — plain number valid", () => {
+    const fields = [makeField({ id: "f1", label: "Annual Income", profileKey: "annualincome" })];
+    const result = validateForm(fields, { f1: "50000" }, {});
+
+    expect(result.errors.filter((e) => e.rule === "invalid_format")).toHaveLength(0);
+  });
+
+  it("validates currency — with dollar sign and commas valid", () => {
+    const fields = [makeField({ id: "f1", label: "Monthly Rent" })];
+    const result = validateForm(fields, { f1: "$1,500.00" }, {});
+
+    expect(result.errors.filter((e) => e.rule === "invalid_format")).toHaveLength(0);
+  });
+
+  it("validates currency — with decimals valid", () => {
+    const fields = [makeField({ id: "f1", label: "Payment Amount" })];
+    const result = validateForm(fields, { f1: "1234.56" }, {});
+
+    expect(result.errors.filter((e) => e.rule === "invalid_format")).toHaveLength(0);
+  });
+
+  it("validates currency — invalid text", () => {
+    const fields = [makeField({ id: "f1", label: "Fee Amount" })];
+    const result = validateForm(fields, { f1: "not a number" }, {});
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].rule).toBe("invalid_format");
+    expect(result.errors[0].message).toContain("amount");
+  });
+
+  it("validates currency detected by label — salary", () => {
+    const fields = [makeField({ id: "f1", label: "Salary" })];
+    const result = validateForm(fields, { f1: "abc" }, {});
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].rule).toBe("invalid_format");
+  });
+
+  // --- EIN format ---
+
+  it("validates EIN — valid with dash", () => {
+    const fields = [makeField({ id: "f1", label: "Employer Identification Number (EIN)" })];
+    const result = validateForm(fields, { f1: "12-3456789" }, {});
+
+    expect(result.errors.filter((e) => e.rule === "invalid_format")).toHaveLength(0);
+  });
+
+  it("validates EIN — valid without dash", () => {
+    const fields = [makeField({ id: "f1", label: "EIN" })];
+    const result = validateForm(fields, { f1: "123456789" }, {});
+
+    expect(result.errors.filter((e) => e.rule === "invalid_format")).toHaveLength(0);
+  });
+
+  it("validates EIN — invalid", () => {
+    const fields = [makeField({ id: "f1", label: "EIN" })];
+    const result = validateForm(fields, { f1: "12-34" }, {});
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].rule).toBe("invalid_format");
+    expect(result.errors[0].message).toContain("EIN");
+  });
+
+  // --- ITIN format ---
+
+  it("validates ITIN — valid", () => {
+    const fields = [makeField({ id: "f1", label: "Individual Taxpayer Identification Number" })];
+    const result = validateForm(fields, { f1: "912-34-5678" }, {});
+
+    expect(result.errors.filter((e) => e.rule === "invalid_format")).toHaveLength(0);
+  });
+
+  it("validates ITIN — invalid (not starting with 9)", () => {
+    const fields = [makeField({ id: "f1", label: "ITIN" })];
+    const result = validateForm(fields, { f1: "123-45-6789" }, {});
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].rule).toBe("invalid_format");
+    expect(result.errors[0].message).toContain("ITIN");
+  });
+
+  // --- Field length constraints ---
+
+  it("rejects name field exceeding 100 characters", () => {
+    const fields = [makeField({ id: "f1", label: "Full Name" })];
+    const result = validateForm(fields, { f1: "A".repeat(101) }, {});
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toContain("maximum length");
+  });
+
+  it("accepts name field at 100 characters", () => {
+    const fields = [makeField({ id: "f1", label: "Full Name" })];
+    const result = validateForm(fields, { f1: "A".repeat(100) }, {});
+
+    expect(result.errors.filter((e) => e.message.includes("maximum length"))).toHaveLength(0);
+  });
+
+  it("rejects text field exceeding 500 characters", () => {
+    const fields = [makeField({ id: "f1", label: "Notes", type: "text" })];
+    const result = validateForm(fields, { f1: "A".repeat(501) }, {});
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toContain("500");
+  });
+
+  it("rejects number field exceeding 20 characters", () => {
+    const fields = [makeField({ id: "f1", label: "Amount", type: "number" })];
+    const result = validateForm(fields, { f1: "1".repeat(21) }, {});
+
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0].message).toContain("20");
+  });
+
+  // --- Date range validation ---
+
+  it("errors when end date is before start date", () => {
+    const fields = [
+      makeField({ id: "f1", label: "Start Date", type: "date" }),
+      makeField({ id: "f2", label: "End Date", type: "date" }),
+    ];
+    const result = validateForm(fields, { f1: "2026-03-15", f2: "2026-03-10" }, {});
+
+    const rangeErrors = result.errors.filter((e) => e.message.includes("must be after"));
+    expect(rangeErrors).toHaveLength(1);
+    expect(rangeErrors[0].fieldId).toBe("f2");
+  });
+
+  it("passes when end date is after start date", () => {
+    const fields = [
+      makeField({ id: "f1", label: "Start Date", type: "date" }),
+      makeField({ id: "f2", label: "End Date", type: "date" }),
+    ];
+    const result = validateForm(fields, { f1: "2026-03-10", f2: "2026-03-15" }, {});
+
+    const rangeErrors = result.errors.filter((e) => e.message.includes("must be after"));
+    expect(rangeErrors).toHaveLength(0);
+  });
+
+  it("validates date range with US format dates", () => {
+    const fields = [
+      makeField({ id: "f1", label: "Begin Date", type: "date" }),
+      makeField({ id: "f2", label: "Expiration Date", type: "date" }),
+    ];
+    const result = validateForm(fields, { f1: "12/01/2026", f2: "06/01/2026" }, {});
+
+    const rangeErrors = result.errors.filter((e) => e.message.includes("must be after"));
+    expect(rangeErrors).toHaveLength(1);
+  });
+
+  it("skips date range check when only one date is provided", () => {
+    const fields = [
+      makeField({ id: "f1", label: "Start Date", type: "date" }),
+      makeField({ id: "f2", label: "End Date", type: "date" }),
+    ];
+    const result = validateForm(fields, { f1: "2026-03-15" }, {});
+
+    const rangeErrors = result.errors.filter((e) => e.message.includes("must be after"));
+    expect(rangeErrors).toHaveLength(0);
+  });
 });
