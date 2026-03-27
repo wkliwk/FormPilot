@@ -34,6 +34,7 @@ export interface FormField {
   explanation: string;
   example: string;
   commonMistakes: string;
+  whereToFind?: string;
   profileKey?: string;
   value?: string;
   confidence?: number;
@@ -59,6 +60,7 @@ const formAnalysisSchema = z.object({
     explanation: z.string(),
     example: z.string(),
     commonMistakes: z.string(),
+    whereToFind: z.string().nullable().optional(),
     profileKey: z.string().nullable().optional(),
   })),
   estimatedMinutes: z.number(),
@@ -100,6 +102,7 @@ For each field, provide:
 2. A realistic example answer
 3. Common mistakes people make
 4. The profile data key that could auto-fill it (if applicable)
+5. Where to find this information — which document, website, notification, or physical item. Use suggestive language ("typically found on...", "usually located...") rather than authoritative claims. Be specific and practical.
 
 Profile keys available: firstName, lastName, email, phone, dateOfBirth, address.street, address.city, address.state, address.zip, address.country, ssn (last 4 only), passportNumber, employerName, jobTitle, annualIncome
 
@@ -116,6 +119,7 @@ Return a JSON object matching this schema:
       "explanation": "Plain language explanation",
       "example": "Example answer",
       "commonMistakes": "What people often get wrong",
+      "whereToFind": "Typically found on your Social Security card or a previous W-2.",
       "profileKey": "firstName" // or null if not auto-fillable
     }
   ],
@@ -147,7 +151,7 @@ ${truncatedText}`,
     const cacheKeys = analysis.fields.map((f) => buildCacheKey(f.label, f.type));
     const cached = await lookupCacheEntries(cacheKeys);
 
-    const misses: Array<{ cacheKey: string; data: { explanation: string; example: string; commonMistakes: string; profileKey: string | null } }> = [];
+    const misses: Array<{ cacheKey: string; data: { explanation: string; example: string; commonMistakes: string; whereToFind: string | null; profileKey: string | null } }> = [];
 
     analysis.fields = analysis.fields.map((field): FormField => {
       const key = buildCacheKey(field.label, field.type);
@@ -158,6 +162,7 @@ ${truncatedText}`,
           explanation: hit.explanation,
           example: hit.example,
           commonMistakes: hit.commonMistakes,
+          ...(hit.whereToFind ? { whereToFind: hit.whereToFind } : {}),
           ...(hit.profileKey ? { profileKey: hit.profileKey } : {}),
         };
       }
@@ -167,6 +172,7 @@ ${truncatedText}`,
           explanation: field.explanation,
           example: field.example,
           commonMistakes: field.commonMistakes,
+          whereToFind: field.whereToFind ?? null,
           profileKey: field.profileKey ?? null,
         },
       });
