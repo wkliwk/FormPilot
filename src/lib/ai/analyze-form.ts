@@ -4,7 +4,7 @@ import { buildCacheKey, lookupCacheEntries, storeCacheEntries } from "./field-ca
 
 // Shared Anthropic client singleton
 let _client: Anthropic | null = null;
-function getClient(): Anthropic {
+export function getClient(): Anthropic {
   if (!_client) {
     if (!process.env.ANTHROPIC_API_KEY) {
       throw new Error("ANTHROPIC_API_KEY is not set");
@@ -149,11 +149,17 @@ ${truncatedText}`,
 
     const misses: Array<{ cacheKey: string; data: { explanation: string; example: string; commonMistakes: string; profileKey: string | null } }> = [];
 
-    analysis.fields = analysis.fields.map((field) => {
+    analysis.fields = analysis.fields.map((field): FormField => {
       const key = buildCacheKey(field.label, field.type);
       const hit = cached.get(key);
       if (hit) {
-        return { ...field, ...hit };
+        return {
+          ...field,
+          explanation: hit.explanation,
+          example: hit.example,
+          commonMistakes: hit.commonMistakes,
+          ...(hit.profileKey ? { profileKey: hit.profileKey } : {}),
+        };
       }
       misses.push({
         cacheKey: key,
