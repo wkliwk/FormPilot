@@ -152,6 +152,54 @@ clearBtn.addEventListener("click", () => {
   analysisResult = [];
 });
 
+// Settings panel
+const settingsToggle = document.getElementById("settingsToggle");
+const settingsPanel = document.getElementById("settingsPanel");
+const apiUrlInput = document.getElementById("apiUrlInput");
+const apiUrlSave = document.getElementById("apiUrlSave");
+const apiUrlReset = document.getElementById("apiUrlReset");
+const apiUrlStatus = document.getElementById("apiUrlStatus");
+const loginLink = document.getElementById("loginLink");
+
+settingsToggle.addEventListener("click", () => {
+  const visible = settingsPanel.style.display !== "none";
+  settingsPanel.style.display = visible ? "none" : "block";
+  if (!visible) {
+    chrome.runtime.sendMessage({ type: "GET_API_BASE" }, (res) => {
+      apiUrlInput.value = res?.url || "";
+      updateLoginLink(res?.url || "");
+    });
+  }
+});
+
+apiUrlSave.addEventListener("click", () => {
+  const url = apiUrlInput.value.trim().replace(/\/$/, "");
+  if (!url) return;
+  chrome.runtime.sendMessage({ type: "SET_API_BASE", url }, (res) => {
+    apiUrlStatus.textContent = res?.success ? "Saved. Reload to apply." : "Failed to save.";
+    updateLoginLink(url);
+    setTimeout(() => { apiUrlStatus.textContent = ""; }, 3000);
+  });
+});
+
+apiUrlReset.addEventListener("click", () => {
+  chrome.storage.sync.remove("apiBase", () => {
+    apiUrlInput.value = "";
+    apiUrlStatus.textContent = "Reset to default. Reload to apply.";
+    updateLoginLink("https://formpilot-brown.vercel.app");
+    setTimeout(() => { apiUrlStatus.textContent = ""; }, 3000);
+  });
+});
+
+function updateLoginLink(baseUrl) {
+  if (loginLink) loginLink.href = `${baseUrl}/login`;
+}
+
+// Load current API URL for login link on startup
+chrome.runtime.sendMessage({ type: "GET_API_BASE" }, (res) => {
+  if (res?.url) updateLoginLink(res.url);
+});
+
 function renderFields(fields) {
   fieldList.innerHTML = "";
 
