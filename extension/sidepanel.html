@@ -259,7 +259,20 @@
 
   <div id="loginPrompt" class="login-prompt" style="display:none">
     <p>Sign in to FormPilot to use the extension.</p>
-    <p style="margin-top:12px"><a href="https://formpilot-brown.vercel.app/login" target="_blank">Sign In</a></p>
+    <p style="margin-top:12px"><a id="loginLink" href="https://formpilot-brown.vercel.app/login" target="_blank">Sign In</a></p>
+  </div>
+
+  <div style="padding:8px 16px;border-top:1px solid #e2e8f0;">
+    <button id="settingsToggle" style="background:none;border:none;color:#94a3b8;font-size:11px;cursor:pointer;padding:4px 0;">⚙ Settings</button>
+    <div id="settingsPanel" style="display:none;margin-top:8px;">
+      <label style="font-size:11px;color:#64748b;">API URL (dev override)</label>
+      <div style="display:flex;gap:4px;margin-top:4px;">
+        <input id="apiUrlInput" type="text" placeholder="https://formpilot-brown.vercel.app" style="flex:1;font-size:11px;border:1px solid #e2e8f0;border-radius:4px;padding:4px 8px;">
+        <button id="apiUrlSave" style="font-size:11px;padding:4px 8px;background:#3b82f6;color:white;border:none;border-radius:4px;cursor:pointer;">Save</button>
+        <button id="apiUrlReset" style="font-size:11px;padding:4px 8px;background:#f1f5f9;color:#475569;border:none;border-radius:4px;cursor:pointer;">Reset</button>
+      </div>
+      <div id="apiUrlStatus" style="font-size:10px;color:#94a3b8;margin-top:4px;"></div>
+    </div>
   </div>
 
   <script src="sidepanel.js"></script>

@@ -1,4 +1,13 @@
-const API_BASE = "https://formpilot-brown.vercel.app";
+const DEFAULT_API_BASE = "https://formpilot-brown.vercel.app";
+
+async function getApiBase() {
+  try {
+    const result = await chrome.storage.sync.get("apiBase");
+    return result.apiBase || DEFAULT_API_BASE;
+  } catch {
+    return DEFAULT_API_BASE;
+  }
+}
 
 // Open side panel when extension icon is clicked
 chrome.action.onClicked.addListener((tab) => {
@@ -26,6 +35,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "SET_API_BASE") {
+    chrome.storage.sync.set({ apiBase: message.url })
+      .then(() => sendResponse({ success: true }))
+      .catch((err) => sendResponse({ success: false, error: err.message }));
+    return true;
+  }
+
+  if (message.type === "GET_API_BASE") {
+    getApiBase()
+      .then((url) => sendResponse({ url }))
+      .catch(() => sendResponse({ url: DEFAULT_API_BASE }));
+    return true;
+  }
+
   if (message.type === "GET_AUTH_STATUS") {
     getAuthStatus()
       .then((status) => sendResponse(status))
@@ -36,7 +59,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 async function getAuthStatus() {
   try {
-    const response = await fetch(`${API_BASE}/api/auth/session`, {
+    const apiBase = await getApiBase();
+    const response = await fetch(`${apiBase}/api/auth/session`, {
       credentials: "include",
     });
     const session = await response.json();
@@ -47,7 +71,8 @@ async function getAuthStatus() {
 }
 
 async function analyzeFields(fields, language) {
-  const response = await fetch(`${API_BASE}/api/forms/analyze-web`, {
+  const apiBase = await getApiBase();
+  const response = await fetch(`${apiBase}/api/forms/analyze-web`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
