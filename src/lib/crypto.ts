@@ -7,9 +7,9 @@ const SALT_LENGTH = 32;
 const KEY_LENGTH = 32;
 
 function getEncryptionSecret(): string {
-  const secret = process.env.PROFILE_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET;
+  const secret = process.env.PROFILE_ENCRYPTION_KEY;
   if (!secret) {
-    throw new Error("No encryption key available. Set PROFILE_ENCRYPTION_KEY or NEXTAUTH_SECRET.");
+    throw new Error("PROFILE_ENCRYPTION_KEY is required. Set it in your environment variables.");
   }
   return secret;
 }
