@@ -31,11 +31,30 @@ interface Props {
   form: FormRecord;
   hasProfile: boolean;
   preferredLanguage?: string | null;
+  hasFile?: boolean;
+  sourceType?: string;
 }
 
-export default function FormPageClient({ form, hasProfile, preferredLanguage }: Props) {
+export default function FormPageClient({ form, hasProfile, preferredLanguage, hasFile, sourceType }: Props) {
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [formData, setFormData] = useState(form);
+  const [sideBySide, setSideBySide] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("fp-side-by-side") === "true";
+    }
+    return false;
+  });
+
+  const canShowDocument = hasFile && (sourceType === "PDF" || sourceType === "IMAGE");
+  const documentUrl = canShowDocument ? `/api/forms/${form.id}/file` : null;
+
+  function toggleSideBySide() {
+    setSideBySide((prev) => {
+      const next = !prev;
+      localStorage.setItem("fp-side-by-side", String(next));
+      return next;
+    });
+  }
   const [activeLanguage, setActiveLanguage] = useState<LanguageCode>(
     (preferredLanguage as LanguageCode | undefined) ?? "en"
   );
@@ -146,7 +165,25 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage }: 
           </div>
         </div>
 
-        <button
+        <div className="flex items-center gap-2">
+          {canShowDocument && (
+            <button
+              onClick={toggleSideBySide}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+                sideBySide
+                  ? "bg-blue-50 text-blue-700 border border-blue-200"
+                  : "bg-slate-100 text-slate-600 hover:text-slate-900"
+              }`}
+              title={sideBySide ? "Hide document" : "Show document side-by-side"}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <line x1="12" y1="3" x2="12" y2="21" />
+              </svg>
+              {sideBySide ? "Hide Doc" : "Side-by-Side"}
+            </button>
+          )}
+          <button
           onClick={() => setMode("guided")}
           className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors active:scale-[0.98]"
         >
@@ -157,6 +194,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage }: 
           </svg>
           Start Guided Fill
         </button>
+        </div>
       </div>
 
       {reExplainError && (
@@ -180,7 +218,46 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage }: 
         </div>
       )}
 
-      <FormViewer form={formData} hasProfile={hasProfile} />
+      {sideBySide && documentUrl ? (
+        <div className="flex flex-col lg:flex-row gap-4">
+          {/* Document panel */}
+          <div className="lg:w-1/2 lg:sticky lg:top-20 lg:self-start">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden">
+              <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
+                <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                <span className="text-xs font-medium text-slate-600">Original Document</span>
+              </div>
+              {sourceType === "PDF" ? (
+                <iframe
+                  src={documentUrl}
+                  className="w-full border-0"
+                  style={{ height: "calc(100vh - 180px)", minHeight: "500px" }}
+                  title="Original document"
+                />
+              ) : (
+                <div className="p-4 overflow-auto" style={{ maxHeight: "calc(100vh - 180px)" }}>
+                  <img
+                    src={documentUrl}
+                    alt="Original document"
+                    className="w-full h-auto rounded"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+          {/* Fields panel */}
+          <div className="lg:w-1/2">
+            <FormViewer form={formData} hasProfile={hasProfile} />
+          </div>
+        </div>
+      ) : (
+        <div className="max-w-4xl">
+          <FormViewer form={formData} hasProfile={hasProfile} />
+        </div>
+      )}
     </div>
   );
 }

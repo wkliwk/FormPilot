@@ -37,11 +37,13 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
         </div>
       </nav>
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+      <main className="mx-auto px-4 sm:px-6 py-8 sm:py-10" style={{ maxWidth: "90rem" }}>
         <FormPageClient
           form={form}
           hasProfile={!!profile}
           preferredLanguage={profile?.preferredLanguage ?? null}
+          hasFile={!!form.fileBytes}
+          sourceType={form.sourceType}
         />
       </main>
     </div>
