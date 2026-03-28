@@ -26,9 +26,9 @@ jest.mock("pdf-parse", () => {
 
 const mockCreate = jest.fn();
 
-jest.mock("@anthropic-ai/sdk", () => {
+jest.mock("groq-sdk", () => {
   return jest.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
+    chat: { completions: { create: mockCreate } },
   }));
 });
 
@@ -38,7 +38,7 @@ jest.mock("@/lib/ai/field-cache", () => ({
   storeCacheEntries: jest.fn(async () => {}),
 }));
 
-process.env.ANTHROPIC_API_KEY = "test-key-not-real";
+process.env.GROQ_API_KEY = "test-key-not-real";
 
 import { extractTextFromPDF, extractTextFromBuffer } from "@/lib/pdf/extract";
 import { analyzeFormFields } from "@/lib/ai/analyze-form";
@@ -108,7 +108,7 @@ describe("upload -> parse -> analyze integration", () => {
     expect(mockCreate).toHaveBeenCalledTimes(1);
     const call = mockCreate.mock.calls[0][0];
 
-    expect(call.model).toBe("claude-sonnet-4-6");
+    expect(call.model).toBe("llama-3.3-70b-versatile");
     expect(call.messages).toHaveLength(1);
     expect(call.messages[0].role).toBe("user");
     expect(call.messages[0].content).toContain("fillable fields");

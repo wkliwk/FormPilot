@@ -1,20 +1,22 @@
-import Anthropic from "@anthropic-ai/sdk";
+import Groq from "groq-sdk";
 import { z } from "zod";
 import { buildCacheKey, lookupCacheEntries, storeCacheEntries } from "./field-cache";
 import { withRetry } from "./retry";
 import { detectCategory, CATEGORY_SYSTEM_PROMPTS } from "./form-categories";
 
-// Shared Anthropic client singleton
-let _client: Anthropic | null = null;
-export function getClient(): Anthropic {
+// Shared Groq client singleton
+let _client: Groq | null = null;
+export function getClient(): Groq {
   if (!_client) {
-    if (!process.env.ANTHROPIC_API_KEY) {
-      throw new Error("ANTHROPIC_API_KEY is not set");
+    if (!process.env.GROQ_API_KEY) {
+      throw new Error("GROQ_API_KEY is not set");
     }
-    _client = new Anthropic();
+    _client = new Groq({ apiKey: process.env.GROQ_API_KEY });
   }
   return _client;
 }
+
+const MODEL = "llama-3.3-70b-versatile";
 
 // Sensitive profile keys that must never be sent to external APIs
 const SENSITIVE_KEYS = new Set([
@@ -118,7 +120,7 @@ For each field, provide:
 
 Profile keys available: firstName, lastName, email, phone, dateOfBirth, address.street, address.city, address.state, address.zip, address.country, ssn (last 4 only), passportNumber, employerName, jobTitle, annualIncome
 
-Return a JSON object matching this schema:
+Return ONLY a valid JSON object (no markdown fences, no extra text) matching this schema:
 {
   "title": "Form title",
   "description": "What this form is for in 1-2 sentences",
@@ -142,7 +144,12 @@ async function parseAndCacheAnalysis(
   responseText: string,
   language?: string | null
 ): Promise<FormAnalysis> {
-  const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+  // Strip markdown code fences if present
+  let cleaned = responseText;
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) cleaned = fenceMatch[1];
+
+  const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
   if (!jsonMatch) throw new Error("No JSON found in AI response");
 
   let analysis: FormAnalysis;
@@ -212,26 +219,24 @@ export async function analyzeFormFields(
   const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
   const langInstruction = buildLanguageInstruction(language);
 
-  // Detect category from raw text before sending to Claude.
+  // Detect category from raw text before sending to AI.
   const category = detectCategory(truncatedText, []);
   const categoryPrompt = CATEGORY_SYSTEM_PROMPTS[category];
   const fullPrompt = `${categoryPrompt}\n\n${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nFORM CONTENT:\n${truncatedText}`;
 
-  const message = await withRetry(
-    () => client.messages.create({
-      model: "claude-sonnet-4-6",
+  const completion = await withRetry(
+    () => client.chat.completions.create({
+      model: MODEL,
       max_tokens: 4096,
-      messages: [{
-        role: "user",
-        content: fullPrompt,
-      }],
+      messages: [{ role: "user", content: fullPrompt }],
+      temperature: 0.1,
     }),
     "analyzeFormFields"
   );
 
-  const content = message.content[0];
-  if (content.type !== "text") throw new Error("Unexpected response type");
-  const analysis = await parseAndCacheAnalysis(content.text, language);
+  const text = completion.choices[0]?.message?.content;
+  if (!text) throw new Error("Empty response from AI");
+  const analysis = await parseAndCacheAnalysis(text, language);
   analysis.category = category;
   return analysis;
 }
@@ -242,37 +247,37 @@ export async function analyzeFormFieldsFromImage(
   titleHint?: string,
   language?: string | null
 ): Promise<FormAnalysis> {
+  // Groq supports vision with llama-3.2-90b-vision-preview
   const client = getClient();
   const langInstruction = buildLanguageInstruction(language);
 
-  const message = await withRetry(
-    () => client.messages.create({
-      model: "claude-sonnet-4-6",
+  const completion = await withRetry(
+    () => client.chat.completions.create({
+      model: "llama-3.2-90b-vision-preview",
       max_tokens: 4096,
       messages: [{
         role: "user",
         content: [
           {
-            type: "image",
-            source: {
-              type: "base64",
-              media_type: mimeType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
-              data: base64,
+            type: "image_url",
+            image_url: {
+              url: `data:${mimeType};base64,${base64}`,
             },
           },
           {
             type: "text",
-            text: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nLook at the form image above and extract all fillable fields you can identify.`,
+            text: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nLook at the form image above and extract all fillable fields you can identify.${titleHint ? ` The form title may be: ${titleHint}` : ""}`,
           },
         ],
       }],
+      temperature: 0.1,
     }),
     "analyzeFormFieldsFromImage"
   );
 
-  const content = message.content[0];
-  if (content.type !== "text") throw new Error("Unexpected response type");
-  return parseAndCacheAnalysis(content.text, language);
+  const text = completion.choices[0]?.message?.content;
+  if (!text) throw new Error("Empty response from AI");
+  return parseAndCacheAnalysis(text, language);
 }
 
 export interface HistorySuggestion {
@@ -304,14 +309,7 @@ export async function autofillFields(
         )}`
       : "";
 
-  const message = await withRetry(
-    () => client.messages.create({
-      model: "claude-sonnet-4-6",
-      max_tokens: 2048,
-      messages: [
-        {
-          role: "user",
-          content: `You are filling out a form on behalf of the user. Use their profile data to fill as many fields as possible. For fields the profile cannot fill, you may use the history suggestions provided.
+  const prompt = `You are filling out a form on behalf of the user. Use their profile data to fill as many fields as possible. For fields the profile cannot fill, you may use the history suggestions provided.
 
 USER PROFILE:
 ${JSON.stringify(safeProfile, null, 2)}${historySectionText}
@@ -319,20 +317,30 @@ ${JSON.stringify(safeProfile, null, 2)}${historySectionText}
 FORM FIELDS:
 ${JSON.stringify(fields.map((f) => ({ id: f.id, label: f.label, type: f.type, profileKey: f.profileKey })), null, 2)}
 
-Return a JSON array of { id, value, confidence } for each field you can fill.
+Return ONLY a valid JSON array (no markdown fences, no extra text) of { id, value, confidence } for each field you can fill.
 confidence is 0.0–1.0 (1.0 = exact match from profile, 0.5 = inferred/transformed, 0.0 = cannot fill).
 For fields filled from history suggestions, use confidence 0.6.
-Only include fields with confidence > 0.`,
-        },
-      ],
+Only include fields with confidence > 0.`;
+
+  const completion = await withRetry(
+    () => client.chat.completions.create({
+      model: MODEL,
+      max_tokens: 2048,
+      messages: [{ role: "user", content: prompt }],
+      temperature: 0.1,
     }),
     "autofillFields"
   );
 
-  const content = message.content[0];
-  if (content.type !== "text") throw new Error("Unexpected response type");
+  const responseText = completion.choices[0]?.message?.content;
+  if (!responseText) return fields;
 
-  const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+  // Strip markdown fences if present
+  let cleaned = responseText;
+  const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+  if (fenceMatch) cleaned = fenceMatch[1];
+
+  const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
   if (!jsonMatch) return fields;
 
   let fills: Array<{ id: string; value: string; confidence: number }>;
@@ -345,7 +353,7 @@ Only include fields with confidence > 0.`,
 
   const fillMap = new Map(fills.map((f) => [f.id, f]));
 
-  let result = fields.map((field) => {
+  let updatedFields = fields.map((field) => {
     const fill = fillMap.get(field.id);
     if (fill) {
       return { ...field, value: fill.value, confidence: fill.confidence, fieldState: "pending" as FieldState };
@@ -354,13 +362,12 @@ Only include fields with confidence > 0.`,
   });
 
   // Direct-fill sensitive fields without AI (exact profile match only)
-  result = result.map((field) => {
+  updatedFields = updatedFields.map((field) => {
     if (field.profileKey && SENSITIVE_KEYS.has(field.profileKey) && profile[field.profileKey] && !field.value) {
       return { ...field, value: profile[field.profileKey], confidence: 1.0 };
     }
     return field;
   });
 
-  return result;
+  return updatedFields;
 }
-

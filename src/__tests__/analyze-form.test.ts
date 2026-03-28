@@ -18,14 +18,14 @@ import { COMPLETE_PROFILE, MINIMAL_PROFILE, EMPTY_PROFILE } from "./mocks";
 import { TAX_FORM_W4_TEXT, OVERSIZED_TEXT, IMMIGRATION_FORM_TEXT } from "./mocks";
 
 // ---------------------------------------------------------------------------
-// Mock the Anthropic client
+// Mock the Groq client
 // ---------------------------------------------------------------------------
 
 const mockCreate = jest.fn();
 
-jest.mock("@anthropic-ai/sdk", () => {
+jest.mock("groq-sdk", () => {
   return jest.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
+    chat: { completions: { create: mockCreate } },
   }));
 });
 
@@ -37,7 +37,7 @@ jest.mock("@/lib/ai/field-cache", () => ({
 }));
 
 // Set env var so getClient() doesn't throw
-process.env.ANTHROPIC_API_KEY = "test-key-not-real";
+process.env.GROQ_API_KEY = "test-key-not-real";
 
 // Import after mocks are set up
 import {
@@ -130,11 +130,11 @@ describe("analyzeFormFields", () => {
     );
   });
 
-  it("throws when Claude returns a non-text content block", async () => {
+  it("throws when AI returns empty content", async () => {
     mockCreate.mockResolvedValueOnce(makeClaudeImageResponse());
 
     await expect(analyzeFormFields(TAX_FORM_W4_TEXT)).rejects.toThrow(
-      "Unexpected response type"
+      "Empty response from AI"
     );
   });
 
@@ -152,14 +152,14 @@ describe("analyzeFormFields", () => {
     );
   });
 
-  it("sends the correct model and max_tokens to Claude", async () => {
+  it("sends the correct model and max_tokens to Groq", async () => {
     mockCreate.mockResolvedValueOnce(makeClaudeResponse(TAX_FORM_ANALYSIS));
 
     await analyzeFormFields(TAX_FORM_W4_TEXT);
 
     expect(mockCreate).toHaveBeenCalledWith(
       expect.objectContaining({
-        model: "claude-sonnet-4-6",
+        model: "llama-3.3-70b-versatile",
         max_tokens: 4096,
       })
     );

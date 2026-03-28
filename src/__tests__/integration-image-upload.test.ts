@@ -84,9 +84,9 @@ jest.mock("@/lib/ai/analyze-form", () => {
 
 const mockCreate = jest.fn();
 
-jest.mock("@anthropic-ai/sdk", () => {
+jest.mock("groq-sdk", () => {
   return jest.fn().mockImplementation(() => ({
-    messages: { create: mockCreate },
+    chat: { completions: { create: mockCreate } },
   }));
 });
 
@@ -104,7 +104,7 @@ jest.mock("@/lib/ai/field-cache", () => ({
 // Set env before imports
 // ---------------------------------------------------------------------------
 
-process.env.ANTHROPIC_API_KEY = "test-key-not-real";
+process.env.GROQ_API_KEY = "test-key-not-real";
 
 // ---------------------------------------------------------------------------
 // Imports (after mocks are registered)
@@ -486,7 +486,7 @@ describe("existing PDF flow — no regression", () => {
     await analyzeFormFields("Form W-4\nFirst Name: ___\nLast Name: ___\nSSN: ___\nAddress: ___");
 
     const call = mockCreate.mock.calls[0][0];
-    expect(call.model).toBe("claude-sonnet-4-6");
+    expect(call.model).toBe("llama-3.3-70b-versatile");
     expect(call.messages[0].role).toBe("user");
     // Text path sends a plain string, not a multi-modal content array
     expect(typeof call.messages[0].content).toBe("string");

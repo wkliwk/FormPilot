@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sample Employment Application — FormPilot Test</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f8fafc; color: #1e293b; padding: 40px 20px; }
+    .container { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 24px; margin-bottom: 4px; }
+    .subtitle { color: #64748b; font-size: 14px; margin-bottom: 32px; }
+    .section { background: white; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+    .section-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid #f1f5f9; }
+    .field-group { margin-bottom: 16px; }
+    .field-row { display: flex; gap: 16px; }
+    .field-row .field-group { flex: 1; }
+    label { display: block; font-size: 13px; font-weight: 500; color: #374151; margin-bottom: 4px; }
+    label .required { color: #dc2626; }
+    input[type="text"], input[type="email"], input[type="tel"], input[type="date"], input[type="number"], textarea, select {
+      width: 100%; padding: 8px 12px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 14px; color: #1e293b; background: white;
+    }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+    textarea { resize: vertical; min-height: 80px; }
+    .radio-group { display: flex; gap: 16px; margin-top: 4px; }
+    .radio-group label { display: flex; align-items: center; gap: 6px; font-weight: 400; cursor: pointer; }
+    .checkbox-group label { display: flex; align-items: center; gap: 6px; font-weight: 400; cursor: pointer; margin-bottom: 8px; }
+    .help { font-size: 12px; color: #94a3b8; margin-top: 4px; }
+    .submit-row { text-align: right; padding-top: 8px; }
+    .btn { padding: 10px 24px; background: #3b82f6; color: white; border: none; border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer; }
+    .btn:hover { background: #2563eb; }
+    .notice { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; font-size: 13px; color: #1e40af; margin-bottom: 20px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Employment Application Form</h1>
+    <p class="subtitle">Acme Corporation — Equal Opportunity Employer</p>
+
+    <div class="notice">
+      This is a sample form for testing FormPilot's Chrome extension. Open the extension side panel and click "Scan Form Fields" to analyze these fields.
+    </div>
+
+    <form>
+      <!-- Personal Information -->
+      <div class="section">
+        <div class="section-title">Personal Information</div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="firstName">First Name <span class="required">*</span></label>
+            <input type="text" id="firstName" name="firstName" placeholder="John" required>
+          </div>
+          <div class="field-group">
+            <label for="middleName">Middle Name</label>
+            <input type="text" id="middleName" name="middleName">
+          </div>
+          <div class="field-group">
+            <label for="lastName">Last Name <span class="required">*</span></label>
+            <input type="text" id="lastName" name="lastName" placeholder="Doe" required>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="email">Email Address <span class="required">*</span></label>
+            <input type="email" id="email" name="email" placeholder="john.doe@email.com" required>
+          </div>
+          <div class="field-group">
+            <label for="phone">Phone Number <span class="required">*</span></label>
+            <input type="tel" id="phone" name="phone" placeholder="(555) 123-4567" required>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="address">Street Address <span class="required">*</span></label>
+          <input type="text" id="address" name="address" placeholder="123 Main Street, Apt 4B">
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="city">City</label>
+            <input type="text" id="city" name="city" placeholder="New York">
+          </div>
+          <div class="field-group">
+            <label for="state">State</label>
+            <select id="state" name="state">
+              <option value="">Select...</option>
+              <option value="CA">California</option>
+              <option value="NY">New York</option>
+              <option value="TX">Texas</option>
+              <option value="FL">Florida</option>
+              <option value="IL">Illinois</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div class="field-group">
+            <label for="zip">ZIP Code</label>
+            <input type="text" id="zip" name="zip" placeholder="10001">
+            <div class="help">5-digit or ZIP+4 format</div>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="dob">Date of Birth</label>
+            <input type="date" id="dob" name="dob">
+          </div>
+          <div class="field-group">
+            <label for="ssn">Social Security Number</label>
+            <input type="text" id="ssn" name="ssn" placeholder="XXX-XX-XXXX">
+            <div class="help">Format: 000-00-0000. Required for background check.</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Employment Details -->
+      <div class="section">
+        <div class="section-title">Position Details</div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="position">Position Applied For <span class="required">*</span></label>
+            <input type="text" id="position" name="position" placeholder="Software Engineer">
+          </div>
+          <div class="field-group">
+            <label for="salary">Desired Salary</label>
+            <input type="number" id="salary" name="salary" placeholder="85000">
+            <div class="help">Annual salary in USD</div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="startDate">Available Start Date</label>
+          <input type="date" id="startDate" name="startDate">
+        </div>
+
+        <div class="field-group">
+          <label>Employment Type Preferred</label>
+          <div class="radio-group">
+            <label><input type="radio" name="employmentType" value="full-time"> Full-time</label>
+            <label><input type="radio" name="employmentType" value="part-time"> Part-time</label>
+            <label><input type="radio" name="employmentType" value="contract"> Contract</label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Are you authorized to work in the United States?</label>
+          <div class="radio-group">
+            <label><input type="radio" name="workAuth" value="yes"> Yes</label>
+            <label><input type="radio" name="workAuth" value="no"> No</label>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label>Will you require sponsorship now or in the future?</label>
+          <div class="radio-group">
+            <label><input type="radio" name="sponsorship" value="yes"> Yes</label>
+            <label><input type="radio" name="sponsorship" value="no"> No</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Education -->
+      <div class="section">
+        <div class="section-title">Education</div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="school">School / University</label>
+            <input type="text" id="school" name="school" placeholder="MIT">
+          </div>
+          <div class="field-group">
+            <label for="degree">Degree</label>
+            <select id="degree" name="degree">
+              <option value="">Select...</option>
+              <option value="high-school">High School Diploma</option>
+              <option value="associate">Associate's</option>
+              <option value="bachelor">Bachelor's</option>
+              <option value="master">Master's</option>
+              <option value="phd">Ph.D.</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="major">Major / Field of Study</label>
+            <input type="text" id="major" name="major" placeholder="Computer Science">
+          </div>
+          <div class="field-group">
+            <label for="gradYear">Graduation Year</label>
+            <input type="number" id="gradYear" name="gradYear" placeholder="2024" min="1950" max="2030">
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="gpa">GPA (optional)</label>
+          <input type="text" id="gpa" name="gpa" placeholder="3.8">
+        </div>
+      </div>
+
+      <!-- Work Experience -->
+      <div class="section">
+        <div class="section-title">Previous Employment</div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="prevEmployer">Most Recent Employer</label>
+            <input type="text" id="prevEmployer" name="prevEmployer" placeholder="Google">
+          </div>
+          <div class="field-group">
+            <label for="prevTitle">Job Title</label>
+            <input type="text" id="prevTitle" name="prevTitle" placeholder="Senior Engineer">
+          </div>
+        </div>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="prevStart">Start Date</label>
+            <input type="date" id="prevStart" name="prevStart">
+          </div>
+          <div class="field-group">
+            <label for="prevEnd">End Date</label>
+            <input type="date" id="prevEnd" name="prevEnd">
+            <div class="help">Leave blank if current position</div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="prevDuties">Key Responsibilities</label>
+          <textarea id="prevDuties" name="prevDuties" placeholder="Describe your main responsibilities and achievements..."></textarea>
+        </div>
+
+        <div class="field-group">
+          <label for="reasonLeaving">Reason for Leaving</label>
+          <input type="text" id="reasonLeaving" name="reasonLeaving" placeholder="Career growth opportunity">
+        </div>
+
+        <div class="field-group">
+          <label for="prevSupervisor">Supervisor Name</label>
+          <input type="text" id="prevSupervisor" name="prevSupervisor">
+        </div>
+
+        <div class="field-group">
+          <label>May we contact this employer?</label>
+          <div class="radio-group">
+            <label><input type="radio" name="contactEmployer" value="yes"> Yes</label>
+            <label><input type="radio" name="contactEmployer" value="no"> No</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- Additional -->
+      <div class="section">
+        <div class="section-title">Additional Information</div>
+
+        <div class="field-group">
+          <label for="skills">Special Skills or Qualifications</label>
+          <textarea id="skills" name="skills" placeholder="Languages, certifications, technical skills..."></textarea>
+        </div>
+
+        <div class="field-group">
+          <label for="references">Professional References</label>
+          <textarea id="references" name="references" placeholder="Name, Title, Company, Phone — list 2-3 references"></textarea>
+        </div>
+
+        <div class="field-group">
+          <label>Have you been convicted of a felony in the past 7 years?</label>
+          <div class="radio-group">
+            <label><input type="radio" name="felony" value="yes"> Yes</label>
+            <label><input type="radio" name="felony" value="no"> No</label>
+          </div>
+          <div class="help">A conviction will not necessarily disqualify you from employment.</div>
+        </div>
+
+        <div class="field-group">
+          <label>How did you hear about this position?</label>
+          <select id="referralSource" name="referralSource">
+            <option value="">Select...</option>
+            <option value="website">Company Website</option>
+            <option value="linkedin">LinkedIn</option>
+            <option value="indeed">Indeed</option>
+            <option value="referral">Employee Referral</option>
+            <option value="career-fair">Career Fair</option>
+            <option value="other">Other</option>
+          </select>
+        </div>
+
+        <div class="field-group">
+          <label for="referralName">If referred, by whom?</label>
+          <input type="text" id="referralName" name="referralName" placeholder="Employee name">
+        </div>
+      </div>
+
+      <!-- Signature -->
+      <div class="section">
+        <div class="section-title">Certification</div>
+        <p style="font-size:13px;color:#475569;margin-bottom:16px;">
+          I certify that all information provided in this application is true and complete. I understand that any false information or omission may disqualify me from further consideration for employment and may result in my dismissal if discovered at a later date.
+        </p>
+
+        <div class="field-row">
+          <div class="field-group">
+            <label for="signature">Electronic Signature (Full Legal Name) <span class="required">*</span></label>
+            <input type="text" id="signature" name="signature" placeholder="John Michael Doe">
+          </div>
+          <div class="field-group">
+            <label for="signDate">Date <span class="required">*</span></label>
+            <input type="date" id="signDate" name="signDate">
+          </div>
+        </div>
+      </div>
+
+      <div class="submit-row">
+        <button type="submit" class="btn">Submit Application</button>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

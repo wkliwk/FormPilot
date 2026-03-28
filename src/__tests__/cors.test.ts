@@ -29,13 +29,13 @@ describe("buildCorsHeaders", () => {
     expect(headers).toBeNull();
   });
 
-  it("allows localhost:3000 in non-production environment", () => {
+  it("allows localhost:3300 in non-production environment", () => {
     const originalEnv = process.env.NODE_ENV;
     Object.defineProperty(process.env, "NODE_ENV", {
       value: "development",
       writable: true,
     });
-    const headers = buildCorsHeaders("http://localhost:3000");
+    const headers = buildCorsHeaders("http://localhost:3300");
     expect(headers).not.toBeNull();
     Object.defineProperty(process.env, "NODE_ENV", {
       value: originalEnv,
