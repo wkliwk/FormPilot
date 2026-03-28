@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { getClient } from "@/lib/ai/analyze-form";
 import { handleCorsPreFlight, withCors } from "@/lib/cors";
 import { handleApiError } from "@/lib/api-error";
+import { z } from "zod";
 
 export const maxDuration = 60;
 import { log } from "@/lib/logger";
@@ -28,16 +29,23 @@ function buildLanguageInstruction(language?: string | null): string {
   return `\n\nProvide the explanation, example, and commonMistakes fields in ${name}. Keep the field label, id, and type in English as they must match the original form.`;
 }
 
-interface WebField {
-  id: string;
-  label: string;
-  type: string;
-  tagName: string;
-  placeholder: string;
-  required: boolean;
-  value: string;
-  index: number;
-}
+const webFieldSchema = z.object({
+  id: z.string().max(200),
+  label: z.string().max(200),
+  type: z.string().max(50),
+  tagName: z.string().max(50),
+  placeholder: z.string().max(500),
+  required: z.boolean(),
+  value: z.string().max(1000),
+  index: z.number().int().min(0),
+});
+
+const analyzeWebBodySchema = z.object({
+  fields: z.array(webFieldSchema).min(1).max(100),
+  language: z.string().max(10).optional(),
+});
+
+type WebField = z.infer<typeof webFieldSchema>;
 
 export async function OPTIONS(req: NextRequest) {
   return handleCorsPreFlight(req);
@@ -53,15 +61,19 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const fields: WebField[] = body.fields;
-  const language: string | undefined = typeof body.language === "string" ? body.language : undefined;
+  const parsed = analyzeWebBodySchema.safeParse(body);
 
-  if (!fields || fields.length === 0) {
+  if (!parsed.success) {
     return withCors(
-      NextResponse.json({ error: "No fields provided" }, { status: 400 }),
+      NextResponse.json(
+        { error: "Invalid request body", details: parsed.error.flatten().fieldErrors },
+        { status: 400 }
+      ),
       req
     );
   }
+
+  const { fields, language } = parsed.data;
 
   // Validate language if provided
   if (language && !(SUPPORTED_LANGUAGES as readonly string[]).includes(language)) {
