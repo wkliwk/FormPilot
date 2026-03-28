@@ -20,6 +20,29 @@ const DOC_TYPES = [
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"];
 const ALLOWED_TYPES = [...DOC_TYPES, ...IMAGE_TYPES];
 
+/** Validate file content matches claimed MIME type via magic bytes */
+function validateMagicBytes(buffer: Buffer, claimedType: string): boolean {
+  if (buffer.length < 8) return false;
+  switch (claimedType) {
+    case "application/pdf":
+      return buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46; // %PDF
+    case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+      return buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04; // PK (ZIP)
+    case "image/png":
+      return buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4e && buffer[3] === 0x47; // .PNG
+    case "image/jpeg":
+      return buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff;
+    case "image/webp":
+      return buffer[0] === 0x52 && buffer[1] === 0x49 && buffer[2] === 0x46 && buffer[3] === 0x46 // RIFF
+        && buffer[8] === 0x57 && buffer[9] === 0x45 && buffer[10] === 0x42 && buffer[11] === 0x50; // WEBP
+    case "image/heic":
+    case "image/heif":
+      return buffer[4] === 0x66 && buffer[5] === 0x74 && buffer[6] === 0x79 && buffer[7] === 0x70; // ftyp
+    default:
+      return false;
+  }
+}
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
@@ -52,6 +75,14 @@ export async function POST(req: NextRequest) {
 
   const start = Date.now();
   const buffer = Buffer.from(await file.arrayBuffer());
+
+  if (!validateMagicBytes(buffer, file.type)) {
+    return NextResponse.json(
+      { error: "File content does not match its type. Please upload a valid file.", code: "INVALID_FILE" },
+      { status: 400 }
+    );
+  }
+
   const isImage = IMAGE_TYPES.includes(file.type);
 
   let analysis: FormAnalysis;
