@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { handleApiError } from "@/lib/api-error";
 
 // DELETE /api/templates/[id] — delete a template
 export async function DELETE(
@@ -13,13 +14,18 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const template = await prisma.formTemplate.findUnique({ where: { id } });
 
-  if (!template || template.userId !== session.user.id) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  try {
+    const template = await prisma.formTemplate.findUnique({ where: { id } });
+
+    if (!template || template.userId !== session.user.id) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    await prisma.formTemplate.delete({ where: { id } });
+
+    return NextResponse.json({ deleted: true });
+  } catch (err) {
+    return handleApiError(err, "DELETE /api/templates/[id]");
   }
-
-  await prisma.formTemplate.delete({ where: { id } });
-
-  return NextResponse.json({ deleted: true });
 }
