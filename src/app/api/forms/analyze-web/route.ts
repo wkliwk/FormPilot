@@ -99,9 +99,10 @@ export async function POST(req: NextRequest) {
 
   try {
     const client = getClient();
-    const message = await client.messages.create({
-      model: "claude-sonnet-4-6",
+    const completion = await client.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
       max_tokens: 4096,
+      temperature: 0.1,
       messages: [
         {
           role: "user",
@@ -112,7 +113,7 @@ For each field, provide:
 2. A realistic example answer
 3. Common mistakes people make
 
-Return a JSON array matching this schema:
+Return ONLY a valid JSON array (no markdown fences, no extra text) matching this schema:
 [
   {
     "id": "field_id",
@@ -136,15 +137,20 @@ ${fieldDescriptions}`,
       ],
     });
 
-    const content = message.content[0];
-    if (content.type !== "text") {
+    const responseText = completion.choices[0]?.message?.content;
+    if (!responseText) {
       return withCors(
-        NextResponse.json({ error: "Unexpected AI response", code: "AI_PARSE_ERROR" }, { status: 500 }),
+        NextResponse.json({ error: "Empty AI response", code: "AI_PARSE_ERROR" }, { status: 500 }),
         req
       );
     }
 
-    const jsonMatch = content.text.match(/\[[\s\S]*\]/);
+    // Strip markdown fences if present
+    let cleaned = responseText;
+    const fenceMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)```/);
+    if (fenceMatch) cleaned = fenceMatch[1];
+
+    const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
     if (!jsonMatch) {
       return withCors(
         NextResponse.json({ error: "Could not parse AI response", code: "AI_PARSE_ERROR" }, { status: 500 }),

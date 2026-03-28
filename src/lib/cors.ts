@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
  * Allowed origins for CORS.
  *
  * - In production: the deployed Vercel URL (from NEXT_PUBLIC_APP_URL).
- * - In development: localhost:3000.
+ * - In development: localhost:3300.
  * - Always: any chrome-extension:// origin, so the packed/unpacked
  *   extension can reach the API regardless of its generated ID.
  */
@@ -16,7 +16,7 @@ function getAllowedOrigins(): string[] {
   }
 
   if (process.env.NODE_ENV !== "production") {
-    origins.push("http://localhost:3000");
+    origins.push("http://localhost:3300");
   }
 
   return origins;

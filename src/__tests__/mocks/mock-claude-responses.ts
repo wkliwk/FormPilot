@@ -199,57 +199,53 @@ export const LEASE_AUTOFILL_RESPONSE = [
 // Raw Claude message response wrappers
 // ---------------------------------------------------------------------------
 
-/** Wrap a JSON object in the Claude message format. */
-export function makeClaudeResponse(jsonData: unknown): {
-  content: Array<{ type: "text"; text: string }>;
-} {
+/** Wrap a JSON object in the Groq chat completion format. */
+export function makeClaudeResponse(jsonData: unknown) {
   return {
-    content: [
+    choices: [
       {
-        type: "text" as const,
-        text: `Here is the analysis:\n\n\`\`\`json\n${JSON.stringify(jsonData, null, 2)}\n\`\`\``,
+        message: {
+          content: `\`\`\`json\n${JSON.stringify(jsonData, null, 2)}\n\`\`\``,
+        },
       },
     ],
   };
 }
 
-/** Make a Claude response that returns no JSON (error scenario). */
-export function makeClaudeNonJsonResponse(): {
-  content: Array<{ type: "text"; text: string }>;
-} {
+/** Make a response that returns no JSON (error scenario). */
+export function makeClaudeNonJsonResponse() {
   return {
-    content: [
+    choices: [
       {
-        type: "text" as const,
-        text: "I apologize, but I cannot analyze this form. The content appears to be corrupted.",
+        message: {
+          content: "I apologize, but I cannot analyze this form. The content appears to be corrupted.",
+        },
       },
     ],
   };
 }
 
-/** Make a Claude response with malformed JSON. */
-export function makeClaudeMalformedJsonResponse(): {
-  content: Array<{ type: "text"; text: string }>;
-} {
+/** Make a response with malformed JSON. */
+export function makeClaudeMalformedJsonResponse() {
   return {
-    content: [
+    choices: [
       {
-        type: "text" as const,
-        text: '```json\n{"title": "Broken", "fields": [INVALID_JSON]}\n```',
+        message: {
+          content: '```json\n{"title": "Broken", "fields": [INVALID_JSON]}\n```',
+        },
       },
     ],
   };
 }
 
-/** Make a Claude response with an image block instead of text. */
-export function makeClaudeImageResponse(): {
-  content: Array<{ type: "image"; source: unknown }>;
-} {
+/** Make a response with empty content (error scenario). */
+export function makeClaudeImageResponse() {
   return {
-    content: [
+    choices: [
       {
-        type: "image" as const,
-        source: { type: "base64", media_type: "image/png", data: "..." },
+        message: {
+          content: null,
+        },
       },
     ],
   };
