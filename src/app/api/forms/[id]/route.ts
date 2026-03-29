@@ -28,6 +28,36 @@ export async function GET(
   }
 }
 
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const form = await prisma.form.findUnique({ where: { id } });
+
+    if (!form) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    if (form.userId !== session.user.id) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    await prisma.form.delete({ where: { id } });
+
+    return NextResponse.json({ success: true }, { status: 200 });
+  } catch (err) {
+    return handleApiError(err, "DELETE /api/forms/[id]");
+  }
+}
+
 const updateSchema = z.object({
   fields: z
     .array(
