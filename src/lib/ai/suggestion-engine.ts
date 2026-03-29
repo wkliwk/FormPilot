@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { FormField } from "@/lib/ai/analyze-form";
 
-// Sensitive profile keys — never suggest these from history
+// Sensitive profile keys — never suggest these from history or memory
 const SENSITIVE_LABELS = new Set([
   "ssn",
   "socialsecuritynumber",
@@ -21,7 +21,8 @@ export interface FieldSuggestion {
   fieldId: string;
   value: string;
   confidence: number;
-  source: string; // Title of the form it came from
+  source: string; // Form title or "Form Memory"
+  sourceType: "memory" | "history";
 }
 
 /** Normalize a label for fuzzy matching: lowercase, strip punctuation/spaces */
@@ -35,13 +36,8 @@ function isSensitiveLabel(normalizedLabel: string): boolean {
 }
 
 /**
- * Query up to 20 most recent COMPLETED or FILLING forms for a user and return
- * history-based suggestions for the given current form fields.
- *
- * - Field matching uses normalized label comparison (case-insensitive, punctuation-stripped).
- * - Returns the most recent non-empty value per field label.
- * - Sensitive labels are excluded.
- * - Confidence is fixed at 0.6.
+ * Query FormMemory (structured per-user memory store) first at confidence >= 0.8.
+ * Fall back to scanning recent form history for unmatched fields.
  */
 export async function getSuggestionsFromHistory(
   userId: string,
@@ -60,7 +56,42 @@ export async function getSuggestionsFromHistory(
     return [];
   }
 
-  // Query past forms — limit 20, most recent first
+  const suggestions: FieldSuggestion[] = [];
+  const coveredLabels = new Set<string>();
+
+  // --- Step 1: Query FormMemory (structured, high-confidence) ---
+  const memoryRecords = await prisma.formMemory.findMany({
+    where: {
+      userId,
+      label: { in: Array.from(labelToFieldId.keys()) },
+      confidence: { gte: 0.8 },
+    },
+    orderBy: { lastUsed: "desc" },
+  });
+
+  for (const record of memoryRecords) {
+    const fieldId = labelToFieldId.get(record.label);
+    if (!fieldId) continue;
+
+    suggestions.push({
+      fieldId,
+      value: record.value,
+      confidence: record.confidence,
+      source: record.sourceTitle,
+      sourceType: "memory",
+    });
+    coveredLabels.add(record.label);
+  }
+
+  // --- Step 2: Fall back to history scan for unmatched fields ---
+  const remainingLabels = new Set(
+    Array.from(labelToFieldId.keys()).filter((l) => !coveredLabels.has(l))
+  );
+
+  if (remainingLabels.size === 0) {
+    return suggestions;
+  }
+
   const pastForms = await prisma.form.findMany({
     where: {
       userId,
@@ -76,12 +107,6 @@ export async function getSuggestionsFromHistory(
     take: 20,
   });
 
-  if (pastForms.length === 0) {
-    return [];
-  }
-
-  // For each matching label, track the most recent value and its source form title
-  // Map: normalized label -> { value, formTitle }
   const bestMatch = new Map<string, { value: string; formTitle: string }>();
 
   for (const form of pastForms) {
@@ -92,11 +117,9 @@ export async function getSuggestionsFromHistory(
       if (!pastField.label || !pastField.value) continue;
 
       const normalized = normalizeLabel(pastField.label);
-      if (!labelToFieldId.has(normalized)) continue;
+      if (!remainingLabels.has(normalized)) continue;
       if (isSensitiveLabel(normalized)) continue;
 
-      // Only store if we don't have a value yet (forms are ordered by updatedAt desc,
-      // so the first match per label is the most recent)
       if (!bestMatch.has(normalized)) {
         bestMatch.set(normalized, {
           value: pastField.value,
@@ -106,7 +129,6 @@ export async function getSuggestionsFromHistory(
     }
   }
 
-  const suggestions: FieldSuggestion[] = [];
   for (const [normalizedLabel, match] of bestMatch) {
     const fieldId = labelToFieldId.get(normalizedLabel);
     if (!fieldId) continue;
@@ -116,6 +138,7 @@ export async function getSuggestionsFromHistory(
       value: match.value,
       confidence: 0.6,
       source: match.formTitle,
+      sourceType: "history",
     });
   }
 
