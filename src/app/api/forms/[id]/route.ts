@@ -69,6 +69,7 @@ const updateSchema = z.object({
     )
     .optional(),
   status: z.enum(["PENDING", "ANALYZED", "FILLING", "COMPLETED"]).optional(),
+  title: z.string().trim().min(1).optional(),
 });
 
 export async function PATCH(
@@ -97,6 +98,10 @@ export async function PATCH(
     }
 
     const updateData: Record<string, unknown> = {};
+
+    if (parsed.data.title) {
+      updateData.title = parsed.data.title;
+    }
 
     if (parsed.data.status) {
       updateData.status = parsed.data.status;

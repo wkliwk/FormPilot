@@ -267,9 +267,23 @@ export default function GuidedFillMode({
         </div>
 
         {/* Group progress */}
-        <p className="text-xs text-slate-400 mt-2.5">
-          {filledInGroup}/{totalInGroup} fields completed in this section
-        </p>
+        <div className="space-y-1.5 mt-2.5">
+          <div className="flex items-center justify-between text-xs text-slate-400">
+            <span>{filledInGroup}/{totalInGroup} fields completed in this section</span>
+            <span className="font-medium tabular-nums">{totalInGroup > 0 ? Math.round((filledInGroup / totalInGroup) * 100) : 0}%</span>
+          </div>
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div
+              className="h-full rounded-full transition-all duration-300"
+              style={{
+                width: `${totalInGroup > 0 ? Math.round((filledInGroup / totalInGroup) * 100) : 0}%`,
+                background: totalInGroup > 0 && Math.round((filledInGroup / totalInGroup) * 100) === 100
+                  ? "#10b981"
+                  : "#3b82f6",
+              }}
+            />
+          </div>
+        </div>
       </div>
 
       {/* Fields */}

@@ -25,6 +25,8 @@ interface Props {
   hasFile?: boolean;
   /** Source type of the form (PDF, WORD, etc). */
   sourceType?: string;
+  /** Called after a successful title save — passes the new title. */
+  onTitleChange?: (newTitle: string) => void;
 }
 
 // -- helpers --
@@ -61,7 +63,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, hasFile, sourceType }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, hasFile, sourceType, onTitleChange }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -85,7 +87,11 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [sampleFilling, setSampleFilling] = useState(false);
   const [sampleFillMessage, setSampleFillMessage] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(form.title);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const titleSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // -- persistence --
 
@@ -181,6 +187,66 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       }
       return next;
     });
+  }
+
+  // -- title editing --
+
+  function handleTitleClick() {
+    setEditingTitle(true);
+    setTitleDraft(form.title);
+    // Auto-focus the input after state update
+    setTimeout(() => titleInputRef.current?.focus(), 0);
+  }
+
+  async function saveTitle(newTitle: string) {
+    const trimmed = newTitle.trim();
+    if (!trimmed) {
+      // Empty title — revert
+      setEditingTitle(false);
+      setTitleDraft(form.title);
+      return;
+    }
+
+    setEditingTitle(false);
+    setSaveStatus("saving");
+
+    try {
+      const res = await fetch(`/api/forms/${form.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: trimmed }),
+      });
+
+      if (!res.ok) throw new Error("Failed to save title");
+
+      // Update form title in state
+      form.title = trimmed;
+      setTitleDraft(trimmed);
+      onTitleChange?.(trimmed);
+
+      // Show "Saved" confirmation
+      setSaveStatus("saved");
+      if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current);
+      titleSaveTimer.current = setTimeout(() => setSaveStatus("idle"), 2000);
+    } catch {
+      setSaveStatus("idle");
+      setEditingTitle(true);
+    }
+  }
+
+  function handleTitleKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveTitle(titleDraft);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      setEditingTitle(false);
+      setTitleDraft(form.title);
+    }
+  }
+
+  function handleTitleBlur() {
+    saveTitle(titleDraft);
   }
 
   // -- autofill --
@@ -331,7 +397,34 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-5 sm:p-6 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold text-slate-900">{form.title}</h1>
+            {editingTitle ? (
+              <input
+                ref={titleInputRef}
+                type="text"
+                value={titleDraft}
+                onChange={(e) => setTitleDraft(e.target.value)}
+                onBlur={handleTitleBlur}
+                onKeyDown={handleTitleKeyDown}
+                className="text-xl font-bold text-slate-900 px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              />
+            ) : (
+              <div className="flex items-center gap-2 group cursor-pointer" onClick={handleTitleClick}>
+                <h1 className="text-xl font-bold text-slate-900">{form.title}</h1>
+                <svg
+                  className="w-4 h-4 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M12 20h9" />
+                  <path d="M16.5 3.5a2.121 2.121 0 013 3L7 19H4v-3L16.5 3.5z" />
+                </svg>
+              </div>
+            )}
             <div className="flex items-center gap-3 mt-2 text-sm text-slate-400">
               <span>{fields.length} fields</span>
               <span className="w-1 h-1 rounded-full bg-slate-300" aria-hidden="true" />
@@ -449,18 +542,16 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         {/* Progress bar */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Progress</span>
-            <span className="font-medium tabular-nums">{progress}%</span>
+            <span>{filledCount}/{fields.length} fields filled</span>
+            <span className="font-medium tabular-nums">{progress}% complete</span>
           </div>
-          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
             <div
-              className="h-full rounded-full transition-all duration-500 ease-out"
+              className="h-full rounded-full transition-all duration-300"
               style={{
                 width: `${progress}%`,
                 background: progress === 100
                   ? "#10b981"
-                  : progress > 50
-                  ? "linear-gradient(90deg, #3b82f6, #2563eb)"
                   : "#3b82f6",
               }}
             />
