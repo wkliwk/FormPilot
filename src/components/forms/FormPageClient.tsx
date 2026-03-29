@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import FormViewer from "./FormViewer";
 import GuidedFillMode from "./GuidedFillMode";
 import DocumentImageViewer from "./DocumentImageViewer";
@@ -37,7 +38,9 @@ interface Props {
 }
 
 export default function FormPageClient({ form, hasProfile, preferredLanguage, hasFile, sourceType }: Props) {
+  const router = useRouter();
   const [mode, setMode] = useState<"full" | "guided">("full");
+  const [deleting, setDeleting] = useState(false);
   const [formData, setFormData] = useState(form);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const [liveValues, setLiveValues] = useState<Record<string, string>>(() =>
@@ -107,6 +110,22 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
     }
   }
 
+  async function handleDelete() {
+    if (!window.confirm("Delete this form? This cannot be undone.")) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/forms/${form.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error ?? "Delete failed");
+      }
+      router.push("/dashboard");
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not delete form");
+      setDeleting(false);
+    }
+  }
+
   if (mode === "guided") {
     return (
       <GuidedFillMode
@@ -173,6 +192,20 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Delete form"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+              <path d="M10 11v6M14 11v6" />
+              <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+            </svg>
+            {deleting ? "Deleting..." : "Delete"}
+          </button>
           {canShowDocument && (
             <button
               onClick={toggleSideBySide}
