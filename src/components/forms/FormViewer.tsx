@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 import type { ValidationResult } from "@/lib/validation/validate-form";
 import { validateForm } from "@/lib/validation/validate-form";
+import ExportPreviewModal from "./ExportPreviewModal";
 
 interface FormRecord {
   id: string;
@@ -15,6 +16,12 @@ interface FormRecord {
 interface Props {
   form: FormRecord;
   hasProfile: boolean;
+  /** Called when a field input is focused — passes the field id. */
+  onFieldFocus?: (fieldId: string | null) => void;
+  /** Whether there is a file stored (used for export preview). */
+  hasFile?: boolean;
+  /** Source type of the form (PDF, WORD, etc). */
+  sourceType?: string;
 }
 
 // -- helpers --
@@ -51,7 +58,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, hasFile, sourceType }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -72,6 +79,9 @@ export default function FormViewer({ form, hasProfile }: Props) {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showForceExportDialog, setShowForceExportDialog] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [sampleFilling, setSampleFilling] = useState(false);
+  const [sampleFillMessage, setSampleFillMessage] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // -- persistence --
@@ -244,7 +254,37 @@ export default function FormViewer({ form, hasProfile }: Props) {
       return;
     }
 
+    // Show preview modal before actual export
+    setShowPreviewModal(true);
+  }
+
+  async function handleConfirmExport() {
     await doExport();
+    setShowPreviewModal(false);
+  }
+
+  // -- sample fill --
+
+  async function handleSampleFill() {
+    setSampleFilling(true);
+    setSampleFillMessage(null);
+    try {
+      const res = await fetch(`/api/forms/${form.id}/sample-fill`, { method: "POST" });
+      if (!res.ok) throw new Error("Sample fill failed");
+      const data = await res.json() as { values: Record<string, string> };
+      const newValues = { ...values, ...data.values };
+      const newStates: Record<string, FieldState> = { ...fieldStates };
+      setValues(newValues);
+      setFieldStates(newStates);
+      scheduleSave(newValues, newStates);
+      setSampleFillMessage("Fields filled with sample data");
+      setTimeout(() => setSampleFillMessage(null), 3000);
+    } catch {
+      setSampleFillMessage("Failed to fill sample data");
+      setTimeout(() => setSampleFillMessage(null), 3000);
+    } finally {
+      setSampleFilling(false);
+    }
   }
 
   // -- derived --
@@ -268,6 +308,20 @@ export default function FormViewer({ form, hasProfile }: Props) {
   // -- render --
 
   return (
+    <>
+    {showPreviewModal && (
+      <ExportPreviewModal
+        formId={form.id}
+        formTitle={form.title}
+        fields={fields}
+        values={values}
+        hasFile={hasFile ?? false}
+        sourceType={sourceType}
+        onConfirmExport={handleConfirmExport}
+        onClose={() => setShowPreviewModal(false)}
+        exporting={exporting}
+      />
+    )}
     <div className="space-y-6">
       {/* Header Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-5 sm:p-6 space-y-5">
@@ -305,6 +359,25 @@ export default function FormViewer({ form, hasProfile }: Props) {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {/* Sample fill button */}
+            <button
+              onClick={handleSampleFill}
+              disabled={sampleFilling}
+              className="inline-flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-700 text-sm rounded-lg font-medium hover:bg-slate-50 transition-colors disabled:opacity-40 active:scale-[0.98]"
+              title="Fill all fields with sample/demo data"
+            >
+              {sampleFilling ? (
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                  <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                </svg>
+              ) : (
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6L12 2z" />
+                </svg>
+              )}
+              {sampleFilling ? "Filling..." : "Fill Sample Data"}
+            </button>
             {highConfidencePendingCount > 0 && (
               <button
                 onClick={handleAcceptAllHigh}
@@ -390,6 +463,26 @@ export default function FormViewer({ form, hasProfile }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Sample fill success/error message */}
+      {sampleFillMessage && (
+        <div className={`flex items-center gap-2 px-4 py-3 rounded-xl border text-sm font-medium animate-slide-down ${
+          sampleFillMessage.startsWith("Failed")
+            ? "bg-red-50 border-red-200 text-red-700"
+            : "bg-emerald-50 border-emerald-200 text-emerald-700"
+        }`}>
+          {sampleFillMessage.startsWith("Failed") ? (
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+            </svg>
+          ) : (
+            <svg className="w-4 h-4 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+            </svg>
+          )}
+          {sampleFillMessage}
+        </div>
+      )}
 
       {/* Validation Results Panel */}
       {validation && (
@@ -613,8 +706,8 @@ export default function FormViewer({ form, hasProfile }: Props) {
                       type={field.type === "date" ? "date" : "text"}
                       value={values[field.id] ?? ""}
                       onChange={(e) => handleValueChange(field.id, e.target.value)}
-                      onFocus={() => setActiveField(field.id)}
-                      onBlur={() => setActiveField(null)}
+                      onFocus={() => { setActiveField(field.id); onFieldFocus?.(field.id); }}
+                      onBlur={() => { setActiveField(null); onFieldFocus?.(null); }}
                       disabled={state === "accepted"}
                       aria-disabled={state === "accepted"}
                       className={inputClasses}
@@ -757,5 +850,6 @@ export default function FormViewer({ form, hasProfile }: Props) {
         })}
       </div>
     </div>
+    </>
   );
 }

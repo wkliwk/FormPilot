@@ -30,6 +30,15 @@ const SENSITIVE_KEYS = new Set([
 
 export type FieldState = "pending" | "accepted" | "rejected";
 
+/** Page coordinates for a form field, expressed as 0–1 fractions of the page dimensions. */
+export interface FieldCoordinates {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  page: number;
+}
+
 export interface FormField {
   id: string;
   label: string;
@@ -43,6 +52,8 @@ export interface FormField {
   value?: string;
   confidence?: number;
   fieldState?: FieldState;
+  /** Optional bounding box from PDF analysis (0–1 fractions of page size). */
+  coordinates?: FieldCoordinates;
 }
 
 export interface FormAnalysis {
