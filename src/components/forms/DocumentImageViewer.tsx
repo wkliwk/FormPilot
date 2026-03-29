@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import type { FormField } from "@/lib/ai/analyze-form";
+import { normalize, matchAnnotationToField } from "@/lib/pdf/annotation-helpers";
 
 // PDF.js worker via CDN — no native binaries needed, works on Vercel
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
@@ -17,36 +18,6 @@ interface Props {
   fields: FormField[];
   activeFieldId: string | null;
   liveValues?: Record<string, string>;
-}
-
-/**
- * Normalize text for fuzzy matching: lowercase, collapse whitespace, strip punctuation.
- */
-function normalize(s: string) {
-  return s.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
-}
-
-/**
- * Match a PDF annotation (by fieldName or altText) to one of our FormFields.
- * Returns the matching field id or null.
- */
-function matchAnnotationToField(
-  annot: { fieldName?: string; alternativeText?: string },
-  fields: FormField[]
-): string | null {
-  const candidates = [annot.fieldName, annot.alternativeText].filter(Boolean) as string[];
-  for (const candidate of candidates) {
-    const norm = normalize(candidate);
-    // Exact match first
-    const exact = fields.find((f) => normalize(f.label) === norm);
-    if (exact) return exact.id;
-    // Substring match
-    const sub = fields.find(
-      (f) => normalize(f.label).includes(norm) || norm.includes(normalize(f.label))
-    );
-    if (sub) return sub.id;
-  }
-  return null;
 }
 
 export default function DocumentImageViewer({
@@ -188,11 +159,8 @@ export default function DocumentImageViewer({
           file={fileUrl}
           onLoadSuccess={(doc) => {
             setTotalPages(doc.numPages);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            pdfDocRef.current = (doc as any)._pdfInfo ? doc : doc;
-            // Store raw pdfjs doc for annotation extraction
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            pdfDocRef.current = (doc as any)._transport ? doc : doc;
+            // Store raw pdfjs doc reference for annotation extraction
+            pdfDocRef.current = doc;
           }}
           loading={<Spinner />}
           error={<DocError />}
