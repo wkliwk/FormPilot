@@ -18,6 +18,8 @@ interface Props {
   hasProfile: boolean;
   /** Called when a field input is focused — passes the field id. */
   onFieldFocus?: (fieldId: string | null) => void;
+  /** Called on every keystroke with the updated field id + value (for live overlay). */
+  onValueChange?: (fieldId: string, value: string) => void;
   /** Whether there is a file stored (used for export preview). */
   hasFile?: boolean;
   /** Source type of the form (PDF, WORD, etc). */
@@ -58,7 +60,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile, onFieldFocus, hasFile, sourceType }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, hasFile, sourceType }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -121,6 +123,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, hasFile, so
     const newValues = { ...values, [fieldId]: value };
     setValues(newValues);
     scheduleSave(newValues, fieldStates);
+    onValueChange?.(fieldId, value);
   }
 
   function handleAccept(fieldId: string) {
@@ -647,7 +650,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, hasFile, so
           }
 
           // Input styling
-          let inputClasses = "mt-2 w-full px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all ";
+          let inputClasses = "mt-2 px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all ";
           if (hasError) {
             inputClasses += "border-red-300 bg-red-50/50 focus:ring-red-400";
           } else if (state === "accepted") {
@@ -700,19 +703,97 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, hasFile, so
                       )}
                     </div>
 
-                    {/* Input */}
-                    <input
-                      id={`field-${field.id}`}
-                      type={field.type === "date" ? "date" : "text"}
-                      value={values[field.id] ?? ""}
-                      onChange={(e) => handleValueChange(field.id, e.target.value)}
-                      onFocus={() => { setActiveField(field.id); onFieldFocus?.(field.id); }}
-                      onBlur={() => { setActiveField(null); onFieldFocus?.(null); }}
-                      disabled={state === "accepted"}
-                      aria-disabled={state === "accepted"}
-                      className={inputClasses}
-                      placeholder={state === "rejected" ? "Enter value manually..." : field.example}
-                    />
+                    {/* Input — checkbox or text */}
+                    {field.type === "checkbox" ? (
+                      <div className="mt-3 flex items-center gap-3">
+                        <button
+                          id={`field-${field.id}`}
+                          type="button"
+                          role="checkbox"
+                          aria-checked={values[field.id] === "Checked"}
+                          disabled={state === "accepted"}
+                          onClick={() => {
+                            const next = values[field.id] === "Checked" ? "Unchecked" : "Checked";
+                            handleValueChange(field.id, next);
+                          }}
+                          onFocus={() => {
+                            setActiveField(field.id);
+                            onFieldFocus?.(field.id);
+                            setExpandedExplanations((prev) => new Set(prev).add(field.id));
+                          }}
+                          onBlur={() => {
+                            setActiveField(null);
+                            onFieldFocus?.(null);
+                          }}
+                          className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                            values[field.id] === "Checked"
+                              ? "bg-blue-500"
+                              : "bg-slate-200"
+                          } ${state === "accepted" ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                        >
+                          <span
+                            className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                              values[field.id] === "Checked" ? "translate-x-6" : "translate-x-0"
+                            }`}
+                          />
+                        </button>
+                        <span className="text-sm text-slate-600">
+                          {values[field.id] === "Checked" ? "Checked" : "Unchecked"}
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="relative flex items-center gap-1.5">
+                        <input
+                          id={`field-${field.id}`}
+                          type={field.type === "date" ? "date" : "text"}
+                          value={values[field.id] ?? ""}
+                          onChange={(e) => handleValueChange(field.id, e.target.value)}
+                          onFocus={() => {
+                            setActiveField(field.id);
+                            onFieldFocus?.(field.id);
+                            setExpandedExplanations((prev) => new Set(prev).add(field.id));
+                          }}
+                          onBlur={() => {
+                            setActiveField(null);
+                            onFieldFocus?.(null);
+                          }}
+                          disabled={state === "accepted"}
+                          aria-disabled={state === "accepted"}
+                          className={`${inputClasses} flex-1`}
+                          placeholder={state === "rejected" ? "Enter value manually..." : field.example}
+                        />
+                        {/* Per-field random fill button */}
+                        {state !== "accepted" && (
+                          <button
+                            type="button"
+                            title="Fill with sample data"
+                            onClick={async () => {
+                              try {
+                                const res = await fetch(`/api/forms/${form.id}/sample-fill`, { method: "POST" });
+                                if (!res.ok) return;
+                                const data = await res.json() as { values: Record<string, string> };
+                                if (data.values[field.id]) {
+                                  handleValueChange(field.id, data.values[field.id]);
+                                }
+                              } catch { /* ignore */ }
+                            }}
+                            className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-colors border border-slate-200 mt-2"
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="2" y="2" width="8" height="8" rx="1.5" />
+                              <rect x="14" y="2" width="8" height="8" rx="1.5" />
+                              <rect x="2" y="14" width="8" height="8" rx="1.5" />
+                              <rect x="14" y="14" width="8" height="8" rx="1.5" />
+                              <circle cx="5" cy="5" r="1" fill="currentColor" />
+                              <circle cx="19" cy="5" r="1" fill="currentColor" />
+                              <circle cx="5" cy="19" r="1" fill="currentColor" />
+                              <circle cx="17" cy="17" r="1" fill="currentColor" />
+                              <circle cx="21" cy="21" r="1" fill="currentColor" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    )}
                     {/* Inline validation messages */}
                     {fieldErrors.map((err, i) => (
                       <p key={`fe-${i}`} className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
