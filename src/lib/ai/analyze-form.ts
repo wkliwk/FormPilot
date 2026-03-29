@@ -340,7 +340,7 @@ async function analyzeImageWithClaude(
               },
               {
                 type: "text",
-                text: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nLook at the form image above and extract all fillable fields you can identify.${titleHint ? ` The form title may be: ${titleHint}` : ""}`,
+                text: `${IMAGE_ANALYSIS_PROMPT}${langInstruction}${titleHint ? `\n\nThe form title may be: ${titleHint}` : ""}`,
               },
             ],
           },
@@ -376,7 +376,7 @@ async function analyzeImageWithGroq(
               },
               {
                 type: "text",
-                text: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nLook at the form image above and extract all fillable fields you can identify.${titleHint ? ` The form title may be: ${titleHint}` : ""}`,
+                text: `${IMAGE_ANALYSIS_PROMPT}${langInstruction}${titleHint ? `\n\nThe form title may be: ${titleHint}` : ""}`,
               },
             ],
           },
