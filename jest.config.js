@@ -11,4 +11,12 @@ module.exports = {
   transform: {
     "^.+\\.ts$": ["ts-jest", { tsconfig: { module: "commonjs" } }],
   },
+  coverageThreshold: {
+    global: {
+      lines: 80,
+      statements: 80,
+      functions: 75,
+      branches: 70,
+    },
+  },
 };

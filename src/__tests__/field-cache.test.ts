@@ -1,7 +1,19 @@
-import { normalizeLabel, buildCacheKey } from "../lib/ai/field-cache";
+const mockFindMany = jest.fn();
+const mockUpdateMany = jest.fn();
+const mockUpsert = jest.fn();
 
-// These tests cover the pure functions only — DB operations require a live
-// Prisma connection and are not exercised here (integration tests would handle those).
+jest.mock("@/lib/prisma", () => ({
+  prisma: {
+    fieldCache: {
+      findMany: mockFindMany,
+      updateMany: mockUpdateMany,
+      upsert: mockUpsert,
+    },
+  },
+}));
+
+import { normalizeLabel, buildCacheKey, lookupCacheEntries, storeCacheEntries } from "../lib/ai/field-cache";
+import type { CachedFieldData } from "../lib/ai/field-cache";
 
 describe("normalizeLabel", () => {
   it("lowercases and trims the label", () => {
@@ -58,5 +70,160 @@ describe("buildCacheKey", () => {
     const firstKey = buildCacheKey("First Name", "text");
     const lastKey = buildCacheKey("Last Name", "text");
     expect(firstKey).not.toBe(lastKey);
+  });
+
+  it("appends language code for non-English", () => {
+    expect(buildCacheKey("First Name", "text", "es")).toBe("first_name:text:es");
+  });
+
+  it("does NOT append language code for English", () => {
+    expect(buildCacheKey("First Name", "text", "en")).toBe("first_name:text");
+  });
+
+  it("does NOT append language code when language is null or undefined", () => {
+    expect(buildCacheKey("First Name", "text", null)).toBe("first_name:text");
+    expect(buildCacheKey("First Name", "text", undefined)).toBe("first_name:text");
+  });
+});
+
+describe("lookupCacheEntries", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUpdateMany.mockResolvedValue({ count: 0 });
+  });
+
+  it("returns empty map when called with empty keys", async () => {
+    const result = await lookupCacheEntries([]);
+    expect(result.size).toBe(0);
+    expect(mockFindMany).not.toHaveBeenCalled();
+  });
+
+  it("returns empty map when no cache rows found", async () => {
+    mockFindMany.mockResolvedValue([]);
+    const result = await lookupCacheEntries(["first_name:text"]);
+    expect(result.size).toBe(0);
+  });
+
+  it("maps returned rows to CachedFieldData by cacheKey", async () => {
+    mockFindMany.mockResolvedValue([
+      {
+        cacheKey: "first_name:text",
+        explanation: "Your legal first name",
+        example: "John",
+        commonMistakes: "Using nickname instead of legal name",
+        whereToFind: null,
+        profileKey: "firstName",
+      },
+    ]);
+
+    const result = await lookupCacheEntries(["first_name:text", "last_name:text"]);
+
+    expect(result.size).toBe(1);
+    const entry = result.get("first_name:text");
+    expect(entry?.explanation).toBe("Your legal first name");
+    expect(entry?.profileKey).toBe("firstName");
+    expect(entry?.whereToFind).toBeNull();
+  });
+
+  it("triggers hit count increment in background when rows are found", async () => {
+    mockFindMany.mockResolvedValue([
+      {
+        cacheKey: "email:text",
+        explanation: "Your email",
+        example: "you@example.com",
+        commonMistakes: "Typos",
+        whereToFind: null,
+        profileKey: "email",
+      },
+    ]);
+
+    await lookupCacheEntries(["email:text"]);
+
+    // Give the background promise time to resolve
+    await new Promise((r) => setImmediate(r));
+    expect(mockUpdateMany).toHaveBeenCalledWith({
+      where: { cacheKey: { in: ["email:text"] } },
+      data: { hitCount: { increment: 1 } },
+    });
+  });
+
+  it("does NOT call updateMany when no rows match", async () => {
+    mockFindMany.mockResolvedValue([]);
+    await lookupCacheEntries(["unknown:text"]);
+    await new Promise((r) => setImmediate(r));
+    expect(mockUpdateMany).not.toHaveBeenCalled();
+  });
+
+  it("logs error and continues if updateMany fails", async () => {
+    mockFindMany.mockResolvedValue([
+      { cacheKey: "email:text", explanation: "e", example: "e", commonMistakes: "m", whereToFind: null, profileKey: null },
+    ]);
+    mockUpdateMany.mockRejectedValue(new Error("DB connection lost"));
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await lookupCacheEntries(["email:text"]);
+    await new Promise((r) => setImmediate(r));
+
+    expect(result.size).toBe(1);
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[field-cache] Failed to increment hit counts:",
+      expect.any(Error)
+    );
+    errorSpy.mockRestore();
+  });
+});
+
+describe("storeCacheEntries", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUpsert.mockResolvedValue({});
+  });
+
+  it("does nothing when called with empty entries", async () => {
+    await storeCacheEntries([]);
+    expect(mockUpsert).not.toHaveBeenCalled();
+  });
+
+  it("upserts each entry with correct fields", async () => {
+    const data: CachedFieldData = {
+      explanation: "Your legal first name",
+      example: "John",
+      commonMistakes: "Using nickname",
+      whereToFind: null,
+      profileKey: "firstName",
+    };
+
+    await storeCacheEntries([{ cacheKey: "first_name:text", data }]);
+
+    expect(mockUpsert).toHaveBeenCalledTimes(1);
+    const call = mockUpsert.mock.calls[0][0];
+    expect(call.where).toEqual({ cacheKey: "first_name:text" });
+    expect(call.create.explanation).toBe("Your legal first name");
+    expect(call.create.profileKey).toBe("firstName");
+    expect(call.update.explanation).toBe("Your legal first name");
+    expect(call.create.expiresAt).toBeInstanceOf(Date);
+  });
+
+  it("runs all upserts concurrently (Promise.all)", async () => {
+    const entries = [
+      { cacheKey: "a:text", data: { explanation: "a", example: "a", commonMistakes: "a", whereToFind: null, profileKey: null } },
+      { cacheKey: "b:text", data: { explanation: "b", example: "b", commonMistakes: "b", whereToFind: "b", profileKey: "b" } },
+    ];
+
+    await storeCacheEntries(entries);
+    expect(mockUpsert).toHaveBeenCalledTimes(2);
+  });
+
+  it("sets expiresAt 30 days in the future", async () => {
+    const before = Date.now();
+    await storeCacheEntries([
+      { cacheKey: "x:text", data: { explanation: "x", example: "x", commonMistakes: "x", whereToFind: null, profileKey: null } },
+    ]);
+    const after = Date.now();
+
+    const { expiresAt } = mockUpsert.mock.calls[0][0].create;
+    const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+    expect(expiresAt.getTime()).toBeGreaterThanOrEqual(before + thirtyDaysMs - 1000);
+    expect(expiresAt.getTime()).toBeLessThanOrEqual(after + thirtyDaysMs + 1000);
   });
 });
