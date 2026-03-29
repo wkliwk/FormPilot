@@ -42,7 +42,11 @@ export async function POST(
     }
 
     const fields = form.fields as unknown as FormField[];
-    const templateData = template.fieldData as Record<string, string>;
+    // Support both old fieldData (Record<string,string>) and new fields (FormField[]) format
+    const rawTemplateData = template.fields as unknown;
+    const templateData: Record<string, string> = Array.isArray(rawTemplateData)
+      ? Object.fromEntries((rawTemplateData as FormField[]).filter((f) => f.value).map((f) => [f.label, f.value!]))
+      : (rawTemplateData as Record<string, string>);
 
     // Build a normalized label → value map from template
     const templateMap = new Map<string, string>();
