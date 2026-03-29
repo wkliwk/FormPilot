@@ -4,6 +4,7 @@ import { useState, useCallback, useRef } from "react";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 import type { ValidationResult } from "@/lib/validation/validate-form";
 import { validateForm } from "@/lib/validation/validate-form";
+import { generateSampleValue } from "@/lib/sample-data";
 import ExportPreviewModal from "./ExportPreviewModal";
 
 interface FormRecord {
@@ -762,21 +763,12 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                           className={`${inputClasses} flex-1`}
                           placeholder={state === "rejected" ? "Enter value manually..." : field.example}
                         />
-                        {/* Per-field random fill button */}
+                        {/* Per-field random fill button — pure client-side, no API call */}
                         {state !== "accepted" && (
                           <button
                             type="button"
                             title="Fill with sample data"
-                            onClick={async () => {
-                              try {
-                                const res = await fetch(`/api/forms/${form.id}/sample-fill`, { method: "POST" });
-                                if (!res.ok) return;
-                                const data = await res.json() as { values: Record<string, string> };
-                                if (data.values[field.id]) {
-                                  handleValueChange(field.id, data.values[field.id]);
-                                }
-                              } catch { /* ignore */ }
-                            }}
+                            onClick={() => handleValueChange(field.id, generateSampleValue(field))}
                             className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-colors border border-slate-200 mt-2"
                           >
                             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
