@@ -1,4 +1,5 @@
 import Groq from "groq-sdk";
+import Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { buildCacheKey, lookupCacheEntries, storeCacheEntries } from "./field-cache";
 import { withRetry } from "./retry";
@@ -16,6 +17,18 @@ export function getClient(): Groq {
   return _client;
 }
 
+// Shared Anthropic client singleton (used for vision/image analysis)
+let _anthropicClient: Anthropic | null = null;
+function getAnthropicClient(): Anthropic {
+  if (!_anthropicClient) {
+    if (!process.env.ANTHROPIC_API_KEY) {
+      throw new Error("ANTHROPIC_API_KEY is not set");
+    }
+    _anthropicClient = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return _anthropicClient;
+}
+
 const MODEL = "llama-3.3-70b-versatile";
 
 // Sensitive profile keys that must never be sent to external APIs
@@ -30,6 +43,15 @@ const SENSITIVE_KEYS = new Set([
 
 export type FieldState = "pending" | "accepted" | "rejected";
 
+/** Page coordinates for a form field, expressed as 0–1 fractions of the page dimensions. */
+export interface FieldCoordinates {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  page: number;
+}
+
 export interface FormField {
   id: string;
   label: string;
@@ -43,6 +65,8 @@ export interface FormField {
   value?: string;
   confidence?: number;
   fieldState?: FieldState;
+  /** Optional bounding box from PDF analysis (0–1 fractions of page size). */
+  coordinates?: FieldCoordinates;
 }
 
 export interface FormAnalysis {
@@ -241,43 +265,107 @@ export async function analyzeFormFields(
   return analysis;
 }
 
+/** Analyze a form image using Claude (Anthropic) vision — primary path. */
+async function analyzeImageWithClaude(
+  base64: string,
+  mimeType: string,
+  titleHint: string | undefined,
+  langInstruction: string
+): Promise<string> {
+  const anthropic = getAnthropicClient();
+  const response = await withRetry(
+    () =>
+      anthropic.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 4096,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image",
+                source: {
+                  type: "base64",
+                  media_type: mimeType as "image/jpeg" | "image/png" | "image/webp" | "image/gif",
+                  data: base64,
+                },
+              },
+              {
+                type: "text",
+                text: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nLook at the form image above and extract all fillable fields you can identify.${titleHint ? ` The form title may be: ${titleHint}` : ""}`,
+              },
+            ],
+          },
+        ],
+      }),
+    "analyzeImageWithClaude"
+  );
+  const block = response.content[0];
+  if (block.type !== "text" || !block.text) throw new Error("Empty response from Claude");
+  return block.text;
+}
+
+/** Analyze a form image using Groq vision — fallback path. */
+async function analyzeImageWithGroq(
+  base64: string,
+  mimeType: string,
+  titleHint: string | undefined,
+  langInstruction: string
+): Promise<string> {
+  const client = getClient();
+  const completion = await withRetry(
+    () =>
+      client.chat.completions.create({
+        model: "llama-3.2-11b-vision-preview",
+        max_tokens: 4096,
+        messages: [
+          {
+            role: "user",
+            content: [
+              {
+                type: "image_url",
+                image_url: { url: `data:${mimeType};base64,${base64}` },
+              },
+              {
+                type: "text",
+                text: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nLook at the form image above and extract all fillable fields you can identify.${titleHint ? ` The form title may be: ${titleHint}` : ""}`,
+              },
+            ],
+          },
+        ],
+        temperature: 0.1,
+      }),
+    "analyzeImageWithGroq"
+  );
+  const text = completion.choices[0]?.message?.content;
+  if (!text) throw new Error("Empty response from Groq vision");
+  return text;
+}
+
 export async function analyzeFormFieldsFromImage(
   base64: string,
   mimeType: string,
   titleHint?: string,
   language?: string | null
 ): Promise<FormAnalysis> {
-  // Groq supports vision with llama-3.2-90b-vision-preview
-  const client = getClient();
   const langInstruction = buildLanguageInstruction(language);
 
-  const completion = await withRetry(
-    () => client.chat.completions.create({
-      model: "llama-3.2-90b-vision-preview",
-      max_tokens: 4096,
-      messages: [{
-        role: "user",
-        content: [
-          {
-            type: "image_url",
-            image_url: {
-              url: `data:${mimeType};base64,${base64}`,
-            },
-          },
-          {
-            type: "text",
-            text: `${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nLook at the form image above and extract all fillable fields you can identify.${titleHint ? ` The form title may be: ${titleHint}` : ""}`,
-          },
-        ],
-      }],
-      temperature: 0.1,
-    }),
-    "analyzeFormFieldsFromImage"
-  );
+  // Primary: Groq (free tier) — llama-3.2-11b-vision-preview
+  // Fallback: Claude Haiku (paid) if Groq vision is unavailable
+  let responseText: string;
+  try {
+    responseText = await analyzeImageWithGroq(base64, mimeType, titleHint, langInstruction);
+  } catch (primaryErr) {
+    console.warn("[image-analysis] Groq vision failed, falling back to Claude:", primaryErr instanceof Error ? primaryErr.message : primaryErr);
+    try {
+      responseText = await analyzeImageWithClaude(base64, mimeType, titleHint, langInstruction);
+    } catch {
+      // Re-throw the primary error for better UX messaging
+      throw primaryErr;
+    }
+  }
 
-  const text = completion.choices[0]?.message?.content;
-  if (!text) throw new Error("Empty response from AI");
-  return parseAndCacheAnalysis(text, language);
+  return parseAndCacheAnalysis(responseText, language);
 }
 
 export interface HistorySuggestion {

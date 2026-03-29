@@ -3,6 +3,7 @@
 import { useState } from "react";
 import FormViewer from "./FormViewer";
 import GuidedFillMode from "./GuidedFillMode";
+import DocumentImageViewer from "./DocumentImageViewer";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 
 const SUPPORTED_LANGUAGES = [
@@ -38,6 +39,7 @@ interface Props {
 export default function FormPageClient({ form, hasProfile, preferredLanguage, hasFile, sourceType }: Props) {
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [formData, setFormData] = useState(form);
+  const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const [sideBySide, setSideBySide] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("fp-side-by-side") === "true";
@@ -220,9 +222,19 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
 
       {sideBySide && documentUrl ? (
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Document panel */}
+          {/* Left: Fields panel */}
+          <div className="lg:w-1/2">
+            <FormViewer
+              form={formData}
+              hasProfile={hasProfile}
+              hasFile={hasFile}
+              sourceType={sourceType}
+              onFieldFocus={setActiveFieldId}
+            />
+          </div>
+          {/* Right: Document panel — sticky so it stays in view while scrolling fields */}
           <div className="lg:w-1/2 lg:sticky lg:top-20 lg:self-start">
-            <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden" style={{ height: "calc(100vh - 180px)", minHeight: "500px" }}>
               <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
                 <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
@@ -231,14 +243,13 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
                 <span className="text-xs font-medium text-slate-600">Original Document</span>
               </div>
               {sourceType === "PDF" ? (
-                <iframe
-                  src={documentUrl}
-                  className="w-full border-0"
-                  style={{ height: "calc(100vh - 180px)", minHeight: "500px" }}
-                  title="Original document"
+                <DocumentImageViewer
+                  formId={form.id}
+                  fields={fields}
+                  activeFieldId={activeFieldId}
                 />
               ) : (
-                <div className="p-4 overflow-auto" style={{ maxHeight: "calc(100vh - 180px)" }}>
+                <div className="p-4 overflow-auto h-full">
                   <img
                     src={documentUrl}
                     alt="Original document"
@@ -248,14 +259,16 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
               )}
             </div>
           </div>
-          {/* Fields panel */}
-          <div className="lg:w-1/2">
-            <FormViewer form={formData} hasProfile={hasProfile} />
-          </div>
         </div>
       ) : (
         <div className="max-w-4xl">
-          <FormViewer form={formData} hasProfile={hasProfile} />
+          <FormViewer
+            form={formData}
+            hasProfile={hasProfile}
+            hasFile={hasFile}
+            sourceType={sourceType}
+            onFieldFocus={setActiveFieldId}
+          />
         </div>
       )}
     </div>
