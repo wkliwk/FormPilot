@@ -89,6 +89,9 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [sampleFillMessage, setSampleFillMessage] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(form.title);
+  // per-field AI suggestions
+  const [suggestingFields, setSuggestingFields] = useState<Set<string>>(new Set());
+  const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, { value: string; source: string } | null>>({});
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const titleSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -159,6 +162,41 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     const newStates = { ...fieldStates, [fieldId]: "pending" as FieldState };
     setFieldStates(newStates);
     scheduleSave(values, newStates);
+  }
+
+  async function fetchFieldSuggestion(fieldId: string) {
+    if (suggestingFields.has(fieldId)) return;
+    setSuggestingFields((prev) => new Set(prev).add(fieldId));
+    try {
+      const res = await fetch(`/api/forms/${form.id}/suggestions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fieldId }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      const data = await res.json() as { suggestion: { value: string; source: string } | null };
+      setFieldSuggestions((prev) => ({ ...prev, [fieldId]: data.suggestion }));
+    } catch {
+      setFieldSuggestions((prev) => ({ ...prev, [fieldId]: null }));
+    } finally {
+      setSuggestingFields((prev) => { const next = new Set(prev); next.delete(fieldId); return next; });
+    }
+  }
+
+  function handleAcceptSuggestion(fieldId: string) {
+    const suggestion = fieldSuggestions[fieldId];
+    if (!suggestion) return;
+    const newValues = { ...values, [fieldId]: suggestion.value };
+    const newStates = { ...fieldStates, [fieldId]: "pending" as FieldState };
+    setValues(newValues);
+    setFieldStates(newStates);
+    scheduleSave(newValues, newStates);
+    onValueChange?.(fieldId, suggestion.value);
+    setFieldSuggestions((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
+  }
+
+  function dismissSuggestion(fieldId: string) {
+    setFieldSuggestions((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
   }
 
   function handleAcceptAllHigh() {
@@ -902,6 +940,23 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                       </div>
                     )}
 
+                    {/* Improve suggestion button — for low/medium confidence pending fields */}
+                    {hasAutofill && state === "pending" && tier !== "high" && (
+                      <button
+                        onClick={() => fetchFieldSuggestion(field.id)}
+                        disabled={suggestingFields.has(field.id)}
+                        className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 disabled:opacity-50 transition-colors"
+                        aria-label={`Get a better suggestion for ${field.label}`}
+                      >
+                        {suggestingFields.has(field.id) ? (
+                          <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25"/><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75"/></svg>
+                        ) : (
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19H4v-3L16.5 3.5z"/></svg>
+                        )}
+                        {suggestingFields.has(field.id) ? "Asking..." : "Improve"}
+                      </button>
+                    )}
+
                     {/* Accept / Reject buttons */}
                     {hasAutofill && state === "pending" && (
                       <div className="flex gap-1.5" role="group" aria-label={`Review suggestion for ${field.label}`}>
@@ -929,12 +984,27 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                     )}
 
                     {state === "rejected" && (
-                      <button
-                        onClick={() => handleUndoReject(field.id)}
-                        className="text-xs text-blue-500 hover:text-blue-700 transition-colors"
-                      >
-                        Undo
-                      </button>
+                      <div className="flex flex-col items-end gap-1">
+                        <button
+                          onClick={() => handleUndoReject(field.id)}
+                          className="text-xs text-blue-500 hover:text-blue-700 transition-colors"
+                        >
+                          Undo
+                        </button>
+                        <button
+                          onClick={() => fetchFieldSuggestion(field.id)}
+                          disabled={suggestingFields.has(field.id)}
+                          className="inline-flex items-center gap-1 text-xs text-violet-600 hover:text-violet-800 disabled:opacity-50 transition-colors"
+                          aria-label={`Get AI suggestion for ${field.label}`}
+                        >
+                          {suggestingFields.has(field.id) ? (
+                            <svg className="w-3 h-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25"/><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75"/></svg>
+                          ) : (
+                            <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                          )}
+                          {suggestingFields.has(field.id) ? "Asking..." : "Get suggestion"}
+                        </button>
+                      </div>
                     )}
 
                     {state === "accepted" && (
@@ -947,6 +1017,44 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                     )}
                   </div>
                 </div>
+
+                {/* AI suggestion callout */}
+                {field.id in fieldSuggestions && (
+                  <div className={`rounded-xl border px-4 py-3 flex items-start justify-between gap-3 ${
+                    fieldSuggestions[field.id]
+                      ? "bg-violet-50 border-violet-200"
+                      : "bg-slate-50 border-slate-200"
+                  }`}>
+                    {fieldSuggestions[field.id] ? (
+                      <>
+                        <div className="min-w-0">
+                          <p className="text-xs text-violet-600 font-medium mb-1">Suggested value</p>
+                          <p className="text-sm text-slate-800 font-medium truncate">{fieldSuggestions[field.id]!.value}</p>
+                          <p className="text-xs text-slate-400 mt-0.5">From: {fieldSuggestions[field.id]!.source}</p>
+                        </div>
+                        <div className="flex gap-1.5 shrink-0">
+                          <button
+                            onClick={() => handleAcceptSuggestion(field.id)}
+                            className="px-2.5 py-1 text-xs font-medium bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors active:scale-95"
+                          >
+                            Use it
+                          </button>
+                          <button
+                            onClick={() => dismissSuggestion(field.id)}
+                            className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+                          >
+                            Dismiss
+                          </button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-xs text-slate-500">No suggestion found from your history.</p>
+                        <button onClick={() => dismissSuggestion(field.id)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                      </>
+                    )}
+                  </div>
+                )}
 
                 {/* Explanation - collapsible */}
                 <div className="border-t border-slate-100 pt-3">
