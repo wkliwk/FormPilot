@@ -772,15 +772,9 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                             className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-colors border border-slate-200 mt-2"
                           >
                             <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="2" y="2" width="8" height="8" rx="1.5" />
-                              <rect x="14" y="2" width="8" height="8" rx="1.5" />
-                              <rect x="2" y="14" width="8" height="8" rx="1.5" />
-                              <rect x="14" y="14" width="8" height="8" rx="1.5" />
-                              <circle cx="5" cy="5" r="1" fill="currentColor" />
-                              <circle cx="19" cy="5" r="1" fill="currentColor" />
-                              <circle cx="5" cy="19" r="1" fill="currentColor" />
-                              <circle cx="17" cy="17" r="1" fill="currentColor" />
-                              <circle cx="21" cy="21" r="1" fill="currentColor" />
+                              <path d="M15 4V2" /><path d="M15 16v-2" /><path d="M8 9h2" /><path d="M20 9h2" />
+                              <path d="M17.8 11.8 19 13" /><path d="M15 9h.01" /><path d="M17.8 6.2 19 5" />
+                              <path d="m3 21 9-9" /><path d="M12.2 6.2 11 5" />
                             </svg>
                           </button>
                         )}

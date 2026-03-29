@@ -1,11 +1,15 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Document, Page, pdfjs } from "react-pdf";
 import type { FormField } from "@/lib/ai/analyze-form";
 
 // PDF.js worker via CDN — no native binaries needed, works on Vercel
 pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
+
+interface FieldCoord {
+  x: number; y: number; w: number; h: number; page: number;
+}
 
 interface Props {
   formId: string;
@@ -15,34 +19,140 @@ interface Props {
   liveValues?: Record<string, string>;
 }
 
-export default function DocumentImageViewer({ formId, sourceType, fields, activeFieldId, liveValues = {} }: Props) {
+/**
+ * Normalize text for fuzzy matching: lowercase, collapse whitespace, strip punctuation.
+ */
+function normalize(s: string) {
+  return s.toLowerCase().replace(/[^a-z0-9\s]/g, "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Match a PDF annotation (by fieldName or altText) to one of our FormFields.
+ * Returns the matching field id or null.
+ */
+function matchAnnotationToField(
+  annot: { fieldName?: string; alternativeText?: string },
+  fields: FormField[]
+): string | null {
+  const candidates = [annot.fieldName, annot.alternativeText].filter(Boolean) as string[];
+  for (const candidate of candidates) {
+    const norm = normalize(candidate);
+    // Exact match first
+    const exact = fields.find((f) => normalize(f.label) === norm);
+    if (exact) return exact.id;
+    // Substring match
+    const sub = fields.find(
+      (f) => normalize(f.label).includes(norm) || norm.includes(normalize(f.label))
+    );
+    if (sub) return sub.id;
+  }
+  return null;
+}
+
+export default function DocumentImageViewer({
+  formId,
+  sourceType,
+  fields,
+  activeFieldId,
+  liveValues = {},
+}: Props) {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [pageWidth, setPageWidth] = useState<number | null>(null);
-  const [pageHeight, setPageHeight] = useState<number | null>(null);
+  const [renderedSize, setRenderedSize] = useState<{ w: number; h: number } | null>(null);
+  // fieldId -> normalized 0-1 coordinates derived from PDF annotations
+  const [annotCoords, setAnnotCoords] = useState<Record<string, FieldCoord>>({});
   const containerRef = useRef<HTMLDivElement>(null);
+  const pdfDocRef = useRef<unknown>(null);
 
   const fileUrl = `/api/forms/${formId}/file`;
 
-  // Jump to the active field's page automatically
-  const activeField = activeFieldId ? fields.find((f) => f.id === activeFieldId) : null;
-  const coords = activeField?.coordinates;
-
-  if (coords?.page && coords.page !== currentPage) {
-    setCurrentPage(coords.page);
+  // Merge annotation-derived coords with AI-extracted coords (AI coords take priority if present)
+  function getCoords(field: FormField): FieldCoord | null {
+    if (field.coordinates) return field.coordinates;
+    return annotCoords[field.id] ?? null;
   }
+
+  // Jump to active field's page
+  const activeField = activeFieldId ? fields.find((f) => f.id === activeFieldId) : null;
+  const activeCoords = activeField ? getCoords(activeField) : null;
+  if (activeCoords?.page && activeCoords.page !== currentPage) {
+    setCurrentPage(activeCoords.page);
+  }
+
+  /**
+   * After a page renders, extract AcroForm annotations for that page and
+   * convert their rect [x1,y1,x2,y2] to 0-1 fractions of page dimensions.
+   */
+  const extractAnnotations = useCallback(
+    async (pageNum: number, pageWidthPt: number, pageHeightPt: number) => {
+      if (!pdfDocRef.current) return;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const pdfDoc = pdfDocRef.current as any;
+        const page = await pdfDoc.getPage(pageNum);
+        const annotations = await page.getAnnotations();
+
+        const newCoords: Record<string, FieldCoord> = {};
+        for (const annot of annotations) {
+          if (!annot.rect) continue;
+          const fieldId = matchAnnotationToField(annot, fields);
+          if (!fieldId) continue;
+
+          const [x1, y1, x2, y2] = annot.rect as number[];
+          // PDF coordinate system: y=0 is bottom. Convert to top-left origin.
+          const x = x1 / pageWidthPt;
+          const y = 1 - y2 / pageHeightPt; // flip y
+          const w = (x2 - x1) / pageWidthPt;
+          const h = (y2 - y1) / pageHeightPt;
+
+          newCoords[fieldId] = { x, y, w, h, page: pageNum };
+        }
+
+        if (Object.keys(newCoords).length > 0) {
+          setAnnotCoords((prev) => ({ ...prev, ...newCoords }));
+        }
+      } catch {
+        // Annotation extraction is best-effort
+      }
+    },
+    [fields]
+  );
 
   // IMAGE sourceType: just render the raw image
   if (sourceType === "IMAGE") {
     return (
-      <div className="flex-1 overflow-auto p-4 bg-slate-100">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={fileUrl} alt="Original document" className="w-full h-auto rounded shadow" />
+      <div className="flex-1 overflow-auto p-4 bg-slate-100 relative">
+        <div className="relative inline-block w-full">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={fileUrl}
+            alt="Original document"
+            className="w-full h-auto rounded shadow block"
+            onLoad={(e) => {
+              const img = e.currentTarget;
+              setRenderedSize({ w: img.clientWidth, h: img.clientHeight });
+            }}
+          />
+          {/* Overlays for image */}
+          {renderedSize && fields.map((field) => {
+            const c = getCoords(field);
+            if (!c || c.page !== 1) return null;
+            const isActive = field.id === activeFieldId;
+            const value = liveValues[field.id];
+            return (
+              <FieldOverlay key={field.id} c={c} isActive={isActive} value={value} />
+            );
+          })}
+        </div>
       </div>
     );
   }
 
   // PDF / WORD: render with react-pdf client-side
+  const pageWidth = containerRef.current
+    ? Math.min(containerRef.current.clientWidth - 32, 900)
+    : 700;
+
   return (
     <div className="flex flex-col h-full">
       {/* Page navigation */}
@@ -58,9 +168,7 @@ export default function DocumentImageViewer({ formId, sourceType, fields, active
               <polyline points="15 18 9 12 15 6" />
             </svg>
           </button>
-          <span className="text-xs text-slate-500 tabular-nums">
-            Page {currentPage} of {totalPages}
-          </span>
+          <span className="text-xs text-slate-500 tabular-nums">Page {currentPage} of {totalPages}</span>
           <button
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage >= totalPages}
@@ -74,111 +182,146 @@ export default function DocumentImageViewer({ formId, sourceType, fields, active
         </div>
       )}
 
-      {/* PDF canvas + highlight overlay */}
+      {/* PDF canvas + overlays */}
       <div ref={containerRef} className="flex-1 overflow-auto bg-slate-100 flex justify-center p-4">
         <Document
           file={fileUrl}
-          onLoadSuccess={({ numPages }) => setTotalPages(numPages)}
-          loading={
-            <div className="flex items-center justify-center h-64 w-full">
-              <svg className="w-6 h-6 text-slate-400 animate-spin" viewBox="0 0 24 24" fill="none">
-                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
-                <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
-              </svg>
-            </div>
-          }
-          error={
-            <div className="flex flex-col items-center justify-center gap-2 h-64 text-slate-400 text-sm">
-              <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-              </svg>
-              <p>Could not load document</p>
-            </div>
-          }
+          onLoadSuccess={(doc) => {
+            setTotalPages(doc.numPages);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            pdfDocRef.current = (doc as any)._pdfInfo ? doc : doc;
+            // Store raw pdfjs doc for annotation extraction
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            pdfDocRef.current = (doc as any)._transport ? doc : doc;
+          }}
+          loading={<Spinner />}
+          error={<DocError />}
         >
           <div className="relative inline-block shadow-lg">
             <Page
               pageNumber={currentPage}
-              width={containerRef.current ? Math.min(containerRef.current.clientWidth - 32, 900) : 700}
+              width={pageWidth}
               renderAnnotationLayer={false}
               renderTextLayer={false}
               onRenderSuccess={(page) => {
-                setPageWidth(page.width);
-                setPageHeight(page.height);
+                setRenderedSize({ w: page.width, h: page.height });
+                // Extract annotations using PDF point dimensions (not rendered px)
+                // page.originalWidth/originalHeight are in PDF units (points)
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const orig = page as any;
+                const ptW = orig.originalWidth ?? orig.width;
+                const ptH = orig.originalHeight ?? orig.height;
+                extractAnnotations(currentPage, ptW, ptH);
               }}
             />
 
-            {/* Text overlays: show live values for all fields with coordinates on this page */}
-            {fields.map((field) => {
-              const c = field.coordinates;
+            {/* Field overlays */}
+            {renderedSize && fields.map((field) => {
+              const c = getCoords(field);
               if (!c || c.page !== currentPage) return null;
-              const value = liveValues[field.id];
               const isActive = field.id === activeFieldId;
+              const value = liveValues[field.id];
               return (
-                <div
-                  key={field.id}
-                  aria-hidden="true"
-                  className="absolute pointer-events-none overflow-hidden"
-                  style={{
-                    left: `${c.x * 100}%`,
-                    top: `${c.y * 100}%`,
-                    width: `${c.w * 100}%`,
-                    height: `${c.h * 100}%`,
-                    border: isActive ? "2px solid rgba(217, 119, 6, 0.85)" : "none",
-                    backgroundColor: isActive ? "rgba(251, 191, 36, 0.15)" : "transparent",
-                    borderRadius: "2px",
-                    boxShadow: isActive ? "0 0 0 3px rgba(251, 191, 36, 0.2)" : "none",
-                    display: "flex",
-                    alignItems: "center",
-                    paddingLeft: "3px",
-                    paddingRight: "3px",
-                  }}
-                >
-                  {value && (
-                    <span
-                      style={{
-                        fontSize: "clamp(7px, 1.2%, 13px)",
-                        color: "#1e40af",
-                        fontFamily: "Arial, sans-serif",
-                        lineHeight: 1.2,
-                        whiteSpace: "nowrap",
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        width: "100%",
-                      }}
-                    >
-                      {value}
-                    </span>
-                  )}
-                </div>
+                <FieldOverlay key={field.id} c={c} isActive={isActive} value={value} />
               );
             })}
           </div>
         </Document>
       </div>
 
-      {/* Footer hint when field has no coordinates */}
-      {activeField && !coords && (
+      {/* Footer hint */}
+      {activeField && !activeCoords && (
         <div className="px-3 py-2 bg-amber-50 border-t border-amber-200 text-xs text-amber-700 flex items-center gap-1.5 shrink-0">
           <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <span><strong>{activeField.label}</strong> — location not mapped for this field</span>
+          <span><strong>{activeField.label}</strong> — location not found in document</span>
         </div>
       )}
 
-      {activeField && coords && coords.page !== currentPage && (
+      {activeField && activeCoords && activeCoords.page !== currentPage && (
         <div className="px-3 py-2 bg-blue-50 border-t border-blue-200 text-xs text-blue-700 flex items-center gap-1.5 shrink-0">
           <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <span><strong>{activeField.label}</strong> is on page {coords.page}</span>
-          <button onClick={() => setCurrentPage(coords.page)} className="ml-auto underline hover:no-underline">
+          <span><strong>{activeField.label}</strong> is on page {activeCoords.page}</span>
+          <button onClick={() => setCurrentPage(activeCoords.page)} className="ml-auto underline hover:no-underline">
             Jump there
           </button>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Absolutely-positioned overlay for a single field */
+function FieldOverlay({
+  c,
+  isActive,
+  value,
+}: {
+  c: FieldCoord;
+  isActive: boolean;
+  value: string | undefined;
+}) {
+  return (
+    <div
+      aria-hidden="true"
+      className="absolute pointer-events-none overflow-hidden flex items-center"
+      style={{
+        left: `${c.x * 100}%`,
+        top: `${c.y * 100}%`,
+        width: `${c.w * 100}%`,
+        height: `${c.h * 100}%`,
+        border: isActive ? "2px solid rgba(217, 119, 6, 0.9)" : "none",
+        backgroundColor: isActive ? "rgba(251, 191, 36, 0.18)" : "transparent",
+        borderRadius: "2px",
+        boxShadow: isActive ? "0 0 0 3px rgba(251, 191, 36, 0.2)" : "none",
+        paddingLeft: "3px",
+        paddingRight: "3px",
+        transition: "background-color 0.15s, border-color 0.15s",
+      }}
+    >
+      {value && (
+        <span
+          style={{
+            fontSize: "clamp(7px, 1.5cqw, 13px)",
+            color: "#1d4ed8",
+            fontFamily: "Arial, sans-serif",
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            width: "100%",
+            display: "block",
+          }}
+        >
+          {value}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function Spinner() {
+  return (
+    <div className="flex items-center justify-center h-64 w-64">
+      <svg className="w-6 h-6 text-slate-400 animate-spin" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+        <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+      </svg>
+    </div>
+  );
+}
+
+function DocError() {
+  return (
+    <div className="flex flex-col items-center justify-center gap-2 h-64 text-slate-400 text-sm">
+      <svg className="w-8 h-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+        <polyline points="14 2 14 8 20 8" />
+      </svg>
+      <p>Could not load document</p>
     </div>
   );
 }
