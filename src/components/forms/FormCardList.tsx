@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -84,6 +84,9 @@ export default function FormCardList({ forms: initialForms }: Props) {
   const router = useRouter();
   const [forms, setForms] = useState(initialForms);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
 
   async function handleDelete(e: React.MouseEvent, id: string, title: string) {
     e.preventDefault();
@@ -106,91 +109,213 @@ export default function FormCardList({ forms: initialForms }: Props) {
     }
   }
 
+  // Derive which statuses and categories are present (for filter pill visibility)
+  const presentStatuses = useMemo(
+    () => Array.from(new Set(forms.map((f) => f.status))).filter((s) => s in statusConfig),
+    [forms]
+  );
+  const presentCategories = useMemo(
+    () => Array.from(new Set(forms.map((f) => f.category).filter(Boolean) as string[])).filter((c) => c in categoryConfig),
+    [forms]
+  );
+
+  const filteredForms = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return forms.filter((f) => {
+      if (q && !f.title.toLowerCase().includes(q)) return false;
+      if (statusFilter && f.status !== statusFilter) return false;
+      if (categoryFilter && f.category !== categoryFilter) return false;
+      return true;
+    });
+  }, [forms, search, statusFilter, categoryFilter]);
+
+  const hasActiveFilter = search.trim() || statusFilter || categoryFilter;
+
   return (
-    <div className="space-y-3">
-      {forms.map((form) => {
-        const style = getStatusStyle(form.status);
-        const isDeleting = deletingId === form.id;
-        const catConfig = form.category ? categoryConfig[form.category] : null;
-        return (
-          <div key={form.id} className="relative group">
-            <Link
-              href={`/dashboard/forms/${form.id}`}
-              className={`flex items-center gap-4 bg-white rounded-xl border border-slate-200 p-4 sm:p-5 hover:border-blue-200 hover:shadow-card transition-all ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}
-            >
-              {getFileIcon(form.sourceType)}
+    <div className="space-y-4">
+      {/* Search + Filter bar */}
+      <div className="space-y-3">
+        {/* Search input */}
+        <div className="relative">
+          <svg
+            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
+            <circle cx="11" cy="11" r="8" />
+            <line x1="21" y1="21" x2="16.65" y2="16.65" />
+          </svg>
+          <input
+            type="search"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search forms…"
+            className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            aria-label="Search forms"
+          />
+        </div>
 
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <h3 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors truncate">
-                    {form.title}
-                  </h3>
-                  {catConfig && (
-                    <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${catConfig.bg} ${catConfig.text}`}>
-                      {catConfig.label}
-                    </span>
-                  )}
-                </div>
+        {/* Status + category filter pills */}
+        {(presentStatuses.length > 1 || presentCategories.length > 0) && (
+          <div className="flex flex-wrap gap-2">
+            {presentStatuses.length > 1 && presentStatuses.map((s) => {
+              const cfg = statusConfig[s];
+              const active = statusFilter === s;
+              return (
+                <button
+                  key={s}
+                  onClick={() => setStatusFilter(active ? null : s)}
+                  className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium border transition-all ${
+                    active
+                      ? `${cfg.bg} ${cfg.text} border-current shadow-sm`
+                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                  }`}
+                  aria-pressed={active}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${active ? cfg.dot : "bg-slate-300"}`} aria-hidden="true" />
+                  {cfg.label}
+                </button>
+              );
+            })}
 
-                {/* Completion bar */}
-                <div className="mt-1.5 flex items-center gap-2">
-                  <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden max-w-[120px]">
-                    <div
-                      className="h-full rounded-full transition-all duration-300"
-                      style={{
-                        width: `${form.completionPercent}%`,
-                        background: form.completionPercent === 100 ? "#10b981" : "#3b82f6",
-                      }}
-                    />
-                  </div>
-                  <span className="text-xs text-slate-400 tabular-nums shrink-0">{form.completionPercent}%</span>
-                </div>
+            {presentCategories.map((c) => {
+              const cfg = categoryConfig[c];
+              const active = categoryFilter === c;
+              return (
+                <button
+                  key={c}
+                  onClick={() => setCategoryFilter(active ? null : c)}
+                  className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full font-medium border transition-all ${
+                    active
+                      ? `${cfg.bg} ${cfg.text} border-current shadow-sm`
+                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                  }`}
+                  aria-pressed={active}
+                >
+                  {cfg.label}
+                </button>
+              );
+            })}
 
-                <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
-                  <span>{form.sourceType}</span>
-                  <span aria-hidden="true">&middot;</span>
-                  <span>{form.fieldCount} fields</span>
-                  <span aria-hidden="true">&middot;</span>
-                  <span>edited {formatRelativeTime(form.updatedAt)}</span>
-                </p>
-              </div>
-
-              <span
-                className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${style.bg} ${style.text} shrink-0`}
+            {hasActiveFilter && (
+              <button
+                onClick={() => { setSearch(""); setStatusFilter(null); setCategoryFilter(null); }}
+                className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium bg-white text-slate-400 border border-slate-200 hover:text-slate-600 hover:border-slate-300 transition-all"
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} aria-hidden="true" />
-                {style.label}
-              </span>
-
-              <svg className="w-5 h-5 text-slate-300 group-hover:text-blue-400 transition-colors shrink-0 hidden sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <polyline points="9 18 15 12 9 6" />
-              </svg>
-            </Link>
-
-            <button
-              onClick={(e) => handleDelete(e, form.id, form.title)}
-              disabled={isDeleting}
-              className="absolute right-14 top-1/2 -translate-y-1/2 hidden sm:flex items-center justify-center w-8 h-8 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed z-10"
-              aria-label={`Delete ${form.title}`}
-              title="Delete form"
-            >
-              {isDeleting ? (
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
-                  <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
                 </svg>
-              ) : (
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                  <polyline points="3 6 5 6 21 6" />
-                  <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                  <path d="M10 11v6M14 11v6" />
-                  <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                </svg>
-              )}
-            </button>
+                Clear
+              </button>
+            )}
           </div>
-        );
-      })}
+        )}
+      </div>
+
+      {/* Results */}
+      {filteredForms.length === 0 ? (
+        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
+          <p className="text-sm text-slate-400">No forms match your search.</p>
+          <button
+            onClick={() => { setSearch(""); setStatusFilter(null); setCategoryFilter(null); }}
+            className="mt-2 text-sm text-blue-600 hover:underline"
+          >
+            Clear filters
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {filteredForms.map((form) => {
+            const style = getStatusStyle(form.status);
+            const isDeleting = deletingId === form.id;
+            const catConfig = form.category ? categoryConfig[form.category] : null;
+            return (
+              <div key={form.id} className="relative group">
+                <Link
+                  href={`/dashboard/forms/${form.id}`}
+                  className={`flex items-center gap-4 bg-white rounded-xl border border-slate-200 p-4 sm:p-5 hover:border-blue-200 hover:shadow-card transition-all ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}
+                >
+                  {getFileIcon(form.sourceType)}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors truncate">
+                        {form.title}
+                      </h3>
+                      {catConfig && (
+                        <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${catConfig.bg} ${catConfig.text}`}>
+                          {catConfig.label}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Completion bar */}
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden max-w-[120px]">
+                        <div
+                          className="h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${form.completionPercent}%`,
+                            background: form.completionPercent === 100 ? "#10b981" : "#3b82f6",
+                          }}
+                        />
+                      </div>
+                      <span className="text-xs text-slate-400 tabular-nums shrink-0">{form.completionPercent}%</span>
+                    </div>
+
+                    <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                      <span>{form.sourceType}</span>
+                      <span aria-hidden="true">&middot;</span>
+                      <span>{form.fieldCount} fields</span>
+                      <span aria-hidden="true">&middot;</span>
+                      <span>edited {formatRelativeTime(form.updatedAt)}</span>
+                    </p>
+                  </div>
+
+                  <span
+                    className={`inline-flex items-center gap-1.5 text-xs px-2.5 py-1 rounded-full font-medium ${style.bg} ${style.text} shrink-0`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${style.dot}`} aria-hidden="true" />
+                    {style.label}
+                  </span>
+
+                  <svg className="w-5 h-5 text-slate-300 group-hover:text-blue-400 transition-colors shrink-0 hidden sm:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </Link>
+
+                <button
+                  onClick={(e) => handleDelete(e, form.id, form.title)}
+                  disabled={isDeleting}
+                  className="absolute right-14 top-1/2 -translate-y-1/2 hidden sm:flex items-center justify-center w-8 h-8 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                  aria-label={`Delete ${form.title}`}
+                  title="Delete form"
+                >
+                  {isDeleting ? (
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <polyline points="3 6 5 6 21 6" />
+                      <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                      <path d="M10 11v6M14 11v6" />
+                      <path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                    </svg>
+                  )}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
