@@ -78,6 +78,14 @@ export interface FormAnalysis {
 }
 
 // Zod schemas for validating AI responses
+const coordinatesSchema = z.object({
+  x: z.number().min(0).max(1),
+  y: z.number().min(0).max(1),
+  w: z.number().min(0).max(1),
+  h: z.number().min(0).max(1),
+  page: z.number().int().min(1).default(1),
+}).optional();
+
 const formAnalysisSchema = z.object({
   title: z.string(),
   description: z.string(),
@@ -90,6 +98,7 @@ const formAnalysisSchema = z.object({
     example: z.string(),
     commonMistakes: z.string(),
     profileKey: z.string().nullable().optional(),
+    coordinates: coordinatesSchema,
   })),
   estimatedMinutes: z.number(),
 });
@@ -158,6 +167,45 @@ Return ONLY a valid JSON object (no markdown fences, no extra text) matching thi
       "example": "Example answer",
       "commonMistakes": "What people often get wrong",
       "profileKey": "firstName"
+    }
+  ],
+  "estimatedMinutes": 5
+}`;
+
+/** Prompt for image-based analysis — same as base but also requests bounding box coordinates. */
+const IMAGE_ANALYSIS_PROMPT = `You are a form analysis expert. Look at the form image and extract all fillable fields.
+
+For each field, provide:
+1. A plain-language explanation of what information belongs there
+2. A realistic example answer
+3. Common mistakes people make
+4. The profile data key that could auto-fill it (if applicable)
+5. The bounding box of the fillable input area (NOT the label) as fractions of the image dimensions
+
+Profile keys available: firstName, lastName, email, phone, dateOfBirth, address.street, address.city, address.state, address.zip, address.country, ssn (last 4 only), passportNumber, employerName, jobTitle, annualIncome
+
+IMPORTANT for coordinates: measure the blank input area where the user writes, not the label text.
+- x: left edge of input / image width (0.0 to 1.0)
+- y: top edge of input / image height (0.0 to 1.0)
+- w: input width / image width (0.0 to 1.0)
+- h: input height / image height (0.0 to 1.0)
+- page: always 1 for single-page images
+
+Return ONLY a valid JSON object (no markdown fences, no extra text) matching this schema:
+{
+  "title": "Form title",
+  "description": "What this form is for in 1-2 sentences",
+  "fields": [
+    {
+      "id": "unique_snake_case_id",
+      "label": "Field label as shown on form",
+      "type": "text|date|number|select|checkbox|signature",
+      "required": true,
+      "explanation": "Plain language explanation",
+      "example": "Example answer",
+      "commonMistakes": "What people often get wrong",
+      "profileKey": "firstName",
+      "coordinates": { "x": 0.12, "y": 0.08, "w": 0.45, "h": 0.03, "page": 1 }
     }
   ],
   "estimatedMinutes": 5
@@ -350,18 +398,18 @@ export async function analyzeFormFieldsFromImage(
 ): Promise<FormAnalysis> {
   const langInstruction = buildLanguageInstruction(language);
 
-  // Primary: Groq (free tier) — llama-3.2-11b-vision-preview
-  // Fallback: Claude Haiku (paid) if Groq vision is unavailable
+  // Primary: Claude Haiku (reliable vision)
+  // Fallback: Groq vision (cost-saving, less reliable)
   let responseText: string;
   try {
-    responseText = await analyzeImageWithGroq(base64, mimeType, titleHint, langInstruction);
+    responseText = await analyzeImageWithClaude(base64, mimeType, titleHint, langInstruction);
   } catch (primaryErr) {
-    console.warn("[image-analysis] Groq vision failed, falling back to Claude:", primaryErr instanceof Error ? primaryErr.message : primaryErr);
+    console.warn("[image-analysis] Claude vision failed, trying Groq fallback:", primaryErr instanceof Error ? primaryErr.message : primaryErr);
     try {
-      responseText = await analyzeImageWithClaude(base64, mimeType, titleHint, langInstruction);
-    } catch {
-      // Re-throw the primary error for better UX messaging
-      throw primaryErr;
+      responseText = await analyzeImageWithGroq(base64, mimeType, titleHint, langInstruction);
+    } catch (fallbackErr) {
+      console.error("[image-analysis] Both vision models failed. Claude:", primaryErr instanceof Error ? primaryErr.message : primaryErr, "Groq:", fallbackErr instanceof Error ? fallbackErr.message : fallbackErr);
+      throw new Error("Image analysis failed. Please try again or upload a clearer image.");
     }
   }
 

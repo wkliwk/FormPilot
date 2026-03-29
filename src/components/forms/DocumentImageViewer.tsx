@@ -12,9 +12,10 @@ interface Props {
   sourceType: string;
   fields: FormField[];
   activeFieldId: string | null;
+  liveValues?: Record<string, string>;
 }
 
-export default function DocumentImageViewer({ formId, sourceType, fields, activeFieldId }: Props) {
+export default function DocumentImageViewer({ formId, sourceType, fields, activeFieldId, liveValues = {} }: Props) {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [pageWidth, setPageWidth] = useState<number | null>(null);
@@ -30,9 +31,6 @@ export default function DocumentImageViewer({ formId, sourceType, fields, active
   if (coords?.page && coords.page !== currentPage) {
     setCurrentPage(coords.page);
   }
-
-  const showHighlight =
-    coords != null && coords.page === currentPage && pageWidth != null && pageHeight != null;
 
   // IMAGE sourceType: just render the raw image
   if (sourceType === "IMAGE") {
@@ -111,24 +109,51 @@ export default function DocumentImageViewer({ formId, sourceType, fields, active
               }}
             />
 
-            {/* Field highlight overlay */}
-            {showHighlight && coords && (
-              <div
-                aria-hidden="true"
-                className="absolute pointer-events-none"
-                style={{
-                  left: `${coords.x * 100}%`,
-                  top: `${coords.y * 100}%`,
-                  width: `${coords.w * 100}%`,
-                  height: `${coords.h * 100}%`,
-                  backgroundColor: "rgba(251, 191, 36, 0.35)",
-                  border: "2px solid rgba(217, 119, 6, 0.85)",
-                  borderRadius: "2px",
-                  boxShadow: "0 0 0 3px rgba(251, 191, 36, 0.25)",
-                  animation: "pulse 1.5s ease-in-out infinite",
-                }}
-              />
-            )}
+            {/* Text overlays: show live values for all fields with coordinates on this page */}
+            {fields.map((field) => {
+              const c = field.coordinates;
+              if (!c || c.page !== currentPage) return null;
+              const value = liveValues[field.id];
+              const isActive = field.id === activeFieldId;
+              return (
+                <div
+                  key={field.id}
+                  aria-hidden="true"
+                  className="absolute pointer-events-none overflow-hidden"
+                  style={{
+                    left: `${c.x * 100}%`,
+                    top: `${c.y * 100}%`,
+                    width: `${c.w * 100}%`,
+                    height: `${c.h * 100}%`,
+                    border: isActive ? "2px solid rgba(217, 119, 6, 0.85)" : "none",
+                    backgroundColor: isActive ? "rgba(251, 191, 36, 0.15)" : "transparent",
+                    borderRadius: "2px",
+                    boxShadow: isActive ? "0 0 0 3px rgba(251, 191, 36, 0.2)" : "none",
+                    display: "flex",
+                    alignItems: "center",
+                    paddingLeft: "3px",
+                    paddingRight: "3px",
+                  }}
+                >
+                  {value && (
+                    <span
+                      style={{
+                        fontSize: "clamp(7px, 1.2%, 13px)",
+                        color: "#1e40af",
+                        fontFamily: "Arial, sans-serif",
+                        lineHeight: 1.2,
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        width: "100%",
+                      }}
+                    >
+                      {value}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Document>
       </div>
