@@ -382,7 +382,33 @@ export default function GuidedFillMode({
               )}
 
               {/* Input */}
-              {state !== "rejected" ? (
+              {field.type === "checkbox" ? (
+                <div className="mt-3 flex items-center gap-3">
+                  <button
+                    id={`guided-${field.id}`}
+                    type="button"
+                    role="checkbox"
+                    aria-checked={values[field.id] === "Checked"}
+                    disabled={state === "accepted"}
+                    onClick={() => {
+                      const next = values[field.id] === "Checked" ? "Unchecked" : "Checked";
+                      handleValueChange(field.id, next);
+                    }}
+                    className={`relative w-12 h-6 rounded-full transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                      values[field.id] === "Checked" ? "bg-blue-500" : "bg-slate-200"
+                    } ${state === "accepted" ? "opacity-60 cursor-not-allowed" : "cursor-pointer"}`}
+                  >
+                    <span
+                      className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${
+                        values[field.id] === "Checked" ? "translate-x-6" : "translate-x-0"
+                      }`}
+                    />
+                  </button>
+                  <span className="text-sm text-slate-600">
+                    {values[field.id] === "Checked" ? "Checked" : "Unchecked"}
+                  </span>
+                </div>
+              ) : state !== "rejected" ? (
                 <input
                   id={`guided-${field.id}`}
                   type={field.type === "date" ? "date" : "text"}

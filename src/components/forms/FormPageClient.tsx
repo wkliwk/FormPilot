@@ -40,6 +40,11 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [formData, setFormData] = useState(form);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
+  const [liveValues, setLiveValues] = useState<Record<string, string>>(() =>
+    Object.fromEntries(
+      (form.fields as FormField[]).filter((f) => f.value).map((f) => [f.id, f.value!])
+    )
+  );
   const [sideBySide, setSideBySide] = useState(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("fp-side-by-side") === "true";
@@ -230,6 +235,9 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
               hasFile={hasFile}
               sourceType={sourceType}
               onFieldFocus={setActiveFieldId}
+              onValueChange={(fieldId, value) =>
+                setLiveValues((prev) => ({ ...prev, [fieldId]: value }))
+              }
             />
           </div>
           {/* Right: Document panel — sticky so it stays in view while scrolling fields */}
@@ -247,6 +255,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
                 sourceType={sourceType ?? "PDF"}
                 fields={fields}
                 activeFieldId={activeFieldId}
+                liveValues={liveValues}
               />
             </div>
           </div>
