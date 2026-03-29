@@ -350,16 +350,16 @@ export async function analyzeFormFieldsFromImage(
 ): Promise<FormAnalysis> {
   const langInstruction = buildLanguageInstruction(language);
 
-  // Primary: Claude (Anthropic) — reliable vision support
-  // Fallback: Groq vision (llama-3.2-11b) if Anthropic unavailable
+  // Primary: Groq (free tier) — llama-3.2-11b-vision-preview
+  // Fallback: Claude Haiku (paid) if Groq vision is unavailable
   let responseText: string;
   try {
-    responseText = await analyzeImageWithClaude(base64, mimeType, titleHint, langInstruction);
+    responseText = await analyzeImageWithGroq(base64, mimeType, titleHint, langInstruction);
   } catch (primaryErr) {
-    console.warn("[image-analysis] Claude vision failed, falling back to Groq:", primaryErr instanceof Error ? primaryErr.message : primaryErr);
+    console.warn("[image-analysis] Groq vision failed, falling back to Claude:", primaryErr instanceof Error ? primaryErr.message : primaryErr);
     try {
-      responseText = await analyzeImageWithGroq(base64, mimeType, titleHint, langInstruction);
-    } catch (fallbackErr) {
+      responseText = await analyzeImageWithClaude(base64, mimeType, titleHint, langInstruction);
+    } catch {
       // Re-throw the primary error for better UX messaging
       throw primaryErr;
     }
