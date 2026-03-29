@@ -127,6 +127,12 @@ export default function HomePage() {
           </span>
           <div className="flex items-center gap-3">
             <Link
+              href="/demo"
+              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            >
+              Try Demo
+            </Link>
+            <Link
               href="/login"
               className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
             >
@@ -180,10 +186,11 @@ export default function HomePage() {
               <ArrowRightIcon />
             </Link>
             <Link
-              href="/login"
-              className="inline-flex items-center justify-center px-8 py-3.5 border border-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all"
+              href="/demo"
+              className="inline-flex items-center justify-center gap-2 px-8 py-3.5 border border-slate-200 text-slate-700 rounded-xl font-semibold hover:bg-slate-50 hover:border-slate-300 transition-all"
             >
-              Sign In
+              Try a sample form — no signup needed
+              <ArrowRightIcon />
             </Link>
           </div>
 
@@ -294,12 +301,19 @@ export default function HomePage() {
           <p className="mt-4 text-lg text-slate-400 max-w-xl mx-auto">
             Upload your first form and see every field explained in plain language.
           </p>
-          <div className="mt-8">
+          <div className="mt-8 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               href="/dashboard"
               className="inline-flex items-center gap-2 px-8 py-3.5 bg-white text-slate-900 rounded-xl font-semibold hover:bg-slate-100 transition-all shadow-lg active:scale-[0.98]"
             >
               Get Started Free
+              <ArrowRightIcon />
+            </Link>
+            <Link
+              href="/demo"
+              className="inline-flex items-center gap-2 px-8 py-3.5 border border-slate-600 text-slate-300 rounded-xl font-semibold hover:bg-slate-800 hover:text-white transition-all"
+            >
+              Try a sample form — no signup needed
               <ArrowRightIcon />
             </Link>
           </div>

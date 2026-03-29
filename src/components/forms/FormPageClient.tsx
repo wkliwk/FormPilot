@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import FormViewer from "./FormViewer";
 import GuidedFillMode from "./GuidedFillMode";
 import DocumentImageViewer from "./DocumentImageViewer";
@@ -41,6 +42,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
   const router = useRouter();
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [deleting, setDeleting] = useState(false);
+  const [pageTitle, setPageTitle] = useState(form.title);
   const [formData, setFormData] = useState(form);
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const [liveValues, setLiveValues] = useState<Record<string, string>>(() =>
@@ -126,22 +128,38 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
     }
   }
 
+  const breadcrumb = (
+    <nav className="flex items-center gap-2 text-sm mb-4" aria-label="Breadcrumb">
+      <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors">
+        Dashboard
+      </Link>
+      <svg className="w-4 h-4 text-slate-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <polyline points="9 18 15 12 9 6" />
+      </svg>
+      <span className="font-medium text-slate-700 truncate max-w-[300px]">{pageTitle}</span>
+    </nav>
+  );
+
   if (mode === "guided") {
     return (
-      <GuidedFillMode
-        formId={form.id}
-        fields={fields}
-        initialValues={initialValues}
-        initialStates={initialStates}
-        hasProfile={hasProfile}
-        onExit={() => setMode("full")}
-        onValuesChange={handleValuesChange}
-      />
+      <>
+        {breadcrumb}
+        <GuidedFillMode
+          formId={form.id}
+          fields={fields}
+          initialValues={initialValues}
+          initialStates={initialStates}
+          hasProfile={hasProfile}
+          onExit={() => setMode("full")}
+          onValuesChange={handleValuesChange}
+        />
+      </>
     );
   }
 
   return (
     <div className="space-y-4">
+      {breadcrumb}
       {/* Mode toggle bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl border border-slate-200 shadow-soft px-4 py-3">
         <div className="flex items-center gap-2">
@@ -271,6 +289,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
               onValueChange={(fieldId, value) =>
                 setLiveValues((prev) => ({ ...prev, [fieldId]: value }))
               }
+              onTitleChange={setPageTitle}
             />
           </div>
           {/* Right: Document panel — sticky so it stays in view while scrolling fields */}
@@ -301,6 +320,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
             hasFile={hasFile}
             sourceType={sourceType}
             onFieldFocus={setActiveFieldId}
+            onTitleChange={setPageTitle}
           />
         </div>
       )}
