@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 import type { ValidationResult } from "@/lib/validation/validate-form";
 import { validateForm } from "@/lib/validation/validate-form";
@@ -92,6 +92,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   // per-field AI suggestions
   const [suggestingFields, setSuggestingFields] = useState<Set<string>>(new Set());
   const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, { value: string; source: string } | null>>({});
+  // keyboard navigation for unanswered fields
+  const [currentUnansweredIndex, setCurrentUnansweredIndex] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const titleSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -394,6 +396,46 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       setSampleFilling(false);
     }
   }
+
+  // -- keyboard navigation --
+
+  // Get list of unanswered field IDs (fields with no value)
+  const unansweredFieldIds = fields
+    .filter((f) => !values[f.id])
+    .map((f) => f.id);
+
+  const unansweredCount = unansweredFieldIds.length;
+
+  // Navigate to an unanswered field by index
+  const navigateToUnansweredField = useCallback((index: number) => {
+    if (unansweredFieldIds.length === 0) return;
+    const clampedIndex = Math.max(0, Math.min(index, unansweredFieldIds.length - 1));
+    setCurrentUnansweredIndex(clampedIndex);
+    const fieldId = unansweredFieldIds[clampedIndex];
+    const element = document.getElementById(`field-${fieldId}`);
+    if (element) {
+      element.scrollIntoView({ behavior: "smooth", block: "center" });
+      element.focus();
+    }
+  }, [unansweredFieldIds]);
+
+  // Handle keyboard shortcuts: Alt+N (next), Alt+P (previous)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (unansweredCount === 0) return;
+
+      if (e.altKey && e.key === "n") {
+        e.preventDefault();
+        navigateToUnansweredField(currentUnansweredIndex + 1);
+      } else if (e.altKey && e.key === "p") {
+        e.preventDefault();
+        navigateToUnansweredField(currentUnansweredIndex - 1);
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [currentUnansweredIndex, unansweredCount, navigateToUnansweredField]);
 
   // -- derived --
 
@@ -1115,6 +1157,24 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           );
         })}
       </div>
+
+      {/* Floating "Next unanswered" button */}
+      {unansweredCount > 0 && (
+        <button
+          onClick={() => navigateToUnansweredField(currentUnansweredIndex + 1)}
+          title="Jump to next unanswered field (Alt+N)"
+          className="fixed bottom-6 right-6 z-20 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium shadow-lg hover:bg-blue-700 transition-colors active:scale-95"
+          aria-label={`${unansweredCount} unanswered remaining. Press Alt+N for next or Alt+P for previous.`}
+        >
+          <span className="hidden sm:inline">
+            {unansweredCount} unanswered
+          </span>
+          <span className="sm:hidden">
+            {unansweredCount}
+          </span>
+          <kbd className="hidden sm:inline text-xs bg-blue-700 px-2 py-1 rounded">Alt+N</kbd>
+        </button>
+      )}
     </div>
     </>
   );
