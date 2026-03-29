@@ -3,7 +3,6 @@
 import { useState } from "react";
 import FormViewer from "./FormViewer";
 import GuidedFillMode from "./GuidedFillMode";
-import DocumentImageViewer from "./DocumentImageViewer";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 
 const SUPPORTED_LANGUAGES = [
@@ -242,13 +241,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
                 </svg>
                 <span className="text-xs font-medium text-slate-600">Original Document</span>
               </div>
-              {sourceType === "PDF" ? (
-                <DocumentImageViewer
-                  formId={form.id}
-                  fields={fields}
-                  activeFieldId={activeFieldId}
-                />
-              ) : (
+              {sourceType === "IMAGE" ? (
                 <div className="p-4 overflow-auto h-full">
                   <img
                     src={documentUrl}
@@ -256,6 +249,13 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
                     className="w-full h-auto rounded"
                   />
                 </div>
+              ) : (
+                <iframe
+                  src={documentUrl ?? ""}
+                  className="w-full border-0 rounded-b-xl"
+                  style={{ height: "calc(100vh - 180px)", minHeight: "500px" }}
+                  title="Original document"
+                />
               )}
             </div>
           </div>
