@@ -72,6 +72,10 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
   );
   const [reExplaining, setReExplaining] = useState(false);
   const [reExplainError, setReExplainError] = useState<string | null>(null);
+  const [sharing, setSharing] = useState(false);
+  const [shareSlug, setShareSlug] = useState<string | null>(null);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const fields = formData.fields as FormField[];
   const initialValues = Object.fromEntries(
@@ -112,6 +116,35 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
     }
   }
 
+  async function handleShare() {
+    setSharing(true);
+    setShareError(null);
+    try {
+      const res = await fetch(`/api/forms/${form.id}/template`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error ?? "Failed to create template");
+      }
+      const data = await res.json() as { slug: string };
+      setShareSlug(data.slug);
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setSharing(false);
+    }
+  }
+
+  function getShareUrl(slug: string) {
+    return `${window.location.origin}/t/${slug}`;
+  }
+
+  async function copyShareLink() {
+    if (!shareSlug) return;
+    await navigator.clipboard.writeText(getShareUrl(shareSlug));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
+
   async function handleDelete() {
     if (!window.confirm("Delete this form? This cannot be undone.")) return;
     setDeleting(true);
@@ -128,6 +161,42 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
     }
   }
 
+  const shareModal = shareSlug ? (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setShareSlug(null)}>
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-semibold text-slate-900">Template link created</h2>
+            <p className="text-sm text-slate-500 mt-0.5">Share this link. Your personal data is not included.</p>
+          </div>
+          <button onClick={() => setShareSlug(null)} className="text-slate-400 hover:text-slate-600 shrink-0">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <input
+            readOnly
+            value={getShareUrl(shareSlug)}
+            className="flex-1 text-sm px-3 py-2.5 border border-slate-200 rounded-lg bg-slate-50 text-slate-700 font-mono truncate"
+          />
+          <button
+            onClick={copyShareLink}
+            className={`shrink-0 px-4 py-2.5 text-sm font-medium rounded-lg transition-all ${
+              copied ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-blue-600 text-white hover:bg-blue-700"
+            }`}
+          >
+            {copied ? "Copied!" : "Copy"}
+          </button>
+        </div>
+        <p className="text-xs text-slate-400">
+          Anyone with this link can view the form structure and guidance. Your answers are never shared.
+        </p>
+      </div>
+    </div>
+  ) : null;
+
   const breadcrumb = (
     <nav className="flex items-center gap-2 text-sm mb-4" aria-label="Breadcrumb">
       <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors">
@@ -143,6 +212,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
   if (mode === "guided") {
     return (
       <>
+        {shareModal}
         {breadcrumb}
         <GuidedFillMode
           formId={form.id}
@@ -159,7 +229,13 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
 
   return (
     <div className="space-y-4">
+      {shareModal}
       {breadcrumb}
+      {shareError && (
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+          {shareError}
+        </div>
+      )}
       {/* Mode toggle bar */}
       <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl border border-slate-200 shadow-soft px-4 py-3">
         <div className="flex items-center gap-2">
@@ -210,6 +286,30 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Share as Template */}
+          <button
+            onClick={handleShare}
+            disabled={sharing}
+            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors text-violet-700 hover:bg-violet-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Share as Template"
+          >
+            {sharing ? (
+              <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="18" cy="5" r="3" />
+                <circle cx="6" cy="12" r="3" />
+                <circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+            )}
+            <span className="hidden sm:inline">Share</span>
+          </button>
+
           <button
             onClick={handleDelete}
             disabled={deleting}

@@ -116,18 +116,23 @@ model FieldCache {
   @@index([expiresAt])
 }
 
-// Saved form templates for repeat submissions
+// Shareable form templates — strips personal values, preserves form structure + guidance
 model FormTemplate {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   userId       String
   name         String
   sourceFormId String
-  fieldData    Json     // Saved field values (sensitive fields stripped)
+  fields       Json      // Field structure with AI guidance — personal values stripped
   category     String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  slug         String?   @unique // URL slug for sharing: /t/[slug]
+  visibility   String    @default("INVITE") // "PUBLIC" or "INVITE"
+  usedCount    Int       @default(0)
+  revokedAt    DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+  @@index([slug])
 }
