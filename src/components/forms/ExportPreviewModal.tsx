@@ -122,6 +122,7 @@ export default function ExportPreviewModal({
           {canPreviewDoc ? (
             <DocumentImageViewer
               formId={formId}
+              sourceType={sourceType ?? "PDF"}
               fields={fields}
               activeFieldId={activeFieldId}
             />
