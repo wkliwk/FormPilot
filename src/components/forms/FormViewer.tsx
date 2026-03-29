@@ -91,7 +91,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [titleDraft, setTitleDraft] = useState(form.title);
   // per-field AI suggestions
   const [suggestingFields, setSuggestingFields] = useState<Set<string>>(new Set());
-  const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, { value: string; source: string } | null>>({});
+  const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, { value: string; source: string; sourceType?: "memory" | "history" } | null>>({});
   // keyboard navigation for unanswered fields
   const [currentUnansweredIndex, setCurrentUnansweredIndex] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -176,7 +176,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         body: JSON.stringify({ fieldId }),
       });
       if (!res.ok) throw new Error("Request failed");
-      const data = await res.json() as { suggestion: { value: string; source: string } | null };
+      const data = await res.json() as { suggestion: { value: string; source: string; sourceType?: "memory" | "history" } | null };
       setFieldSuggestions((prev) => ({ ...prev, [fieldId]: data.suggestion }));
     } catch {
       setFieldSuggestions((prev) => ({ ...prev, [fieldId]: null }));
@@ -1060,7 +1060,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                   </div>
                 </div>
 
-                {/* AI suggestion callout */}
+                {/* Suggestion callout */}
                 {field.id in fieldSuggestions && (
                   <div className={`rounded-xl border px-4 py-3 flex items-start justify-between gap-3 ${
                     fieldSuggestions[field.id]
@@ -1070,7 +1070,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                     {fieldSuggestions[field.id] ? (
                       <>
                         <div className="min-w-0">
-                          <p className="text-xs text-violet-600 font-medium mb-1">Suggested value</p>
+                          <div className="flex items-center gap-1.5 mb-1">
+                            {fieldSuggestions[field.id]!.sourceType === "memory" ? (
+                              <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                                From memory
+                              </span>
+                            ) : (
+                              <span className="text-xs font-medium text-violet-700">Suggested value</span>
+                            )}
+                          </div>
                           <p className="text-sm text-slate-800 font-medium truncate">{fieldSuggestions[field.id]!.value}</p>
                           <p className="text-xs text-slate-400 mt-0.5">From: {fieldSuggestions[field.id]!.source}</p>
                         </div>

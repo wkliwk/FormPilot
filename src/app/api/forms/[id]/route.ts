@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
+import { extractMemoryFromForm } from "@/lib/ai/extract-memory";
+import type { FormField } from "@/lib/ai/analyze-form";
 import { z } from "zod";
 
 export async function GET(
@@ -135,6 +137,14 @@ export async function PATCH(
       where: { id },
       data: updateData,
     });
+
+    // When a form reaches COMPLETED, extract memory in the background (non-blocking)
+    if (parsed.data.status === "COMPLETED") {
+      const currentFields = (updated.fields ?? form.fields) as unknown as FormField[];
+      extractMemoryFromForm(session.user.id, id, updated.title, currentFields).catch(
+        () => { /* best-effort, don't block response */ }
+      );
+    }
 
     return NextResponse.json({ form: updated });
   } catch (err) {

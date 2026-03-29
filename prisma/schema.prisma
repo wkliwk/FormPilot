@@ -15,11 +15,12 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts  Account[]
-  sessions  Session[]
-  profile   Profile?
-  forms     Form[]
-  templates FormTemplate[]
+  accounts   Account[]
+  sessions   Session[]
+  profile    Profile?
+  forms      Form[]
+  templates  FormTemplate[]
+  formMemory FormMemory[]
 }
 
 model Account {
@@ -114,6 +115,25 @@ model FieldCache {
   expiresAt      DateTime
 
   @@index([expiresAt])
+}
+
+// Per-user structured memory extracted from completed forms
+model FormMemory {
+  id           String   @id @default(cuid())
+  userId       String
+  fieldType    String   // name | email | phone | address | employer | passport | tax_id | custom
+  label        String   // Normalized field label (lowercase, stripped punctuation)
+  value        String
+  confidence   Float    @default(1.0)
+  sourceFormId String
+  sourceTitle  String
+  lastUsed     DateTime @default(now())
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, label])
+  @@index([userId, fieldType])
 }
 
 // Shareable form templates — strips personal values, preserves form structure + guidance
