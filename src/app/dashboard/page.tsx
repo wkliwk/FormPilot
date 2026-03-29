@@ -83,13 +83,23 @@ export default async function DashboardPage() {
             </Link>
           </div>
         ) : (
-          <FormCardList forms={forms.map((f) => ({
-            id: f.id,
-            title: f.title,
-            status: f.status,
-            sourceType: f.sourceType,
-            createdAt: f.createdAt,
-          }))} />
+          <FormCardList forms={forms.map((f) => {
+            const fields = f.fields as Array<{ value?: string }>;
+            const totalFields = fields.length;
+            const filledCount = fields.filter((field) => field.value && String(field.value).trim()).length;
+            const completionPercent = totalFields > 0 ? Math.round((filledCount / totalFields) * 100) : 0;
+            return {
+              id: f.id,
+              title: f.title,
+              status: f.status,
+              sourceType: f.sourceType,
+              category: f.category ?? null,
+              fieldCount: totalFields,
+              completionPercent,
+              createdAt: f.createdAt,
+              updatedAt: f.updatedAt,
+            };
+          })} />
         )}
       </main>
     </>

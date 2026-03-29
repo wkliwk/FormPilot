@@ -11,8 +11,30 @@ const statusConfig: Record<string, { label: string; bg: string; text: string; do
   UPLOADED: { label: "Processing", bg: "bg-slate-50", text: "text-slate-500", dot: "bg-slate-400" },
 };
 
+const categoryConfig: Record<string, { label: string; bg: string; text: string }> = {
+  TAX: { label: "Tax", bg: "bg-yellow-50", text: "text-yellow-700" },
+  IMMIGRATION: { label: "Immigration", bg: "bg-blue-50", text: "text-blue-700" },
+  LEGAL: { label: "Legal", bg: "bg-purple-50", text: "text-purple-700" },
+  HR_EMPLOYMENT: { label: "HR", bg: "bg-teal-50", text: "text-teal-700" },
+  HEALTHCARE: { label: "Healthcare", bg: "bg-rose-50", text: "text-rose-700" },
+  GENERAL: { label: "General", bg: "bg-slate-100", text: "text-slate-600" },
+};
+
 function getStatusStyle(status: string) {
   return statusConfig[status] ?? statusConfig.UPLOADED;
+}
+
+function formatRelativeTime(date: Date): string {
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 2) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  return new Date(date).toLocaleDateString("en-US", { month: "short", day: "numeric" });
 }
 
 function getFileIcon(sourceType: string) {
@@ -47,7 +69,11 @@ interface FormCard {
   title: string;
   status: string;
   sourceType: string;
+  category: string | null;
+  fieldCount: number;
+  completionPercent: number;
   createdAt: Date;
+  updatedAt: Date;
 }
 
 interface Props {
@@ -85,6 +111,7 @@ export default function FormCardList({ forms: initialForms }: Props) {
       {forms.map((form) => {
         const style = getStatusStyle(form.status);
         const isDeleting = deletingId === form.id;
+        const catConfig = form.category ? categoryConfig[form.category] : null;
         return (
           <div key={form.id} className="relative group">
             <Link
@@ -94,17 +121,37 @@ export default function FormCardList({ forms: initialForms }: Props) {
               {getFileIcon(form.sourceType)}
 
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors truncate">
-                  {form.title}
-                </h3>
-                <p className="text-sm text-slate-400 mt-0.5">
-                  {form.sourceType}
-                  <span className="mx-1.5">&middot;</span>
-                  {new Date(form.createdAt).toLocaleDateString("en-US", {
-                    month: "short",
-                    day: "numeric",
-                    year: "numeric",
-                  })}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors truncate">
+                    {form.title}
+                  </h3>
+                  {catConfig && (
+                    <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${catConfig.bg} ${catConfig.text}`}>
+                      {catConfig.label}
+                    </span>
+                  )}
+                </div>
+
+                {/* Completion bar */}
+                <div className="mt-1.5 flex items-center gap-2">
+                  <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden max-w-[120px]">
+                    <div
+                      className="h-full rounded-full transition-all duration-300"
+                      style={{
+                        width: `${form.completionPercent}%`,
+                        background: form.completionPercent === 100 ? "#10b981" : "#3b82f6",
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-slate-400 tabular-nums shrink-0">{form.completionPercent}%</span>
+                </div>
+
+                <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                  <span>{form.sourceType}</span>
+                  <span aria-hidden="true">&middot;</span>
+                  <span>{form.fieldCount} fields</span>
+                  <span aria-hidden="true">&middot;</span>
+                  <span>edited {formatRelativeTime(form.updatedAt)}</span>
                 </p>
               </div>
 
