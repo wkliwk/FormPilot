@@ -27,6 +27,7 @@ export async function canUploadForm(userId: string): Promise<
 > {
   if (await isProUser(userId)) return { allowed: true };
 
+  // getOrCreateUsage lazily resets the counter when a new calendar month starts
   const usage = await getOrCreateUsage(userId);
   if (usage.formsThisMonth < FREE_FORM_LIMIT) return { allowed: true };
   return { allowed: false, formsUsed: usage.formsThisMonth, limit: FREE_FORM_LIMIT };
@@ -41,13 +42,28 @@ export async function incrementFormUsage(userId: string): Promise<void> {
   });
 }
 
-/** Returns current usage count, creating the record if it doesn't exist */
+/** Returns current usage count, creating the record if it doesn't exist.
+ *  Lazily resets the counter when a new calendar month has started — necessary
+ *  because free users never pay, so the Stripe invoice webhook never fires for them. */
 export async function getOrCreateUsage(userId: string) {
-  return prisma.usageCount.upsert({
+  const record = await prisma.usageCount.upsert({
     where: { userId },
     create: { userId, formsThisMonth: 0, periodStart: new Date() },
     update: {},
   });
+
+  const now = new Date();
+  const periodStart = new Date(record.periodStart);
+  const isNewMonth =
+    now.getFullYear() !== periodStart.getFullYear() ||
+    now.getMonth() !== periodStart.getMonth();
+
+  if (isNewMonth) {
+    await resetMonthlyUsage(userId);
+    return { ...record, formsThisMonth: 0, periodStart: now };
+  }
+
+  return record;
 }
 
 /** Resets monthly usage — called from Stripe webhook on invoice.paid */
