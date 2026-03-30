@@ -2,15 +2,21 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import ProfileForm from "@/components/forms/ProfileForm";
+import SavedCorrections from "@/components/forms/SavedCorrections";
 import Link from "next/link";
 
 export default async function ProfilePage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id! },
-  });
+  const [profile, corrections] = await Promise.all([
+    prisma.profile.findUnique({ where: { userId: session.user.id! } }),
+    prisma.formMemory.findMany({
+      where: { userId: session.user.id!, fieldType: "correction" },
+      orderBy: { lastUsed: "desc" },
+      select: { id: true, label: true, value: true, lastUsed: true },
+    }),
+  ]);
 
   return (
     <div>
@@ -52,6 +58,12 @@ export default async function ProfilePage() {
             initialPreferredLanguage={profile?.preferredLanguage ?? null}
           />
         </div>
+
+        {corrections.length > 0 && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-6 sm:p-8 mt-6">
+            <SavedCorrections initialCorrections={corrections} />
+          </div>
+        )}
       </main>
     </div>
   );
