@@ -882,6 +882,17 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         </div>
       )}
 
+      {/* Resume session banner — shown when returning to an in-progress form */}
+      {form.status === "FILLING" && filledCount > 0 && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          Resuming your session — {filledCount} of {fields.length} fields filled.
+        </div>
+      )}
+
       {/* Field Cards */}
       <div className="space-y-3">
         {fields.map((field) => {
