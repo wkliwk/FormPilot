@@ -4,6 +4,12 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+interface BillingInfo {
+  plan: "free" | "pro";
+  formsUsed: number;
+  formsLimit: number | null;
+}
+
 const ACCEPTED_MIME_TYPES = new Set([
   "application/pdf",
   "application/msword",
@@ -52,6 +58,41 @@ export default function UploadPage() {
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [billing, setBilling] = useState<BillingInfo | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeLoading, setUpgradeLoading] = useState(false);
+
+  // Fetch billing info once on mount for pre-flight limit check
+  useEffect(() => {
+    fetch("/api/billing")
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => { if (data) setBilling(data); })
+      .catch(() => {});
+  }, []);
+
+  // Close modal on Escape key
+  useEffect(() => {
+    if (!showUpgradeModal) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setShowUpgradeModal(false);
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [showUpgradeModal]);
+
+  async function handleUpgrade() {
+    setUpgradeLoading(true);
+    const res = await fetch("/api/billing/create-checkout", { method: "POST" });
+    const data = await res.json();
+    if (data.url) window.location.href = data.url;
+    setUpgradeLoading(false);
+  }
+
+  const isAtLimit =
+    billing !== null &&
+    billing.plan === "free" &&
+    billing.formsLimit !== null &&
+    billing.formsUsed >= billing.formsLimit;
 
   // Revoke object URL on cleanup to prevent memory leaks
   useEffect(() => {
@@ -149,6 +190,12 @@ export default function UploadPage() {
     e.preventDefault();
     if (!file) return;
 
+    // Pre-flight: show upsell modal instead of hitting the API when at limit
+    if (isAtLimit) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setUploadProgress(0);
@@ -177,6 +224,14 @@ export default function UploadPage() {
 
       if (!res.ok) {
         const data = await res.json();
+        if (res.status === 402 && data.code === "UPGRADE_REQUIRED") {
+          // Race condition: limit was hit between page load and submit
+          setShowUpgradeModal(true);
+          setLoading(false);
+          setUploadProgress(0);
+          clearInterval(progressInterval);
+          return;
+        }
         throw new Error(data.error || "Upload failed");
       }
 
@@ -197,8 +252,92 @@ export default function UploadPage() {
   const badge = file ? getFileBadge(file) : null;
   const showImagePreview = file !== null && previewUrl !== null;
 
+  const usagePct =
+    billing && billing.formsLimit
+      ? Math.min(100, (billing.formsUsed / billing.formsLimit) * 100)
+      : 0;
+
   return (
     <div>
+      {/* Upgrade modal */}
+      {showUpgradeModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowUpgradeModal(false)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-card w-full max-w-md p-6 sm:p-8 animate-slide-down"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={() => setShowUpgradeModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+              aria-label="Close"
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+
+            <div className="mb-5">
+              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mb-4">
+                <svg className="w-6 h-6 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-slate-900">
+                You&apos;ve used all {billing?.formsLimit ?? 5} free forms this month
+              </h2>
+              <p className="text-sm text-slate-500 mt-1.5">
+                Upgrade to Pro for unlimited uploads and more.
+              </p>
+            </div>
+
+            {/* Usage meter */}
+            {billing && billing.formsLimit && (
+              <div className="mb-5">
+                <div className="flex justify-between text-xs text-slate-500 mb-1.5">
+                  <span>Forms used</span>
+                  <span className="font-semibold">{billing.formsUsed} / {billing.formsLimit}</span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-red-500 rounded-full" style={{ width: `${usagePct}%` }} />
+                </div>
+                <p className="text-xs text-slate-400 mt-1.5">Resets on your billing cycle.</p>
+              </div>
+            )}
+
+            {/* Pro features */}
+            <ul className="space-y-2 mb-6">
+              {[
+                "Unlimited form uploads",
+                "Form Memory — learns from your completed forms",
+                "Shareable form templates",
+                "Priority AI processing",
+              ].map((f) => (
+                <li key={f} className="flex items-center gap-2.5 text-sm text-slate-700">
+                  <span className="text-blue-500 shrink-0">✓</span> {f}
+                </li>
+              ))}
+            </ul>
+
+            <button
+              onClick={handleUpgrade}
+              disabled={upgradeLoading}
+              className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all disabled:opacity-50 shadow-sm"
+            >
+              {upgradeLoading ? "Redirecting…" : "Upgrade to Pro — $9/mo"}
+            </button>
+            <p className="text-center mt-3 text-sm text-slate-400">
+              or{" "}
+              <Link href="/dashboard/billing" className="text-slate-600 underline hover:text-slate-900">
+                View billing
+              </Link>
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Breadcrumb */}
       <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3">
         <div className="max-w-2xl mx-auto flex items-center gap-2 text-sm">
@@ -211,6 +350,36 @@ export default function UploadPage() {
           <span className="font-medium text-slate-900">Upload Form</span>
         </div>
       </nav>
+
+      {/* Usage warning banner for free users near/at limit */}
+      {billing && billing.plan === "free" && billing.formsLimit && (
+        billing.formsUsed >= billing.formsLimit ? (
+          <div className="bg-red-50 border-b border-red-100 px-4 sm:px-6 py-2.5">
+            <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 text-sm">
+              <span className="text-red-700 font-medium">
+                You&apos;ve reached your free limit ({billing.formsUsed}/{billing.formsLimit} forms).
+              </span>
+              <button
+                onClick={() => setShowUpgradeModal(true)}
+                className="text-red-700 underline font-semibold shrink-0 hover:text-red-900"
+              >
+                Upgrade to Pro
+              </button>
+            </div>
+          </div>
+        ) : billing.formsUsed >= billing.formsLimit - 1 ? (
+          <div className="bg-amber-50 border-b border-amber-100 px-4 sm:px-6 py-2.5">
+            <div className="max-w-2xl mx-auto flex items-center justify-between gap-3 text-sm">
+              <span className="text-amber-700">
+                {billing.formsLimit - billing.formsUsed} free form upload remaining this month.
+              </span>
+              <Link href="/dashboard/billing" className="text-amber-700 underline font-semibold shrink-0 hover:text-amber-900">
+                View plan
+              </Link>
+            </div>
+          </div>
+        ) : null
+      )}
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-6 sm:p-8 space-y-6">
