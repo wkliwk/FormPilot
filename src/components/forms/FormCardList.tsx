@@ -81,6 +81,8 @@ interface Props {
   initialHasMore?: boolean;
 }
 
+type SortKey = "updatedAt" | "createdAt" | "title";
+
 export default function FormCardList({ forms: initialForms, initialHasMore = false }: Props) {
   const router = useRouter();
   const [forms, setForms] = useState(initialForms);
@@ -88,6 +90,7 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [sortKey, setSortKey] = useState<SortKey>("updatedAt");
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [nextCursor, setNextCursor] = useState<string | null>(
     initialHasMore && initialForms.length > 0 ? initialForms[initialForms.length - 1].id : null
@@ -144,13 +147,18 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
 
   const filteredForms = useMemo(() => {
     const q = search.trim().toLowerCase();
-    return forms.filter((f) => {
+    const filtered = forms.filter((f) => {
       if (q && !f.title.toLowerCase().includes(q)) return false;
       if (statusFilter && f.status !== statusFilter) return false;
       if (categoryFilter && f.category !== categoryFilter) return false;
       return true;
     });
-  }, [forms, search, statusFilter, categoryFilter]);
+    return [...filtered].sort((a, b) => {
+      if (sortKey === "title") return a.title.localeCompare(b.title);
+      if (sortKey === "createdAt") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+      return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
+    });
+  }, [forms, search, statusFilter, categoryFilter, sortKey]);
 
   const hasActiveFilter = search.trim() || statusFilter || categoryFilter;
 
@@ -158,29 +166,41 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
     <div className="space-y-4">
       {/* Search + Filter bar */}
       <div className="space-y-3">
-        {/* Search input */}
-        <div className="relative">
-          <svg
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden="true"
+        {/* Search + Sort row */}
+        <div className="flex gap-2">
+          <div className="relative flex-1">
+            <svg
+              className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search forms…"
+              className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              aria-label="Search forms"
+            />
+          </div>
+          <select
+            value={sortKey}
+            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            className="shrink-0 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
+            aria-label="Sort forms"
           >
-            <circle cx="11" cy="11" r="8" />
-            <line x1="21" y1="21" x2="16.65" y2="16.65" />
-          </svg>
-          <input
-            type="search"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search forms…"
-            className="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            aria-label="Search forms"
-          />
+            <option value="updatedAt">Last opened</option>
+            <option value="createdAt">Date uploaded</option>
+            <option value="title">Name A–Z</option>
+          </select>
         </div>
 
         {/* Status + category filter pills */}
