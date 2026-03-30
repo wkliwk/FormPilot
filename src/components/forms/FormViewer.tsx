@@ -81,9 +81,11 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   );
   const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
   const [autofilling, setAutofilling] = useState(false);
+  const [autofillError, setAutofillError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [activeField, setActiveField] = useState<string | null>(null);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showForceExportDialog, setShowForceExportDialog] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -93,7 +95,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [titleDraft, setTitleDraft] = useState(form.title);
   // per-field AI suggestions
   const [suggestingFields, setSuggestingFields] = useState<Set<string>>(new Set());
-  const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, { value: string; source: string; sourceType?: "memory" | "history" } | null>>({});
+  const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, { value: string; source: string; sourceType?: "memory" | "history" } | { error: true } | null>>({});
   // keyboard navigation for unanswered fields
   const [currentUnansweredIndex, setCurrentUnansweredIndex] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -123,8 +125,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
             body: JSON.stringify({ fields: fieldUpdates, status: "FILLING" }),
           });
           setSaveStatus("saved");
+          setSaveError(false);
         } catch {
-          setSaveStatus("idle");
+          setSaveStatus("error");
+          setSaveError(true);
         }
       }, 800);
     },
@@ -181,7 +185,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       const data = await res.json() as { suggestion: { value: string; source: string; sourceType?: "memory" | "history" } | null };
       setFieldSuggestions((prev) => ({ ...prev, [fieldId]: data.suggestion }));
     } catch {
-      setFieldSuggestions((prev) => ({ ...prev, [fieldId]: null }));
+      setFieldSuggestions((prev) => ({ ...prev, [fieldId]: { error: true } }));
     } finally {
       setSuggestingFields((prev) => { const next = new Set(prev); next.delete(fieldId); return next; });
     }
@@ -189,7 +193,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
   function handleAcceptSuggestion(fieldId: string) {
     const suggestion = fieldSuggestions[fieldId];
-    if (!suggestion) return;
+    if (!suggestion || "error" in suggestion) return;
     const newValues = { ...values, [fieldId]: suggestion.value };
     const newStates = { ...fieldStates, [fieldId]: "pending" as FieldState };
     setValues(newValues);
@@ -295,6 +299,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
   async function handleAutofill() {
     setAutofilling(true);
+    setAutofillError(null);
     try {
       const res = await fetch(`/api/forms/${form.id}/autofill`, { method: "POST" });
       if (!res.ok) throw new Error("Autofill failed");
@@ -312,6 +317,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       setValues(newValues);
       setFieldStates(newStates);
       scheduleSave(newValues, newStates);
+    } catch {
+      setAutofillError("Autofill is temporarily unavailable — please try again in a moment.");
     } finally {
       setAutofilling(false);
     }
@@ -542,6 +549,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                   </svg>
                   Saved
                 </span>
+              )}
+              {saveError && saveStatus === "error" && (
+                <button
+                  onClick={() => scheduleSave(values, fieldStates)}
+                  className="text-amber-600 hover:text-amber-700 text-xs font-medium"
+                  title="Click to retry saving"
+                >
+                  Unsaved — click to retry
+                </button>
               )}
             </div>
           </div>
@@ -815,6 +831,25 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         </span>
       </div>
 
+      {/* Autofill error banner */}
+      {autofillError && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3" role="alert">
+          <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <p className="text-sm text-amber-800 flex-1">{autofillError}</p>
+          <button
+            onClick={() => setAutofillError(null)}
+            className="text-amber-400 hover:text-amber-600 shrink-0"
+            aria-label="Dismiss"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Field Cards */}
       <div className="space-y-3">
         {fields.map((field) => {
@@ -1084,50 +1119,58 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                 </div>
 
                 {/* Suggestion callout */}
-                {field.id in fieldSuggestions && (
-                  <div className={`rounded-xl border px-4 py-3 flex items-start justify-between gap-3 ${
-                    fieldSuggestions[field.id]
-                      ? "bg-violet-50 border-violet-200"
-                      : "bg-slate-50 border-slate-200"
-                  }`}>
-                    {fieldSuggestions[field.id] ? (
-                      <>
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            {fieldSuggestions[field.id]!.sourceType === "memory" ? (
-                              <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
-                                From memory
-                              </span>
-                            ) : (
-                              <span className="text-xs font-medium text-violet-700">Suggested value</span>
-                            )}
+                {field.id in fieldSuggestions && (() => {
+                  const sugg = fieldSuggestions[field.id];
+                  const isError = sugg !== null && sugg !== undefined && "error" in sugg;
+                  const isFound = sugg !== null && sugg !== undefined && !isError;
+                  return (
+                    <div className={`rounded-xl border px-4 py-3 flex items-start justify-between gap-3 ${
+                      isFound ? "bg-violet-50 border-violet-200" : "bg-slate-50 border-slate-200"
+                    }`}>
+                      {isError ? (
+                        <>
+                          <p className="text-xs text-slate-400 italic">Suggestion unavailable</p>
+                          <button onClick={() => dismissSuggestion(field.id)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                        </>
+                      ) : isFound ? (
+                        <>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-1.5 mb-1">
+                              {(sugg as { value: string; source: string; sourceType?: string }).sourceType === "memory" ? (
+                                <span className="text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full">
+                                  From memory
+                                </span>
+                              ) : (
+                                <span className="text-xs font-medium text-violet-700">Suggested value</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-800 font-medium truncate">{(sugg as { value: string; source: string }).value}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">From: {(sugg as { value: string; source: string }).source}</p>
                           </div>
-                          <p className="text-sm text-slate-800 font-medium truncate">{fieldSuggestions[field.id]!.value}</p>
-                          <p className="text-xs text-slate-400 mt-0.5">From: {fieldSuggestions[field.id]!.source}</p>
-                        </div>
-                        <div className="flex gap-1.5 shrink-0">
-                          <button
-                            onClick={() => handleAcceptSuggestion(field.id)}
-                            className="px-2.5 py-1 text-xs font-medium bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors active:scale-95"
-                          >
-                            Use it
-                          </button>
-                          <button
-                            onClick={() => dismissSuggestion(field.id)}
-                            className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
-                          >
-                            Dismiss
-                          </button>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <p className="text-xs text-slate-500">No suggestion found from your history.</p>
-                        <button onClick={() => dismissSuggestion(field.id)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
-                      </>
-                    )}
-                  </div>
-                )}
+                          <div className="flex gap-1.5 shrink-0">
+                            <button
+                              onClick={() => handleAcceptSuggestion(field.id)}
+                              className="px-2.5 py-1 text-xs font-medium bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors active:scale-95"
+                            >
+                              Use it
+                            </button>
+                            <button
+                              onClick={() => dismissSuggestion(field.id)}
+                              className="px-2.5 py-1 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+                            >
+                              Dismiss
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <p className="text-xs text-slate-500">No suggestion found from your history.</p>
+                          <button onClick={() => dismissSuggestion(field.id)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Explanation - collapsible */}
                 <div className="border-t border-slate-100 pt-3">
