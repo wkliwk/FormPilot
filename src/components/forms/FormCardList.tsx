@@ -78,15 +78,38 @@ interface FormCard {
 
 interface Props {
   forms: FormCard[];
+  initialHasMore?: boolean;
 }
 
-export default function FormCardList({ forms: initialForms }: Props) {
+export default function FormCardList({ forms: initialForms, initialHasMore = false }: Props) {
   const router = useRouter();
   const [forms, setForms] = useState(initialForms);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(initialHasMore);
+  const [nextCursor, setNextCursor] = useState<string | null>(
+    initialHasMore && initialForms.length > 0 ? initialForms[initialForms.length - 1].id : null
+  );
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  async function handleLoadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const res = await fetch(`/api/forms?cursor=${nextCursor}&limit=20`);
+      if (!res.ok) throw new Error("Failed to load more");
+      const data = await res.json() as { items: FormCard[]; hasMore: boolean; nextCursor: string | null };
+      setForms((prev) => [...prev, ...data.items]);
+      setHasMore(data.hasMore);
+      setNextCursor(data.nextCursor);
+    } catch {
+      // silently ignore — button stays visible so user can retry
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function handleDelete(e: React.MouseEvent, id: string, title: string) {
     e.preventDefault();
@@ -230,7 +253,7 @@ export default function FormCardList({ forms: initialForms }: Props) {
           </button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div className="space-y-3" aria-live="polite">
           {filteredForms.map((form) => {
             const style = getStatusStyle(form.status);
             const isDeleting = deletingId === form.id;
@@ -314,6 +337,29 @@ export default function FormCardList({ forms: initialForms }: Props) {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Load more — only show when no active filter (filtered view is already a subset of loaded data) */}
+      {hasMore && !hasActiveFilter && (
+        <div className="flex justify-center pt-2">
+          <button
+            onClick={handleLoadMore}
+            disabled={loadingMore}
+            className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/50 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {loadingMore ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                  <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                </svg>
+                Loading…
+              </>
+            ) : (
+              "Load more"
+            )}
+          </button>
         </div>
       )}
     </div>
