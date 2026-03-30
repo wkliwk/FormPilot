@@ -507,6 +507,7 @@ export default async function HomePage() {
             <nav className="flex items-center gap-4">
               <Link href="/demo" className="text-sm text-slate-400 hover:text-slate-700 transition-colors">Demo</Link>
               <Link href="/dashboard" className="text-sm text-slate-400 hover:text-slate-700 transition-colors">Dashboard</Link>
+              <Link href="/changelog" className="text-sm text-slate-400 hover:text-slate-700 transition-colors">Changelog</Link>
               <Link href="/privacy" className="text-sm text-slate-400 hover:text-slate-700 transition-colors">Privacy</Link>
               <Link href="/terms" className="text-sm text-slate-400 hover:text-slate-700 transition-colors">Terms</Link>
             </nav>
