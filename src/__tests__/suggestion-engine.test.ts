@@ -9,11 +9,15 @@
 // ---------------------------------------------------------------------------
 
 const mockFindMany = jest.fn();
+const mockMemoryFindMany = jest.fn().mockResolvedValue([]);
 
 jest.mock("@/lib/prisma", () => ({
   prisma: {
     form: {
       findMany: mockFindMany,
+    },
+    formMemory: {
+      findMany: mockMemoryFindMany,
     },
   },
 }));
