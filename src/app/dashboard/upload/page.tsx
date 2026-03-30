@@ -55,6 +55,7 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [loadingStep, setLoadingStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -197,11 +198,23 @@ export default function UploadPage() {
     }
 
     setLoading(true);
+    setLoadingStep(0);
     setError(null);
     setUploadProgress(0);
 
     const formData = new FormData();
     formData.append("file", file);
+
+    // Step timers: advance through loading steps while AI processes
+    const stepTimers = [
+      setTimeout(() => setLoadingStep(1), 1200),
+      setTimeout(() => setLoadingStep(2), 3500),
+      setTimeout(() => setLoadingStep(3), 7000),
+      setTimeout(() => setLoadingStep(4), 12000),
+    ];
+    function clearStepTimers() {
+      stepTimers.forEach(clearTimeout);
+    }
 
     // Simulate progress since fetch does not have upload progress
     const progressInterval = setInterval(() => {
@@ -221,6 +234,7 @@ export default function UploadPage() {
       });
 
       clearInterval(progressInterval);
+      clearStepTimers();
 
       if (!res.ok) {
         const data = await res.json();
@@ -228,6 +242,7 @@ export default function UploadPage() {
           // Race condition: limit was hit between page load and submit
           setShowUpgradeModal(true);
           setLoading(false);
+          setLoadingStep(0);
           setUploadProgress(0);
           clearInterval(progressInterval);
           return;
@@ -243,8 +258,10 @@ export default function UploadPage() {
       router.push(`/dashboard/forms/${formId}`);
     } catch (err) {
       clearInterval(progressInterval);
+      clearStepTimers();
       setError(err instanceof Error ? err.message : "Something went wrong");
       setLoading(false);
+      setLoadingStep(0);
       setUploadProgress(0);
     }
   }
@@ -549,14 +566,16 @@ export default function UploadPage() {
 
             {/* Upload progress */}
             {loading && (
-              <div className="space-y-2 animate-fade-in">
+              <div className="space-y-3 animate-fade-in">
                 <div className="flex items-center justify-between text-sm">
-                  <span className="text-slate-600 font-medium">
-                    {uploadProgress < 50
-                      ? "Uploading..."
-                      : uploadProgress < 90
-                      ? "Analyzing fields..."
-                      : "Almost done..."}
+                  <span className="text-slate-600 font-medium transition-all duration-500">
+                    {[
+                      "Uploading file...",
+                      "Parsing document...",
+                      "Identifying fields...",
+                      "Generating explanations...",
+                      "Almost ready...",
+                    ][loadingStep]}
                   </span>
                   <span className="text-slate-400 tabular-nums">
                     {Math.round(uploadProgress)}%
@@ -567,6 +586,16 @@ export default function UploadPage() {
                     className="h-full bg-blue-500 rounded-full transition-all duration-300 ease-out"
                     style={{ width: `${Math.min(uploadProgress, 100)}%` }}
                   />
+                </div>
+                <div className="flex gap-1.5">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className={`h-1 flex-1 rounded-full transition-all duration-500 ${
+                        i <= loadingStep ? "bg-blue-500" : "bg-slate-100"
+                      }`}
+                    />
+                  ))}
                 </div>
               </div>
             )}
@@ -590,6 +619,37 @@ export default function UploadPage() {
               )}
             </button>
           </form>
+
+          {/* Privacy trust signals */}
+          <div className="border-t border-slate-100 pt-5 space-y-2.5">
+            <div className="flex items-start gap-2 text-xs text-slate-400">
+              <svg className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+              </svg>
+              <span>Your file is processed server-side and never stored longer than needed. Sensitive fields like SSN and passport numbers are encrypted with AES-256-GCM.</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs text-slate-400">
+              <svg className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0110 0v4" />
+              </svg>
+              <span>We never sell or share your data with third parties. Your profile data stays private to your account.</span>
+            </div>
+            <div className="flex items-start gap-2 text-xs text-slate-400">
+              <svg className="w-3.5 h-3.5 shrink-0 mt-0.5 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              <span>
+                Read our{" "}
+                <Link href="/privacy" className="underline underline-offset-2 hover:text-slate-600 transition-colors" rel="noopener noreferrer">
+                  Privacy Policy
+                </Link>{" "}
+                to see exactly what we collect and why.
+              </span>
+            </div>
+          </div>
 
           {/* Help text */}
           <div className="border-t border-slate-100 pt-5 space-y-2">
