@@ -25,3 +25,7 @@
 {"date":"2026-03-30","project":"FormPilot","summary":"#164 profile completeness: live bar in ProfileForm (10 fields, blue/amber/emerald), amber nudge on dashboard < 60%"}
 {"date":"2026-03-30","project":"FormPilot","summary":"#161 landing social proof: testimonials behind SHOW_TESTIMONIALS env flag, footer with Privacy/Terms/Demo/Dashboard links + PH badge slot"}
 {"date":"2026-03-30","project":"FormPilot","summary":"#163 re-engagement email: FormAbandonedEmail template, POST /api/cron/nudge-abandoned (CRON_SECRET auth, 48h idle, 7d cooldown, lastNudgedAt), GET /api/forms/[id]/dismiss (HMAC token, marks COMPLETED), vercel.json cron 0 10 * * *. Needs CRON_SECRET env + db:push"}
+{"date":"2026-03-30","project":"FormPilot","issue":167,"summary":"Error states in FormViewer: autofill banner, save retry button, suggestion unavailable sentinel. Used IIFE in JSX for typed local var to enable 3-way branch on error/found/null suggestion."}
+{"date":"2026-03-30","project":"FormPilot","issue":166,"summary":"Pricing section on landing page. Free/Pro cards. PRO_PRICE from env var. Placed between How It Works and Testimonials for conversion flow."}
+{"date":"2026-03-30","project":"FormPilot","issue":"169+170","summary":"Upload UX: 5-step timed loading steps (1.2/3.5/7/12s) + 5-dot segment bar. Privacy trust signals (AES-256-GCM verified from crypto.ts) below form."}
+{"date":"2026-03-30","project":"FormPilot","issue":168,"summary":"Cursor pagination on dashboard form list. GET /api/forms?cursor=&limit=. fetch N+1 pattern. Load more button hidden when filter active."}
