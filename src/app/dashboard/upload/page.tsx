@@ -62,6 +62,7 @@ export default function UploadPage() {
   const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
+  const [retryAfter, setRetryAfter] = useState<number | null>(null);
 
   // Fetch billing info once on mount for pre-flight limit check
   useEffect(() => {
@@ -200,6 +201,7 @@ export default function UploadPage() {
     setLoading(true);
     setLoadingStep(0);
     setError(null);
+    setRetryAfter(null);
     setUploadProgress(0);
 
     const formData = new FormData();
@@ -247,6 +249,18 @@ export default function UploadPage() {
           clearInterval(progressInterval);
           return;
         }
+        // Structured AI error codes from the API
+        if (data.error === "rate_limited") {
+          const seconds: number = typeof data.retryAfter === "number" ? data.retryAfter : 60;
+          setRetryAfter(seconds);
+          throw new Error(`Our AI is busy right now. Please try again in ${seconds} seconds.`);
+        }
+        if (data.error === "ai_unavailable") {
+          throw new Error("AI analysis is temporarily unavailable. Please try again in a few minutes.");
+        }
+        if (data.error === "analysis_failed") {
+          throw new Error("Analysis failed. Please try again or contact support.");
+        }
         throw new Error(data.error || "Upload failed");
       }
 
@@ -264,6 +278,12 @@ export default function UploadPage() {
       setLoadingStep(0);
       setUploadProgress(0);
     }
+  }
+
+  function handleTryAgain() {
+    if (!file || loading) return;
+    const syntheticEvent = { preventDefault: () => {} } as React.FormEvent;
+    handleSubmit(syntheticEvent);
   }
 
   const badge = file ? getFileBadge(file) : null;
@@ -554,13 +574,25 @@ export default function UploadPage() {
 
             {/* Error */}
             {error && (
-              <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3.5 animate-slide-down">
+              <div className="flex items-start gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-3.5 animate-slide-down" role="alert">
                 <svg className="w-5 h-5 text-red-500 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <circle cx="12" cy="12" r="10" />
                   <line x1="12" y1="8" x2="12" y2="12" />
                   <line x1="12" y1="16" x2="12.01" y2="16" />
                 </svg>
-                <p className="text-sm text-red-700">{error}</p>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-red-700">{error}</p>
+                  {file && !retryAfter && (
+                    <button
+                      type="button"
+                      onClick={handleTryAgain}
+                      disabled={loading}
+                      className="mt-2 text-sm font-medium text-red-700 underline underline-offset-2 hover:text-red-900 disabled:opacity-50"
+                    >
+                      Try again
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 
