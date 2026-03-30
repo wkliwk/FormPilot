@@ -219,7 +219,7 @@ export default function GuidedFillMode({
               <button
                 onClick={handleAutofill}
                 disabled={autofilling}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors active:scale-[0.98]"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[48px] md:min-h-0 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40 transition-colors active:scale-[0.98]"
               >
                 {autofilling ? (
                   <>
@@ -241,7 +241,7 @@ export default function GuidedFillMode({
             )}
             <button
               onClick={onExit}
-              className="px-3.5 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
+              className="px-3.5 py-2 min-h-[48px] md:min-h-0 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 transition-colors"
             >
               Exit Guided Mode
             </button>
@@ -429,7 +429,7 @@ export default function GuidedFillMode({
                   value={values[field.id] ?? ""}
                   onChange={(e) => handleValueChange(field.id, e.target.value)}
                   disabled={state === "accepted"}
-                  className={`w-full px-4 py-3 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all ${
+                  className={`w-full px-4 py-3 border rounded-xl text-base md:text-sm min-h-[48px] focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all ${
                     state === "accepted"
                       ? "border-emerald-200 bg-emerald-50/60 cursor-not-allowed"
                       : "border-slate-200 bg-white"
@@ -443,7 +443,7 @@ export default function GuidedFillMode({
                     type={field.type === "date" ? "date" : "text"}
                     value={values[field.id] ?? ""}
                     onChange={(e) => handleValueChange(field.id, e.target.value)}
-                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
+                    className="flex-1 px-4 py-3 border border-slate-200 rounded-xl text-base md:text-sm min-h-[48px] focus:outline-none focus:ring-2 focus:ring-blue-400"
                     placeholder="Enter value manually..."
                   />
                   <button
@@ -469,44 +469,51 @@ export default function GuidedFillMode({
         })}
       </div>
 
-      {/* Navigation */}
-      <div className="flex justify-between items-center bg-white rounded-2xl border border-slate-200 shadow-soft p-4">
-        <button
-          onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
-          disabled={currentStep === 0}
-          className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-        >
-          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          Previous
-        </button>
-
-        <div className="text-sm text-slate-400 tabular-nums">
+      {/* Navigation — stacked full-width on mobile, inline on sm+ */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-4">
+        {/* Step indicator — centered, shown on all sizes */}
+        <div className="text-sm text-slate-400 tabular-nums text-center mb-3 sm:hidden">
           {currentStep + 1} / {totalSteps}
         </div>
-
-        {currentStep < totalSteps - 1 ? (
+        {/* Button row */}
+        <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center">
           <button
-            onClick={() => setCurrentStep(currentStep + 1)}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors active:scale-[0.98]"
+            onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+            disabled={currentStep === 0}
+            className="inline-flex items-center justify-center gap-1.5 px-4 py-3 sm:py-2.5 min-h-[48px] sm:min-h-0 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
           >
-            Next Section
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <polyline points="9 18 15 12 9 6" />
+              <polyline points="15 18 9 12 15 6" />
             </svg>
+            Previous
           </button>
-        ) : (
-          <button
-            onClick={onExit}
-            className="inline-flex items-center gap-1.5 px-4 py-2.5 text-sm bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors active:scale-[0.98]"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-            </svg>
-            Finish
-          </button>
-        )}
+
+          <div className="hidden sm:block text-sm text-slate-400 tabular-nums text-center">
+            {currentStep + 1} / {totalSteps}
+          </div>
+
+          {currentStep < totalSteps - 1 ? (
+            <button
+              onClick={() => setCurrentStep(currentStep + 1)}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-3 sm:py-2.5 min-h-[48px] sm:min-h-0 text-sm bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors active:scale-[0.98]"
+            >
+              Next Section
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </button>
+          ) : (
+            <button
+              onClick={onExit}
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-3 sm:py-2.5 min-h-[48px] sm:min-h-0 text-sm bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors active:scale-[0.98]"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              Finish
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
