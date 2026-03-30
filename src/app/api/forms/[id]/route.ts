@@ -3,8 +3,13 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
 import { extractMemoryFromForm } from "@/lib/ai/extract-memory";
+import { sendEmail } from "@/lib/email";
+import FormCompletedEmail from "@/emails/FormCompletedEmail";
 import type { FormField } from "@/lib/ai/analyze-form";
 import { z } from "zod";
+import * as React from "react";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://getformpilot.com";
 
 export async function GET(
   _req: NextRequest,
@@ -138,12 +143,19 @@ export async function PATCH(
       data: updateData,
     });
 
-    // When a form reaches COMPLETED, extract memory in the background (non-blocking)
+    // When a form reaches COMPLETED — extract memory and send email (both non-blocking)
     if (parsed.data.status === "COMPLETED") {
       const currentFields = (updated.fields ?? form.fields) as unknown as FormField[];
       extractMemoryFromForm(session.user.id, id, updated.title, currentFields).catch(
-        () => { /* best-effort, don't block response */ }
+        () => { /* best-effort */ }
       );
+      if (session.user.email) {
+        sendEmail(
+          session.user.email,
+          `Your form "${updated.title}" is ready`,
+          React.createElement(FormCompletedEmail, { formTitle: updated.title, formId: id, appUrl: APP_URL })
+        ).catch(() => { /* best-effort */ });
+      }
     }
 
     return NextResponse.json({ form: updated });

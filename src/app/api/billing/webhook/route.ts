@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { getStripe } from "@/lib/stripe";
 import { prisma } from "@/lib/prisma";
 import { resetMonthlyUsage } from "@/lib/subscription";
+import { sendEmail } from "@/lib/email";
+import ProUpgradeEmail from "@/emails/ProUpgradeEmail";
 import type Stripe from "stripe";
+import * as React from "react";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://getformpilot.com";
 
 export async function POST(req: NextRequest) {
   const body = await req.text();
@@ -47,6 +52,16 @@ export async function POST(req: NextRequest) {
           status: "ACTIVE",
         },
       });
+
+      // Send Pro upgrade confirmation email (best-effort)
+      const user = await prisma.user.findUnique({ where: { id: userId } });
+      if (user?.email) {
+        sendEmail(
+          user.email,
+          "You're now on FormPilot Pro",
+          React.createElement(ProUpgradeEmail, { name: user.name ?? undefined, appUrl: APP_URL })
+        ).catch(() => { /* best-effort */ });
+      }
       break;
     }
 
