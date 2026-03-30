@@ -5,7 +5,7 @@ import { canUploadForm, incrementFormUsage } from "@/lib/subscription";
 import { extractTextFromBuffer } from "@/lib/pdf/extract";
 import { analyzeFormFields, analyzeFormFieldsFromImage } from "@/lib/ai/analyze-form";
 import { preprocessImage } from "@/lib/image/preprocess";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, checkIpRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-error";
 import { log } from "@/lib/logger";
 import type { FormAnalysis } from "@/lib/ai/analyze-form";
@@ -45,6 +45,19 @@ function validateMagicBytes(buffer: Buffer, claimedType: string): boolean {
 }
 
 export async function POST(req: NextRequest) {
+  // IP-based rate limit before auth to protect against launch-day abuse (20 req/hour per IP)
+  const ip =
+    req.headers.get("x-forwarded-for")?.split(",")[0].trim() ??
+    req.headers.get("x-real-ip") ??
+    "unknown";
+  const ipLimit = checkIpRateLimit(ip);
+  if (!ipLimit.allowed) {
+    return NextResponse.json(
+      { error: "Too many requests from this IP. Please try again later." },
+      { status: 429, headers: { "Retry-After": String(ipLimit.retryAfter) } }
+    );
+  }
+
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });

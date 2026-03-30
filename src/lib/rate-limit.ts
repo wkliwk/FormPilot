@@ -1,47 +1,44 @@
 /**
- * In-memory per-user rate limiter using a sliding window.
+ * In-memory rate limiters using a sliding window.
  *
  * Acceptable for single Vercel function instances (issue #24).
- * Each user is allowed LIMIT requests within WINDOW_MS.
+ * Two limiters:
+ *  - per-user (authenticated): 10 requests/minute
+ *  - per-IP (unauthenticated): 20 requests/hour — launch-day abuse protection
  */
 
-const WINDOW_MS = 60_000; // 1 minute
-const LIMIT = 10; // requests per window
+const USER_WINDOW_MS = 60_000; // 1 minute
+const USER_LIMIT = 10; // requests per window
+
+const IP_WINDOW_MS = 60 * 60_000; // 1 hour
+const IP_LIMIT = 20; // unauthenticated requests per IP per hour
 
 interface WindowEntry {
   timestamps: number[];
 }
 
-const store = new Map<string, WindowEntry>();
+const userStore = new Map<string, WindowEntry>();
+const ipStore = new Map<string, WindowEntry>();
 
-/**
- * Prune timestamps older than the current window and remove empty entries.
- * Called on every check — no separate interval needed in edge/serverless envs.
- */
-function pruneUser(entry: WindowEntry, now: number): void {
-  const cutoff = now - WINDOW_MS;
+function pruneEntry(entry: WindowEntry, windowMs: number, now: number): void {
+  const cutoff = now - windowMs;
   entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
 }
 
-/**
- * Remove users whose request windows have fully expired.
- * Called periodically to prevent unbounded memory growth.
- */
-function pruneStore(): void {
+function pruneMap(map: Map<string, WindowEntry>, windowMs: number): void {
   const now = Date.now();
-  for (const [userId, entry] of store.entries()) {
-    pruneUser(entry, now);
-    if (entry.timestamps.length === 0) {
-      store.delete(userId);
-    }
+  for (const [key, entry] of map.entries()) {
+    pruneEntry(entry, windowMs, now);
+    if (entry.timestamps.length === 0) map.delete(key);
   }
 }
 
 // Clean up stale entries every 5 minutes.
-// Using setInterval with unref() so it does not keep the process alive.
 if (typeof setInterval !== "undefined") {
-  const timer = setInterval(pruneStore, 5 * 60_000);
-  // unref is available in Node.js but not in all edge runtimes — guard safely
+  const timer = setInterval(() => {
+    pruneMap(userStore, USER_WINDOW_MS);
+    pruneMap(ipStore, IP_WINDOW_MS);
+  }, 5 * 60_000);
   if (typeof timer === "object" && timer !== null && "unref" in timer) {
     (timer as NodeJS.Timeout).unref();
   }
@@ -53,28 +50,34 @@ export interface RateLimitResult {
   retryAfter?: number;
 }
 
-/**
- * Check whether `userId` is within the rate limit.
- * Records the current request if allowed.
- */
-export function checkRateLimit(userId: string): RateLimitResult {
+function checkLimit(
+  map: Map<string, WindowEntry>,
+  key: string,
+  limit: number,
+  windowMs: number
+): RateLimitResult {
   const now = Date.now();
-
-  let entry = store.get(userId);
+  let entry = map.get(key);
   if (!entry) {
     entry = { timestamps: [] };
-    store.set(userId, entry);
+    map.set(key, entry);
   }
-
-  pruneUser(entry, now);
-
-  if (entry.timestamps.length >= LIMIT) {
-    // Oldest timestamp in the current window determines when a slot opens up
+  pruneEntry(entry, windowMs, now);
+  if (entry.timestamps.length >= limit) {
     const oldestTs = entry.timestamps[0];
-    const retryAfter = Math.ceil((oldestTs + WINDOW_MS - now) / 1000);
+    const retryAfter = Math.ceil((oldestTs + windowMs - now) / 1000);
     return { allowed: false, retryAfter: retryAfter > 0 ? retryAfter : 1 };
   }
-
   entry.timestamps.push(now);
   return { allowed: true };
+}
+
+/** Per-user limit: 10 requests/minute (for authenticated users). */
+export function checkRateLimit(userId: string): RateLimitResult {
+  return checkLimit(userStore, userId, USER_LIMIT, USER_WINDOW_MS);
+}
+
+/** Per-IP limit: 20 requests/hour (for unauthenticated/pre-auth abuse protection). */
+export function checkIpRateLimit(ip: string): RateLimitResult {
+  return checkLimit(ipStore, ip, IP_LIMIT, IP_WINDOW_MS);
 }

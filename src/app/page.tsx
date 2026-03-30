@@ -1,5 +1,23 @@
 import Link from "next/link";
 
+// Set to Product Hunt launch URL once live, e.g.:
+// "https://www.producthunt.com/posts/formpilot"
+const PRODUCT_HUNT_URL: string | null = null;
+
+async function getFormsProcessed(): Promise<number> {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3300";
+    const res = await fetch(`${baseUrl}/api/stats`, {
+      next: { revalidate: 60 },
+    });
+    if (!res.ok) return 0;
+    const data = await res.json();
+    return data.formsProcessed ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
 function UploadIcon() {
   return (
     <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
@@ -116,7 +134,9 @@ const steps = [
   },
 ];
 
-export default function HomePage() {
+export default async function HomePage() {
+  const formsProcessed = await getFormsProcessed();
+
   return (
     <main className="min-h-screen">
       {/* Nav */}
@@ -161,9 +181,33 @@ export default function HomePage() {
         />
 
         <div className="relative max-w-4xl mx-auto px-4 sm:px-6 pt-20 pb-24 sm:pt-28 sm:pb-32 text-center">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-full text-sm text-blue-700 font-medium mb-8">
-            <span className="w-1.5 h-1.5 rounded-full bg-blue-500" aria-hidden="true" />
-            AI-powered form assistant
+          <div className="flex flex-wrap items-center justify-center gap-3 mb-8">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-100 rounded-full text-sm text-blue-700 font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-blue-500" aria-hidden="true" />
+              AI-powered form assistant
+            </div>
+            {formsProcessed > 0 && (
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-sm text-slate-600 font-medium">
+                <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                {formsProcessed.toLocaleString()} forms processed
+              </div>
+            )}
+            {PRODUCT_HUNT_URL && (
+              <a
+                href={PRODUCT_HUNT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-orange-50 border border-orange-200 rounded-full text-sm text-orange-700 font-medium hover:bg-orange-100 transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M13.604 8.4h-3.405V12h3.405c.995 0 1.801-.806 1.801-1.8S14.6 8.4 13.604 8.4z" />
+                  <path fillRule="evenodd" d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm1.604 14.4h-3.405V18H7.8V6h5.804a4.2 4.2 0 010 8.4z" clipRule="evenodd" />
+                </svg>
+                Featured on Product Hunt
+              </a>
+            )}
           </div>
 
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight leading-[1.1]">
