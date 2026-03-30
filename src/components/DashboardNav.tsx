@@ -126,6 +126,9 @@ export default function DashboardNav({ email, signOutAction }: DashboardNavProps
               {email}
             </span>
           )}
+          <Link href="/changelog" className="text-sm text-slate-400 hover:text-slate-700 transition-colors px-2 py-1">
+            What&apos;s new
+          </Link>
           <form action={signOutAction}>
             <button type="submit" className="text-sm text-slate-400 hover:text-red-600 transition-colors px-2 py-1">
               Sign Out
