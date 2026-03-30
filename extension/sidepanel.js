@@ -73,6 +73,12 @@ scanBtn.addEventListener("click", async () => {
   fieldList.innerHTML = '<div class="loading"><div class="spinner"></div>Scanning form fields...</div>';
 
   chrome.runtime.sendMessage({ type: "GET_FIELDS" }, async (response) => {
+    if (response?.error) {
+      fieldList.innerHTML = `<div class="error-msg">Could not scan this page. Try refreshing it, then click Scan again.</div>`;
+      scanBtn.disabled = false;
+      scanBtn.textContent = "Scan Form Fields";
+      return;
+    }
     if (!response?.fields || response.fields.length === 0) {
       fieldList.innerHTML = '<div class="empty">No form fields found on this page.</div>';
       scanBtn.disabled = false;

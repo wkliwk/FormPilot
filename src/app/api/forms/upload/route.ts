@@ -18,6 +18,7 @@ const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 
 const DOC_TYPES = [
   "application/pdf",
+  "application/msword", // .doc (legacy Word format)
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ];
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/heic", "image/heif"];
@@ -29,6 +30,8 @@ function validateMagicBytes(buffer: Buffer, claimedType: string): boolean {
   switch (claimedType) {
     case "application/pdf":
       return buffer[0] === 0x25 && buffer[1] === 0x50 && buffer[2] === 0x44 && buffer[3] === 0x46; // %PDF
+    case "application/msword":
+      return buffer[0] === 0xd0 && buffer[1] === 0xcf && buffer[2] === 0x11 && buffer[3] === 0xe0; // OLE2 compound doc
     case "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
       return buffer[0] === 0x50 && buffer[1] === 0x4b && buffer[2] === 0x03 && buffer[3] === 0x04; // PK (ZIP)
     case "image/png":
@@ -132,7 +135,7 @@ export async function POST(req: NextRequest) {
         );
       }
       analysis = await analyzeFormFields(text);
-      sourceType = file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      sourceType = (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.type === "application/msword")
         ? "WORD" : "PDF";
     }
   } catch (err) {

@@ -26,11 +26,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === "GET_FIELDS") {
     // Forward to content script in active tab
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      if (tabs[0]) {
-        chrome.tabs.sendMessage(tabs[0].id, { type: "SCAN_FIELDS" }, (response) => {
-          sendResponse(response);
-        });
+      if (!tabs[0]) {
+        sendResponse({ fields: [], error: "No active tab" });
+        return;
       }
+      chrome.tabs.sendMessage(tabs[0].id, { type: "SCAN_FIELDS" }, (response) => {
+        if (chrome.runtime.lastError) {
+          // Content script not injected — page may be a restricted URL or needs a reload
+          sendResponse({ fields: [], error: chrome.runtime.lastError.message });
+          return;
+        }
+        sendResponse(response);
+      });
     });
     return true;
   }
