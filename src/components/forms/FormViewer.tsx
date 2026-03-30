@@ -27,6 +27,8 @@ interface Props {
   sourceType?: string;
   /** Called after a successful title save — passes the new title. */
   onTitleChange?: (newTitle: string) => void;
+  /** Called after form status is PATCHed to COMPLETED. */
+  onComplete?: () => void;
 }
 
 // -- helpers --
@@ -63,7 +65,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, hasFile, sourceType, onTitleChange }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, hasFile, sourceType, onTitleChange, onComplete }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -354,6 +356,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     }
   }
 
+  async function handleMarkComplete() {
+    await fetch(`/api/forms/${form.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "COMPLETED" }),
+    });
+    onComplete?.();
+  }
+
   async function handleExport() {
     // Run client-side validation first for instant feedback
     const result = validateForm(fields, values, fieldStates as Record<string, string>);
@@ -590,6 +601,17 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
                 {exporting ? "Exporting..." : "Export"}
+              </button>
+            )}
+            {filledCount > 0 && onComplete && (
+              <button
+                onClick={handleMarkComplete}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 text-white text-sm rounded-lg font-medium hover:bg-emerald-700 transition-colors active:scale-[0.98]"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
+                Mark as Complete
               </button>
             )}
             {hasProfile && (

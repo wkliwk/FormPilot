@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import FormViewer from "./FormViewer";
 import GuidedFillMode from "./GuidedFillMode";
 import DocumentImageViewer from "./DocumentImageViewer";
+import FormCompleteOverlay from "./FormCompleteOverlay";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 
 const SUPPORTED_LANGUAGES = [
@@ -56,6 +57,16 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
     }
     return false;
   });
+  const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
+
+  // Check if this form has already been celebrated (prevents re-show on reload)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      if (localStorage.getItem(`fp_completed_${form.id}`)) {
+        // Already shown — don't show again
+      }
+    }
+  }, [form.id]);
 
   const canShowDocument = hasFile && (sourceType === "PDF" || sourceType === "IMAGE");
   const documentUrl = canShowDocument ? `/api/forms/${form.id}/file` : null;
@@ -198,14 +209,14 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
   ) : null;
 
   const breadcrumb = (
-    <nav className="flex items-center gap-2 text-sm mb-4" aria-label="Breadcrumb">
-      <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors">
+    <nav className="flex items-center gap-2 text-sm mb-4 min-w-0" aria-label="Breadcrumb">
+      <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors shrink-0">
         Dashboard
       </Link>
       <svg className="w-4 h-4 text-slate-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
         <polyline points="9 18 15 12 9 6" />
       </svg>
-      <span className="font-medium text-slate-700 truncate max-w-[300px]">{pageTitle}</span>
+      <span className="font-medium text-slate-700 truncate min-w-0">{pageTitle}</span>
     </nav>
   );
 
@@ -228,6 +239,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
   }
 
   return (
+    <>
     <div className="space-y-4">
       {shareModal}
       {breadcrumb}
@@ -237,7 +249,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
         </div>
       )}
       {/* Mode toggle bar */}
-      <div className="flex flex-wrap items-center justify-between gap-3 bg-white rounded-xl border border-slate-200 shadow-soft px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border border-slate-200 shadow-soft px-4 py-3">
         <div className="flex items-center gap-2">
           <div className="flex bg-slate-100 rounded-lg p-0.5">
             <button
@@ -290,7 +302,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
           <button
             onClick={handleShare}
             disabled={sharing}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors text-violet-700 hover:bg-violet-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[48px] md:min-h-0 text-sm font-medium rounded-lg transition-colors text-violet-700 hover:bg-violet-50 disabled:opacity-50 disabled:cursor-not-allowed"
             title="Share as Template"
           >
             {sharing ? (
@@ -313,7 +325,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[48px] md:min-h-0 text-sm font-medium rounded-lg transition-colors text-red-600 hover:bg-red-50 disabled:opacity-50 disabled:cursor-not-allowed"
             aria-label="Delete form"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -327,7 +339,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
           {canShowDocument && (
             <button
               onClick={toggleSideBySide}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
+              className={`hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
                 sideBySide
                   ? "bg-blue-50 text-blue-700 border border-blue-200"
                   : "bg-slate-100 text-slate-600 hover:text-slate-900"
@@ -343,7 +355,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
           )}
           <button
           onClick={() => setMode("guided")}
-          className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors active:scale-[0.98]"
+          className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[48px] md:min-h-0 bg-indigo-600 text-white text-sm font-medium rounded-lg hover:bg-indigo-700 transition-colors active:scale-[0.98]"
         >
           <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="10" />
@@ -378,6 +390,17 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
 
       {sideBySide && documentUrl ? (
         <div className="flex flex-col lg:flex-row gap-4">
+          {/* On mobile: document viewer collapses to a thumbnail strip above fields */}
+          <div className="lg:hidden">
+            <DocumentImageViewer
+              formId={form.id}
+              sourceType={sourceType ?? "PDF"}
+              fields={fields}
+              activeFieldId={activeFieldId}
+              liveValues={liveValues}
+              mobileCollapsed
+            />
+          </div>
           {/* Left: Fields panel */}
           <div className="lg:w-1/2">
             <FormViewer
@@ -390,10 +413,15 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
                 setLiveValues((prev) => ({ ...prev, [fieldId]: value }))
               }
               onTitleChange={setPageTitle}
+              onComplete={() => {
+                if (!localStorage.getItem(`fp_completed_${form.id}`)) {
+                  setShowCompleteOverlay(true);
+                }
+              }}
             />
           </div>
-          {/* Right: Document panel — sticky so it stays in view while scrolling fields */}
-          <div className="lg:w-1/2 lg:sticky lg:top-20 lg:self-start">
+          {/* Right: Document panel — sticky, desktop only */}
+          <div className="hidden lg:block lg:w-1/2 lg:sticky lg:top-20 lg:self-start">
             <div className="bg-white rounded-xl border border-slate-200 shadow-soft overflow-hidden" style={{ height: "calc(100vh - 180px)", minHeight: "500px" }}>
               <div className="flex items-center gap-2 px-4 py-2.5 bg-slate-50 border-b border-slate-200">
                 <svg className="w-4 h-4 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -414,6 +442,19 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
         </div>
       ) : (
         <div className="max-w-4xl">
+          {/* On mobile with a document, show collapsible thumbnail strip */}
+          {canShowDocument && (
+            <div className="md:hidden mb-4">
+              <DocumentImageViewer
+                formId={form.id}
+                sourceType={sourceType ?? "PDF"}
+                fields={fields}
+                activeFieldId={activeFieldId}
+                liveValues={liveValues}
+                mobileCollapsed
+              />
+            </div>
+          )}
           <FormViewer
             form={formData}
             hasProfile={hasProfile}
@@ -421,9 +462,25 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
             sourceType={sourceType}
             onFieldFocus={setActiveFieldId}
             onTitleChange={setPageTitle}
+            onComplete={() => {
+              if (!localStorage.getItem(`fp_completed_${form.id}`)) {
+                setShowCompleteOverlay(true);
+              }
+            }}
           />
         </div>
       )}
     </div>
+
+    {/* Form completion overlay */}
+    {showCompleteOverlay && (
+      <FormCompleteOverlay
+        formId={form.id}
+        formTitle={pageTitle}
+        filledCount={(formData.fields as FormField[]).filter((f) => f.value && String(f.value).trim()).length}
+        onClose={() => setShowCompleteOverlay(false)}
+      />
+    )}
+    </>
   );
 }
