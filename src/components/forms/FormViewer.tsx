@@ -371,6 +371,13 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         "form_filled.json";
       a.click();
       URL.revokeObjectURL(blobUrl);
+
+      // Celebrate successful export — skip if user prefers reduced motion
+      if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        import("canvas-confetti").then(({ default: confetti }) => {
+          confetti({ particleCount: 120, spread: 70, origin: { y: 0.6 }, colors: ["#2563eb", "#7c3aed", "#10b981", "#f59e0b"] });
+        });
+      }
     } finally {
       setExporting(false);
     }
