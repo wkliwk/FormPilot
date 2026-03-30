@@ -7,6 +7,8 @@ const PRODUCT_HUNT_URL: string | null = null;
 // Toggle testimonials on/off without a deploy — set SHOW_TESTIMONIALS=true in env
 const SHOW_TESTIMONIALS = process.env.SHOW_TESTIMONIALS === "true";
 
+const PRO_PRICE = process.env.NEXT_PUBLIC_PRO_PRICE ?? "$9/mo";
+
 const TESTIMONIALS = [
   {
     quote: "I used to dread my annual immigration renewal. FormPilot explained every field and filled in half of them from my profile. Done in under an hour.",
@@ -330,6 +332,90 @@ export default async function HomePage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Pricing */}
+      <section className="max-w-5xl mx-auto px-4 sm:px-6 py-20 sm:py-28">
+        <div className="text-center mb-12">
+          <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+            Simple, transparent pricing
+          </h2>
+          <p className="mt-4 text-lg text-slate-500">
+            Start for free. Upgrade when you need more.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 max-w-3xl mx-auto">
+          {/* Free plan */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-8 flex flex-col shadow-soft">
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-slate-900">Free</h3>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-slate-900">$0</span>
+                <span className="text-slate-500 text-sm">/mo</span>
+              </div>
+              <p className="mt-2 text-sm text-slate-500">Perfect for occasional paperwork.</p>
+            </div>
+            <ul className="space-y-3 flex-1 mb-8">
+              {[
+                "5 form uploads per month",
+                "AI field explanations",
+                "Autofill from profile",
+                "PDF export",
+              ].map((f) => (
+                <li key={f} className="flex items-center gap-2.5 text-sm text-slate-700">
+                  <svg className="w-4 h-4 shrink-0 text-emerald-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/dashboard"
+              className="inline-flex items-center justify-center px-6 py-2.5 border border-slate-200 text-slate-700 rounded-xl font-semibold text-sm hover:bg-slate-50 hover:border-slate-300 transition-all"
+            >
+              Get started free
+            </Link>
+          </div>
+
+          {/* Pro plan */}
+          <div className="bg-blue-600 rounded-2xl border border-blue-600 p-8 flex flex-col shadow-md relative overflow-hidden">
+            <div className="absolute top-4 right-4">
+              <span className="px-2.5 py-0.5 bg-white/20 text-white text-xs font-semibold rounded-full">
+                Most popular
+              </span>
+            </div>
+            <div className="mb-6">
+              <h3 className="text-lg font-semibold text-white">Pro</h3>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-4xl font-bold text-white">{PRO_PRICE.replace("/mo", "").replace("/month", "")}</span>
+                <span className="text-blue-200 text-sm">/mo</span>
+              </div>
+              <p className="mt-2 text-sm text-blue-200">For heavy form-fillers and professionals.</p>
+            </div>
+            <ul className="space-y-3 flex-1 mb-8">
+              {[
+                "Unlimited forms",
+                "Everything in Free",
+                "Priority support",
+              ].map((f) => (
+                <li key={f} className="flex items-center gap-2.5 text-sm text-white">
+                  <svg className="w-4 h-4 shrink-0 text-blue-200" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  {f}
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/dashboard/billing"
+              className="inline-flex items-center justify-center px-6 py-2.5 bg-white text-blue-700 rounded-xl font-semibold text-sm hover:bg-blue-50 transition-all shadow-sm active:scale-[0.98]"
+            >
+              Upgrade to Pro
+            </Link>
           </div>
         </div>
       </section>
