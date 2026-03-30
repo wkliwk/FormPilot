@@ -14,7 +14,7 @@
     "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
     "test": "jest",
     "build:check": "prisma generate && next build",
-    "build:extension": "cd extension && zip -r ../public/formpilot-extension.zip . --exclude '*.DS_Store' && echo 'Extension zip written to public/formpilot-extension.zip'"
+    "build:extension": "cd extension && zip -r ../public/formpilot-extension.zip . --exclude '*.DS_Store' --exclude 'icons/generate-icons.js' && echo 'Extension zip written to public/formpilot-extension.zip'"
   },
   "prisma": {
     "seed": "npm run db:seed"

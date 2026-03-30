@@ -6,7 +6,7 @@
   "version_name": "1.0.0",
   "description": "Fill any form with AI guidance. Scan web form fields, get plain-language explanations, and auto-fill from your saved profile — powered by Claude AI.",
   "author": "FormPilot",
-  "homepage_url": "https://formpilot-brown.vercel.app",
+  "homepage_url": "https://getformpilot.com",
   "permissions": ["activeTab", "sidePanel", "storage"],
   "host_permissions": ["<all_urls>"],
   "action": {
