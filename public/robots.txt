@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+Allow: /privacy
+Allow: /demo
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /login
+
+Sitemap: https://getformpilot.com/sitemap.xml

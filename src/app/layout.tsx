@@ -8,10 +8,22 @@ const inter = Inter({
   variable: "--font-inter",
 });
 
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://getformpilot.com";
+
 export const metadata: Metadata = {
-  title: "FormPilot -- AI Form Assistant",
+  title: "FormPilot — AI Form Assistant",
   description:
-    "Fill any form with AI guidance. Upload a PDF, get plain-language explanations, and auto-fill from your profile.",
+    "Fill any PDF, Word doc, or web form with AI guidance. Auto-fill from your profile. Works with tax forms, visa applications, and government paperwork.",
+  keywords: [
+    "form filler",
+    "AI form assistant",
+    "PDF autofill",
+    "tax form help",
+    "visa form assistant",
+    "government form filler",
+    "PDF form fill",
+  ],
+  metadataBase: new URL(APP_URL),
   icons: {
     icon: [
       { url: "/favicon.svg", type: "image/svg+xml" },
@@ -20,18 +32,30 @@ export const metadata: Metadata = {
     apple: "/apple-touch-icon.png",
   },
   openGraph: {
-    title: "FormPilot -- AI Form Assistant",
+    title: "FormPilot — AI Form Assistant",
     description:
-      "Fill any form with AI guidance. Upload a PDF, get plain-language explanations, and auto-fill from your profile.",
+      "Fill any PDF, Word doc, or web form with AI guidance. Auto-fill from your profile. Works with tax forms, visa applications, and government paperwork.",
     type: "website",
+    url: APP_URL,
     images: [
       {
         url: "/og-image.png",
         width: 1200,
         height: 630,
-        alt: "FormPilot",
+        alt: "FormPilot — AI Form Assistant",
       },
     ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FormPilot — AI Form Assistant",
+    description:
+      "Fill any PDF, Word doc, or web form with AI guidance. Auto-fill from your profile.",
+    images: ["/og-image.png"],
+  },
+  robots: {
+    index: true,
+    follow: true,
   },
 };
 
