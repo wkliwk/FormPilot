@@ -75,6 +75,22 @@ export default function ProfileForm({ initialData, initialPreferredLanguage }: P
   const [error, setError] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
 
+  const CORE_FIELDS: { label: string; value: string | undefined; category: string }[] = [
+    { label: "First name", value: form.firstName, category: "Personal, Tax, Immigration" },
+    { label: "Last name", value: form.lastName, category: "Personal, Tax, Immigration" },
+    { label: "Email", value: form.email, category: "All forms" },
+    { label: "Phone", value: form.phone, category: "Personal, HR, Healthcare" },
+    { label: "Date of birth", value: form.dateOfBirth, category: "Immigration, Healthcare" },
+    { label: "Street address", value: form.address?.street, category: "Tax, Immigration, HR" },
+    { label: "City", value: form.address?.city, category: "Tax, Immigration, HR" },
+    { label: "State", value: form.address?.state, category: "Tax, HR" },
+    { label: "ZIP code", value: form.address?.zip, category: "Tax, Immigration" },
+    { label: "Country", value: form.address?.country, category: "Immigration" },
+  ];
+
+  const filledCount = CORE_FIELDS.filter((f) => f.value?.trim()).length;
+  const completeness = Math.round((filledCount / CORE_FIELDS.length) * 100);
+
   function set(key: keyof ProfileData, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
     setSaved(false);
@@ -113,6 +129,42 @@ export default function ProfileForm({ initialData, initialPreferredLanguage }: P
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
+      {/* Completeness bar */}
+      <div className="bg-slate-50 rounded-xl p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium text-slate-700">Profile completeness</span>
+          <span className={`text-sm font-semibold tabular-nums ${completeness >= 80 ? "text-emerald-600" : completeness >= 50 ? "text-amber-600" : "text-slate-500"}`}>
+            {completeness}%
+          </span>
+        </div>
+        <div className="h-2 bg-slate-200 rounded-full overflow-hidden">
+          <div
+            className={`h-full rounded-full transition-all duration-500 ${completeness >= 80 ? "bg-emerald-500" : completeness >= 50 ? "bg-amber-500" : "bg-blue-500"}`}
+            style={{ width: `${completeness}%` }}
+          />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+          {CORE_FIELDS.map((field) => {
+            const filled = !!field.value?.trim();
+            return (
+              <div key={field.label} className="flex items-center gap-2 text-xs">
+                {filled ? (
+                  <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5 text-slate-300 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                    <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="2" fill="none" />
+                  </svg>
+                )}
+                <span className={filled ? "text-slate-600" : "text-slate-400"}>{field.label}</span>
+                {!filled && <span className="text-slate-300 truncate hidden sm:inline">· {field.category}</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Personal */}
       <Section title="Personal" collapsed={collapsed["personal"]} onToggle={() => toggleSection("personal")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

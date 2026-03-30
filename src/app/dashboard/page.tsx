@@ -34,6 +34,18 @@ export default async function DashboardPage() {
   // Show checklist until all 3 steps done + dismissed
   const showChecklist = !hasProfileData || forms.length === 0 || !hasUsedAutofill;
 
+  // Profile completeness for nudge (10 core fields)
+  const pd = profileData;
+  const addr = (pd?.address ?? {}) as Record<string, unknown>;
+  const coreFields = [
+    pd?.firstName, pd?.lastName, pd?.email, pd?.phone, pd?.dateOfBirth,
+    addr?.street, addr?.city, addr?.state, addr?.zip, addr?.country,
+  ];
+  const profileCompleteness = Math.round(
+    (coreFields.filter((v) => v && String(v).trim()).length / coreFields.length) * 100
+  );
+  const showProfileNudge = hasProfileData && profileCompleteness < 60 && !showChecklist;
+
   const stats = {
     total: forms.length,
     completed: forms.filter((f) => f.status === "COMPLETED").length,
@@ -48,6 +60,28 @@ export default async function DashboardPage() {
           formsCount={forms.length}
           hasUsedAutofill={hasUsedAutofill}
         />
+      )}
+      {showProfileNudge && (
+        <div className="bg-amber-50 border-b border-amber-100">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-2.5">
+              <svg className="w-4 h-4 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <p className="text-sm text-amber-800">
+                Your profile is <strong>{profileCompleteness}% complete</strong> — add more details to improve autofill accuracy.
+              </p>
+            </div>
+            <Link
+              href="/dashboard/profile"
+              className="shrink-0 text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2 transition-colors"
+            >
+              Complete profile
+            </Link>
+          </div>
+        </div>
       )}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
         {/* Header */}
