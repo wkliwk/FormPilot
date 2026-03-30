@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { canUploadForm, incrementFormUsage } from "@/lib/subscription";
 import { extractTextFromBuffer } from "@/lib/pdf/extract";
 import { analyzeFormFields, analyzeFormFieldsFromImage } from "@/lib/ai/analyze-form";
 import { preprocessImage } from "@/lib/image/preprocess";
@@ -54,6 +55,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Too many requests. Please try again later." },
       { status: 429, headers: { "Retry-After": String(rateLimit.retryAfter) } }
+    );
+  }
+
+  // Check free tier limit
+  const uploadCheck = await canUploadForm(session.user.id);
+  if (!uploadCheck.allowed) {
+    return NextResponse.json(
+      {
+        error: "Free tier limit reached",
+        code: "UPGRADE_REQUIRED",
+        formsUsed: uploadCheck.formsUsed,
+        limit: uploadCheck.limit,
+      },
+      { status: 402 }
     );
   }
 
@@ -139,6 +154,9 @@ export async function POST(req: NextRequest) {
       sourceType,
       fieldCount: analysis.fields.length,
     });
+
+    // Non-blocking usage increment — don't fail the upload if this errors
+    incrementFormUsage(session.user.id).catch(() => {});
 
     return NextResponse.json({ formId: form.id });
   } catch (err) {
