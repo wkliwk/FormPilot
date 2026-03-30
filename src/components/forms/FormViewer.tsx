@@ -302,7 +302,20 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     setAutofillError(null);
     try {
       const res = await fetch(`/api/forms/${form.id}/autofill`, { method: "POST" });
-      if (!res.ok) throw new Error("Autofill failed");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({})) as { error?: string; retryAfter?: number; message?: string };
+        if (data.error === "rate_limited") {
+          const seconds = typeof data.retryAfter === "number" ? data.retryAfter : 60;
+          throw new Error(`Our AI is busy right now. Please try again in ${seconds} seconds.`);
+        }
+        if (data.error === "ai_unavailable") {
+          throw new Error("AI analysis is temporarily unavailable. Please try again in a few minutes.");
+        }
+        if (data.error === "analysis_failed") {
+          throw new Error("Analysis failed. Please try again or contact support.");
+        }
+        throw new Error("Autofill failed");
+      }
       const data = await res.json();
       const newFields: FormField[] = data.fields;
       const newValues = Object.fromEntries(
@@ -317,8 +330,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       setValues(newValues);
       setFieldStates(newStates);
       scheduleSave(newValues, newStates);
-    } catch {
-      setAutofillError("Autofill is temporarily unavailable — please try again in a moment.");
+    } catch (err) {
+      setAutofillError(err instanceof Error ? err.message : "Autofill is temporarily unavailable — please try again in a moment.");
     } finally {
       setAutofilling(false);
     }
@@ -834,16 +847,28 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       {/* Autofill error banner */}
       {autofillError && (
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3" role="alert">
-          <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
-          <p className="text-sm text-amber-800 flex-1">{autofillError}</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-amber-800">{autofillError}</p>
+            {hasProfile && (
+              <button
+                type="button"
+                onClick={handleAutofill}
+                disabled={autofilling}
+                className="mt-1.5 text-sm font-medium text-amber-800 underline underline-offset-2 hover:text-amber-900 disabled:opacity-50"
+              >
+                Try again
+              </button>
+            )}
+          </div>
           <button
             onClick={() => setAutofillError(null)}
             className="text-amber-400 hover:text-amber-600 shrink-0"
-            aria-label="Dismiss"
+            aria-label="Dismiss error"
           >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
