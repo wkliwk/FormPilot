@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import TemplateViewer from "@/components/forms/TemplateViewer";
+import UseTemplateButton from "@/components/forms/UseTemplateButton";
 import type { FormField } from "@/lib/ai/analyze-form";
 
 interface Props {
@@ -69,14 +70,9 @@ export default async function TemplatePage({ params }: Props) {
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
           <p className="text-sm text-blue-800 flex-1">
-            <strong>Sign in to auto-fill your details.</strong> FormPilot can pre-fill this form using your saved profile — name, address, and more.
+            <strong>Use this template to fill your own copy.</strong> FormPilot auto-fills your details from a saved profile — name, address, and more.
           </p>
-          <Link
-            href="/login"
-            className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold rounded-lg hover:bg-blue-700 transition-colors shrink-0 active:scale-[0.98]"
-          >
-            Sign in with Google
-          </Link>
+          <UseTemplateButton templateId={template.id} />
         </div>
 
         <TemplateViewer fields={fields} />

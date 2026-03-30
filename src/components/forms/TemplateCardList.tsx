@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 
 const categoryConfig: Record<string, { label: string; bg: string; text: string }> = {
   TAX: { label: "Tax", bg: "bg-yellow-50", text: "text-yellow-700" },
@@ -32,9 +33,11 @@ function formatDate(date: Date): string {
 }
 
 export default function TemplateCardList({ templates: initialTemplates }: Props) {
+  const router = useRouter();
   const [templates, setTemplates] = useState(initialTemplates);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [usingId, setUsingId] = useState<string | null>(null);
 
   function getShareUrl(slug: string) {
     return `${window.location.origin}/t/${slug}`;
@@ -53,6 +56,22 @@ export default function TemplateCardList({ templates: initialTemplates }: Props)
     }
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  }
+
+  async function handleUse(id: string) {
+    setUsingId(id);
+    try {
+      const res = await fetch(`/api/templates/${id}/use`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error ?? "Failed to use template");
+      }
+      const { formId } = await res.json() as { formId: string };
+      router.push(`/dashboard/forms/${formId}`);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not use template");
+      setUsingId(null);
+    }
   }
 
   async function handleDelete(id: string, name: string) {
@@ -77,12 +96,13 @@ export default function TemplateCardList({ templates: initialTemplates }: Props)
       {templates.map((template) => {
         const catConfig = template.category ? categoryConfig[template.category] : null;
         const isDeleting = deletingId === template.id;
+        const isUsing = usingId === template.id;
         const isCopied = copiedId === template.id;
 
         return (
           <div
             key={template.id}
-            className={`bg-white rounded-xl border border-slate-200 p-4 sm:p-5 transition-opacity ${isDeleting ? "opacity-50" : ""}`}
+            className={`bg-white rounded-xl border border-slate-200 p-4 sm:p-5 transition-opacity ${isDeleting || isUsing ? "opacity-50" : ""}`}
           >
             <div className="flex items-start gap-4">
               {/* Icon */}
@@ -116,6 +136,32 @@ export default function TemplateCardList({ templates: initialTemplates }: Props)
                   <span aria-hidden="true">&middot;</span>
                   <span>Created {formatDate(template.createdAt)}</span>
                 </p>
+
+                {/* Use template */}
+                <div className="mt-3">
+                  <button
+                    onClick={() => handleUse(template.id)}
+                    disabled={isUsing || isDeleting}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98]"
+                  >
+                    {isUsing ? (
+                      <>
+                        <svg className="w-3.5 h-3.5 animate-spin" viewBox="0 0 24 24" fill="none">
+                          <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                          <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                        </svg>
+                        Opening…
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polyline points="9 18 15 12 9 6" />
+                        </svg>
+                        Use template
+                      </>
+                    )}
+                  </button>
+                </div>
 
                 {/* Share link */}
                 {template.slug && (
