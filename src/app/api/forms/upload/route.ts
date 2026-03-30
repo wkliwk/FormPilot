@@ -9,6 +9,8 @@ import { checkRateLimit, checkIpRateLimit } from "@/lib/rate-limit";
 import { handleApiError } from "@/lib/api-error";
 import { log } from "@/lib/logger";
 import type { FormAnalysis } from "@/lib/ai/analyze-form";
+import { sendEmail } from "@/lib/email";
+import FormAnalyzedEmail from "@/emails/FormAnalyzedEmail";
 
 export const maxDuration = 60;
 
@@ -170,6 +172,16 @@ export async function POST(req: NextRequest) {
 
     // Non-blocking usage increment — don't fail the upload if this errors
     incrementFormUsage(session.user.id).catch(() => {});
+
+    // Non-blocking "form is ready" email — skip if no email on session
+    if (session.user.email) {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://getformpilot.com";
+      sendEmail(
+        session.user.email,
+        `Your form "${form.title}" is ready to fill`,
+        FormAnalyzedEmail({ formTitle: form.title, formId: form.id, fieldCount: analysis.fields.length, appUrl })
+      ).catch(() => {});
+    }
 
     return NextResponse.json({ formId: form.id });
   } catch (err) {

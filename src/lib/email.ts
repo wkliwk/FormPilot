@@ -22,6 +22,11 @@ export async function sendEmail(
     // Skip silently in dev/test environments without a key configured
     return;
   }
+  // In local development, require explicit opt-in via SEND_EMAILS=true to avoid
+  // accidentally sending emails during development/testing
+  if (process.env.NODE_ENV !== "production" && process.env.SEND_EMAILS !== "true") {
+    return;
+  }
   const html = await render(template);
   await getResend().emails.send({ from: FROM, to, subject, html });
 }
