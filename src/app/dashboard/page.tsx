@@ -4,23 +4,30 @@ import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import FormCardList from "@/components/forms/FormCardList";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
+import DashboardStats from "@/components/DashboardStats";
+import { getUserPlan, getOrCreateUsage, FREE_FORM_LIMIT } from "@/lib/subscription";
 
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
   const PAGE_SIZE = 20;
-  const forms = await prisma.form.findMany({
-    where: { userId: session.user.id! },
-    orderBy: { createdAt: "desc" },
-    take: PAGE_SIZE + 1, // fetch one extra to detect hasMore
-  });
+  const [forms, allForms, profile, plan, usage] = await Promise.all([
+    prisma.form.findMany({
+      where: { userId: session.user.id! },
+      orderBy: { createdAt: "desc" },
+      take: PAGE_SIZE + 1, // fetch one extra to detect hasMore
+    }),
+    prisma.form.findMany({
+      where: { userId: session.user.id! },
+      select: { fields: true, status: true },
+    }),
+    prisma.profile.findUnique({ where: { userId: session.user.id! } }),
+    getUserPlan(session.user.id!),
+    getOrCreateUsage(session.user.id!),
+  ]);
   const hasMore = forms.length > PAGE_SIZE;
   const pagedForms = hasMore ? forms.slice(0, PAGE_SIZE) : forms;
-
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id! },
-  });
 
   const hasProfile = !!profile;
 
@@ -55,6 +62,24 @@ export default async function DashboardPage() {
     inProgress: pagedForms.filter((f) => f.status === "FILLING").length,
   };
 
+  // Stats widget data — computed from ALL forms (not just paged)
+  const SECONDS_SAVED_PER_FIELD = 45;
+  const totalFieldsFilled = allForms.reduce((sum, f) => {
+    const fields = f.fields as Array<{ value?: string }>;
+    return sum + fields.filter((field) => field.value && String(field.value).trim()).length;
+  }, 0);
+  const totalTimeSavedSeconds = totalFieldsFilled * SECONDS_SAVED_PER_FIELD;
+  const formsCompleted = allForms.filter((f) => f.status === "COMPLETED").length;
+
+  const dashboardStats = {
+    totalFieldsFilled,
+    totalTimeSavedSeconds,
+    formsCompleted,
+    isPro: plan === "pro",
+    formsUsedThisMonth: usage.formsThisMonth,
+    freeFormLimit: FREE_FORM_LIMIT,
+  };
+
   return (
     <>
       {showChecklist && (
@@ -87,6 +112,9 @@ export default async function DashboardPage() {
         </div>
       )}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
+        {/* Stats widget — only shown after first form is used */}
+        {allForms.length > 0 && <DashboardStats {...dashboardStats} />}
+
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
           <div>
