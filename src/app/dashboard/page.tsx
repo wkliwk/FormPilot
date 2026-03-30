@@ -5,6 +5,7 @@ import Link from "next/link";
 import FormCardList from "@/components/forms/FormCardList";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
 import DashboardStats from "@/components/DashboardStats";
+import QuotaBar from "@/components/QuotaBar";
 import { getUserPlan, getOrCreateUsage, FREE_FORM_LIMIT } from "@/lib/subscription";
 
 export default async function DashboardPage() {
@@ -110,6 +111,13 @@ export default async function DashboardPage() {
             </Link>
           </div>
         </div>
+      )}
+      {pagedForms.length > 0 && (
+        <QuotaBar
+          formsUsed={usage.formsThisMonth}
+          limit={FREE_FORM_LIMIT}
+          isPro={plan === "pro"}
+        />
       )}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
         {/* Stats widget — only shown after first form is used */}
