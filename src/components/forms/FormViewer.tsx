@@ -882,8 +882,21 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         </div>
       )}
 
+      {/* Prior fill banner — shown when form was pre-filled from a previous submission */}
+      {fields.some((f) => f.matchedFrom === "prior_fill") && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-violet-50 border border-violet-100 rounded-xl text-sm text-violet-700">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <polyline points="9 15 12 12 15 15" />
+            <line x1="12" y1="12" x2="12" y2="18" />
+          </svg>
+          Pre-filled from a previous form — {fields.filter((f) => f.matchedFrom === "prior_fill").length} fields matched. Review and update any that may have changed.
+        </div>
+      )}
+
       {/* Resume session banner — shown when returning to an in-progress form */}
-      {form.status === "FILLING" && filledCount > 0 && (
+      {form.status === "FILLING" && filledCount > 0 && !fields.some((f) => f.matchedFrom === "prior_fill") && (
         <div className="flex items-center gap-2.5 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700">
           <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="12" cy="12" r="10" />
@@ -972,6 +985,24 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                       {state === "rejected" && (
                         <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
                           Skipped
+                        </span>
+                      )}
+                      {field.matchedFrom === "prior_fill" && state !== "accepted" && state !== "rejected" && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-violet-100 text-violet-700">
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <polyline points="9 15 12 12 15 15" />
+                          </svg>
+                          Prior fill
+                        </span>
+                      )}
+                      {field.matchedFrom === "prior_fill" && /date|expir|year|current|today|period/i.test(field.label) && state !== "accepted" && state !== "rejected" && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                          <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                            <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                          </svg>
+                          Verify this
                         </span>
                       )}
                     </div>

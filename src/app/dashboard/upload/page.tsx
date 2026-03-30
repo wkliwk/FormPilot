@@ -4,6 +4,15 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
+interface PriorForm {
+  id: string;
+  title: string;
+  createdAt: string;
+  updatedAt: string;
+  completionPercent: number;
+  fieldCount: number;
+}
+
 interface BillingInfo {
   plan: "free" | "pro";
   formsUsed: number;
@@ -63,6 +72,15 @@ export default function UploadPage() {
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
+  // Prior fill state
+  const [priorFormId, setPriorFormId] = useState<string | null>(null);
+  const [priorFormTitle, setPriorFormTitle] = useState<string | null>(null);
+  const [showPriorModal, setShowPriorModal] = useState(false);
+  const [priorForms, setPriorForms] = useState<PriorForm[] | null>(null);
+  const [loadingPriorForms, setLoadingPriorForms] = useState(false);
+  const [priorFormsCursor, setPriorFormsCursor] = useState<string | null>(null);
+  const [hasMorePriorForms, setHasMorePriorForms] = useState(false);
+  const [reFilling, setReFilling] = useState(false);
 
   // Fetch billing info once on mount for pre-flight limit check
   useEffect(() => {
@@ -72,15 +90,43 @@ export default function UploadPage() {
       .catch(() => {});
   }, []);
 
-  // Close modal on Escape key
+  // Close modals on Escape key
   useEffect(() => {
-    if (!showUpgradeModal) return;
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") setShowUpgradeModal(false);
+      if (e.key === "Escape") {
+        setShowUpgradeModal(false);
+        setShowPriorModal(false);
+      }
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
-  }, [showUpgradeModal]);
+  }, []);
+
+  async function loadPriorForms(cursor?: string) {
+    setLoadingPriorForms(true);
+    try {
+      const url = cursor ? `/api/forms?limit=10&cursor=${cursor}` : "/api/forms?limit=10";
+      const res = await fetch(url);
+      if (!res.ok) return;
+      const data = await res.json() as { items: PriorForm[]; hasMore: boolean; nextCursor: string | null };
+      // Only show forms that have some filled data
+      const filled = data.items.filter((f) => f.completionPercent > 0);
+      setPriorForms((prev) => cursor ? [...(prev ?? []), ...filled] : filled);
+      setHasMorePriorForms(data.hasMore);
+      setPriorFormsCursor(data.nextCursor);
+    } catch {
+      // silently ignore
+    } finally {
+      setLoadingPriorForms(false);
+    }
+  }
+
+  function openPriorModal() {
+    setShowPriorModal(true);
+    if (!priorForms) {
+      loadPriorForms();
+    }
+  }
 
   async function handleUpgrade() {
     setUpgradeLoading(true);
@@ -267,6 +313,22 @@ export default function UploadPage() {
       setUploadProgress(100);
       const { formId } = await res.json();
 
+      // If user selected a prior form, map old values to new form before navigating
+      if (priorFormId) {
+        setReFilling(true);
+        try {
+          await fetch(`/api/forms/${formId}/re-fill`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ sourceFormId: priorFormId }),
+          });
+        } catch {
+          // Non-fatal — proceed even if re-fill fails
+        } finally {
+          setReFilling(false);
+        }
+      }
+
       // Brief delay so user sees 100%
       await new Promise((resolve) => setTimeout(resolve, 300));
       router.push(`/dashboard/forms/${formId}`);
@@ -296,6 +358,106 @@ export default function UploadPage() {
 
   return (
     <div>
+      {/* Prior form picker modal */}
+      {showPriorModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowPriorModal(false)}
+        >
+          <div
+            className="relative bg-white rounded-2xl shadow-card w-full max-w-lg p-6 animate-slide-down max-h-[80vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4 shrink-0">
+              <h2 className="text-lg font-bold text-slate-900">Choose a previous form</h2>
+              <button
+                onClick={() => setShowPriorModal(false)}
+                className="text-slate-400 hover:text-slate-600 transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-sm text-slate-500 mb-4 shrink-0">
+              We&apos;ll use your prior answers to pre-fill fields in the new form. You can review and update anything that&apos;s changed.
+            </p>
+
+            <div className="overflow-y-auto flex-1 space-y-2 min-h-0">
+              {loadingPriorForms && !priorForms && (
+                <div className="flex items-center justify-center py-8 text-slate-400 text-sm">
+                  <svg className="w-4 h-4 animate-spin mr-2" viewBox="0 0 24 24" fill="none">
+                    <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                    <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                  </svg>
+                  Loading your forms...
+                </div>
+              )}
+              {priorForms && priorForms.length === 0 && (
+                <div className="py-8 text-center text-sm text-slate-400">
+                  No previously filled forms found. Fill out a form first, then use this feature on your next one.
+                </div>
+              )}
+              {priorForms?.map((f) => (
+                <button
+                  key={f.id}
+                  onClick={() => {
+                    setPriorFormId(f.id);
+                    setPriorFormTitle(f.title);
+                    setShowPriorModal(false);
+                  }}
+                  className={`w-full text-left px-4 py-3 rounded-xl border transition-all ${
+                    priorFormId === f.id
+                      ? "border-blue-400 bg-blue-50"
+                      : "border-slate-200 hover:border-blue-300 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900 truncate">{f.title}</p>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {f.fieldCount} fields &middot; {f.completionPercent}% filled &middot;{" "}
+                        {new Date(f.updatedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                    </div>
+                    {priorFormId === f.id && (
+                      <svg className="w-4 h-4 text-blue-600 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                </button>
+              ))}
+              {hasMorePriorForms && (
+                <button
+                  onClick={() => loadPriorForms(priorFormsCursor ?? undefined)}
+                  disabled={loadingPriorForms}
+                  className="w-full py-2.5 text-sm text-blue-600 hover:text-blue-800 disabled:opacity-50 transition-colors"
+                >
+                  {loadingPriorForms ? "Loading..." : "Load more"}
+                </button>
+              )}
+            </div>
+
+            {priorFormId && (
+              <div className="mt-4 pt-4 border-t border-slate-100 shrink-0 flex items-center justify-between gap-3">
+                <p className="text-xs text-slate-500 truncate">
+                  Selected: <span className="font-medium text-slate-700">{priorFormTitle}</span>
+                </p>
+                <button
+                  onClick={() => { setPriorFormId(null); setPriorFormTitle(null); setShowPriorModal(false); }}
+                  className="text-xs text-slate-400 hover:text-red-600 transition-colors shrink-0"
+                >
+                  Clear
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Upgrade modal */}
       {showUpgradeModal && (
         <div
@@ -564,6 +726,52 @@ export default function UploadPage() {
               </button>
             )}
 
+            {/* Use answers from a previous fill */}
+            {priorFormId ? (
+              <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-sm">
+                <svg className="w-4 h-4 text-blue-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <polyline points="9 15 12 12 15 15" />
+                  <line x1="12" y1="12" x2="12" y2="18" />
+                </svg>
+                <span className="flex-1 min-w-0 text-blue-800">
+                  Pre-filling from: <span className="font-medium truncate">{priorFormTitle}</span>
+                </span>
+                <button
+                  type="button"
+                  onClick={openPriorModal}
+                  className="text-blue-600 hover:text-blue-800 font-medium shrink-0 transition-colors"
+                >
+                  Change
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setPriorFormId(null); setPriorFormTitle(null); }}
+                  className="text-blue-400 hover:text-red-600 shrink-0 transition-colors"
+                  aria-label="Remove prior form selection"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={openPriorModal}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 text-slate-600 text-sm font-medium hover:border-blue-300 hover:text-blue-600 hover:bg-blue-50/50 transition-all"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="12" y1="18" x2="12" y2="12" />
+                  <line x1="9" y1="15" x2="15" y2="15" />
+                </svg>
+                Use answers from a previous fill
+              </button>
+            )}
+
             {/* Clipboard paste hint */}
             <p className="text-xs text-slate-400 text-center -mt-2">
               You can also paste a screenshot from your clipboard{" "}
@@ -601,13 +809,15 @@ export default function UploadPage() {
               <div className="space-y-3 animate-fade-in">
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-slate-600 font-medium transition-all duration-500">
-                    {[
-                      "Uploading file...",
-                      "Parsing document...",
-                      "Identifying fields...",
-                      "Generating explanations...",
-                      "Almost ready...",
-                    ][loadingStep]}
+                    {reFilling
+                      ? "Applying prior answers..."
+                      : [
+                          "Uploading file...",
+                          "Parsing document...",
+                          "Identifying fields...",
+                          "Generating explanations...",
+                          "Almost ready...",
+                        ][loadingStep]}
                   </span>
                   <span className="text-slate-400 tabular-nums">
                     {Math.round(uploadProgress)}%

@@ -67,6 +67,8 @@ export interface FormField {
   fieldState?: FieldState;
   /** Optional bounding box from PDF analysis (0–1 fractions of page size). */
   coordinates?: FieldCoordinates;
+  /** Set to "prior_fill" when value was mapped from a previous form submission. */
+  matchedFrom?: "prior_fill";
 }
 
 export interface FormAnalysis {
