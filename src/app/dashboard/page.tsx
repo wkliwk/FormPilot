@@ -9,11 +9,14 @@ export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
+  const PAGE_SIZE = 20;
   const forms = await prisma.form.findMany({
     where: { userId: session.user.id! },
     orderBy: { createdAt: "desc" },
-    take: 20,
+    take: PAGE_SIZE + 1, // fetch one extra to detect hasMore
   });
+  const hasMore = forms.length > PAGE_SIZE;
+  const pagedForms = hasMore ? forms.slice(0, PAGE_SIZE) : forms;
 
   const profile = await prisma.profile.findUnique({
     where: { userId: session.user.id! },
@@ -29,10 +32,10 @@ export default async function DashboardPage() {
     !!profileData?.email;
 
   // Step 3 done: any form has been through analysis/autofill
-  const hasUsedAutofill = forms.some((f) => f.status !== "PENDING");
+  const hasUsedAutofill = pagedForms.some((f) => f.status !== "PENDING");
 
   // Show checklist until all 3 steps done + dismissed
-  const showChecklist = !hasProfileData || forms.length === 0 || !hasUsedAutofill;
+  const showChecklist = !hasProfileData || pagedForms.length === 0 || !hasUsedAutofill;
 
   // Profile completeness for nudge (10 core fields)
   const pd = profileData;
@@ -47,9 +50,9 @@ export default async function DashboardPage() {
   const showProfileNudge = hasProfileData && profileCompleteness < 60 && !showChecklist;
 
   const stats = {
-    total: forms.length,
-    completed: forms.filter((f) => f.status === "COMPLETED").length,
-    inProgress: forms.filter((f) => f.status === "FILLING").length,
+    total: pagedForms.length,
+    completed: pagedForms.filter((f) => f.status === "COMPLETED").length,
+    inProgress: pagedForms.filter((f) => f.status === "FILLING").length,
   };
 
   return (
@@ -57,7 +60,7 @@ export default async function DashboardPage() {
       {showChecklist && (
         <OnboardingChecklist
           hasProfileData={hasProfileData}
-          formsCount={forms.length}
+          formsCount={pagedForms.length}
           hasUsedAutofill={hasUsedAutofill}
         />
       )}
@@ -109,7 +112,7 @@ export default async function DashboardPage() {
         </div>
 
         {/* Content */}
-        {forms.length === 0 ? (
+        {pagedForms.length === 0 ? (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-12 sm:p-16 text-center">
             <div className="mx-auto w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-6">
               <svg className="w-8 h-8 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -136,23 +139,26 @@ export default async function DashboardPage() {
             </Link>
           </div>
         ) : (
-          <FormCardList forms={forms.map((f) => {
-            const fields = f.fields as Array<{ value?: string }>;
-            const totalFields = fields.length;
-            const filledCount = fields.filter((field) => field.value && String(field.value).trim()).length;
-            const completionPercent = totalFields > 0 ? Math.round((filledCount / totalFields) * 100) : 0;
-            return {
-              id: f.id,
-              title: f.title,
-              status: f.status,
-              sourceType: f.sourceType,
-              category: f.category ?? null,
-              fieldCount: totalFields,
-              completionPercent,
-              createdAt: f.createdAt,
-              updatedAt: f.updatedAt,
-            };
-          })} />
+          <FormCardList
+            initialHasMore={hasMore}
+            forms={pagedForms.map((f) => {
+              const fields = f.fields as Array<{ value?: string }>;
+              const totalFields = fields.length;
+              const filledCount = fields.filter((field) => field.value && String(field.value).trim()).length;
+              const completionPercent = totalFields > 0 ? Math.round((filledCount / totalFields) * 100) : 0;
+              return {
+                id: f.id,
+                title: f.title,
+                status: f.status,
+                sourceType: f.sourceType,
+                category: f.category ?? null,
+                fieldCount: totalFields,
+                completionPercent,
+                createdAt: f.createdAt,
+                updatedAt: f.updatedAt,
+              };
+            })}
+          />
         )}
       </main>
     </>
