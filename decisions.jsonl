@@ -24,3 +24,4 @@
 {"date":"2026-03-30","project":"FormPilot","summary":"#162 use template: POST /api/templates/[id]/use creates Form with ANALYZED status + increments usedCount, Use template button in TemplateCardList and public /t/[slug] page"}
 {"date":"2026-03-30","project":"FormPilot","summary":"#164 profile completeness: live bar in ProfileForm (10 fields, blue/amber/emerald), amber nudge on dashboard < 60%"}
 {"date":"2026-03-30","project":"FormPilot","summary":"#161 landing social proof: testimonials behind SHOW_TESTIMONIALS env flag, footer with Privacy/Terms/Demo/Dashboard links + PH badge slot"}
+{"date":"2026-03-30","project":"FormPilot","summary":"#163 re-engagement email: FormAbandonedEmail template, POST /api/cron/nudge-abandoned (CRON_SECRET auth, 48h idle, 7d cooldown, lastNudgedAt), GET /api/forms/[id]/dismiss (HMAC token, marks COMPLETED), vercel.json cron 0 10 * * *. Needs CRON_SECRET env + db:push"}
