@@ -843,8 +843,9 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
             cardClasses = "bg-white border-blue-300 shadow-card";
           }
 
-          // Input styling
-          let inputClasses = "mt-2 px-3.5 py-2.5 border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all ";
+          // Input styling — text-base ensures 16px font on mobile (prevents iOS Safari zoom-on-focus)
+          // min-h-[48px] ensures adequate touch target size on mobile
+          let inputClasses = "mt-2 px-3.5 py-2.5 border rounded-xl text-base md:text-sm min-h-[48px] focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all ";
           if (hasError) {
             inputClasses += "border-red-300 bg-red-50/50 focus:ring-red-400";
           } else if (state === "accepted") {
@@ -899,7 +900,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
                     {/* Input — checkbox or text */}
                     {field.type === "checkbox" ? (
-                      <div className="mt-3 flex items-center gap-3">
+                      <div className="mt-3 flex items-center gap-3 min-h-[48px]">
                         <button
                           id={`field-${field.id}`}
                           type="button"
@@ -1193,7 +1194,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         <button
           onClick={() => navigateToUnansweredField(currentUnansweredIndex + 1)}
           title="Jump to next unanswered field (Alt+N)"
-          className="fixed bottom-6 right-6 z-20 flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg font-medium shadow-lg hover:bg-blue-700 transition-colors active:scale-95"
+          className="fixed bottom-6 right-4 sm:right-6 z-20 flex items-center justify-center gap-2 px-4 py-3 min-h-[48px] bg-blue-600 text-white rounded-lg font-medium shadow-lg hover:bg-blue-700 transition-colors active:scale-95"
           aria-label={`${unansweredCount} unanswered remaining. Press Alt+N for next or Alt+P for previous.`}
         >
           <span className="hidden sm:inline">

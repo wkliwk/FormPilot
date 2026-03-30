@@ -21,7 +21,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
 
   return (
     <div>
-      <main className="mx-auto px-4 sm:px-6 py-8 sm:py-10" style={{ maxWidth: "90rem" }}>
+      <main className="mx-auto px-4 sm:px-6 py-6 sm:py-10" style={{ maxWidth: "90rem" }}>
         <FormPageClient
           form={form}
           hasProfile={!!profile}
