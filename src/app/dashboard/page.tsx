@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import FormCardList from "@/components/forms/FormCardList";
-import ProfileBanner from "@/components/ProfileBanner";
+import OnboardingChecklist from "@/components/OnboardingChecklist";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -21,6 +21,19 @@ export default async function DashboardPage() {
 
   const hasProfile = !!profile;
 
+  // Step 1 done: profile exists with at least firstName + email
+  const profileData = profile?.data as Record<string, unknown> | undefined;
+  const hasProfileData =
+    hasProfile &&
+    !!profileData?.firstName &&
+    !!profileData?.email;
+
+  // Step 3 done: any form has been through analysis/autofill
+  const hasUsedAutofill = forms.some((f) => f.status !== "PENDING");
+
+  // Show checklist until all 3 steps done + dismissed
+  const showChecklist = !hasProfileData || forms.length === 0 || !hasUsedAutofill;
+
   const stats = {
     total: forms.length,
     completed: forms.filter((f) => f.status === "COMPLETED").length,
@@ -29,7 +42,13 @@ export default async function DashboardPage() {
 
   return (
     <>
-      {!hasProfile && <ProfileBanner />}
+      {showChecklist && (
+        <OnboardingChecklist
+          hasProfileData={hasProfileData}
+          formsCount={forms.length}
+          hasUsedAutofill={hasUsedAutofill}
+        />
+      )}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
