@@ -96,6 +96,16 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   // per-field AI suggestions
   const [suggestingFields, setSuggestingFields] = useState<Set<string>>(new Set());
   const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, { value: string; source: string; sourceType?: "memory" | "history" } | { error: true } | null>>({});
+  // correction toasts — fieldId → "pending" | "saving" | "saved" | "dismissed"
+  const [correctionToasts, setCorrectionToasts] = useState<Record<string, "pending" | "saving" | "saved" | "dismissed">>({});
+  // original autofilled values keyed by fieldId — set once on mount, never updated
+  const originalAutofillValues = useRef<Record<string, string>>(
+    Object.fromEntries(
+      initialFields
+        .filter((f) => f.value && f.confidence !== undefined && f.confidence > 0)
+        .map((f) => [f.id, f.value!])
+    )
+  );
   // keyboard navigation for unanswered fields
   const [currentUnansweredIndex, setCurrentUnansweredIndex] = useState(0);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -205,6 +215,51 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
   function dismissSuggestion(fieldId: string) {
     setFieldSuggestions((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
+  }
+
+  // -- correction handling --
+
+  function handleFieldBlurForCorrection(fieldId: string, fieldLabel: string) {
+    const currentValue = values[fieldId];
+    const originalValue = originalAutofillValues.current[fieldId];
+    // Only prompt if: field was autofilled, value changed, toast not already shown/dismissed
+    if (
+      originalValue !== undefined &&
+      currentValue &&
+      currentValue !== originalValue &&
+      correctionToasts[fieldId] === undefined
+    ) {
+      setCorrectionToasts((prev) => ({ ...prev, [fieldId]: "pending" }));
+      // Store label for the save action
+      originalAutofillValues.current[`${fieldId}__label`] = fieldLabel;
+    }
+  }
+
+  function dismissCorrectionToast(fieldId: string) {
+    setCorrectionToasts((prev) => ({ ...prev, [fieldId]: "dismissed" }));
+  }
+
+  async function saveCorrection(fieldId: string) {
+    const fieldLabel = originalAutofillValues.current[`${fieldId}__label`] ?? "";
+    const value = values[fieldId];
+    if (!fieldLabel || !value) {
+      dismissCorrectionToast(fieldId);
+      return;
+    }
+    setCorrectionToasts((prev) => ({ ...prev, [fieldId]: "saving" }));
+    try {
+      await fetch("/api/corrections", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fieldLabel, value }),
+      });
+      setCorrectionToasts((prev) => ({ ...prev, [fieldId]: "saved" }));
+      setTimeout(() => {
+        setCorrectionToasts((prev) => ({ ...prev, [fieldId]: "dismissed" }));
+      }, 2000);
+    } catch {
+      dismissCorrectionToast(fieldId);
+    }
   }
 
   function handleAcceptAllHigh() {
@@ -1060,6 +1115,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                           onBlur={() => {
                             setActiveField(null);
                             onFieldFocus?.(null);
+                            handleFieldBlurForCorrection(field.id, field.label);
                           }}
                           disabled={state === "accepted"}
                           aria-disabled={state === "accepted"}
@@ -1096,6 +1152,40 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                         {warn.message}
                       </p>
                     ))}
+                    {/* Correction toast — shown when user edits an AI-autofilled field */}
+                    {correctionToasts[field.id] === "pending" && (
+                      <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-violet-50 border border-violet-200 rounded-lg text-xs animate-slide-down">
+                        <svg className="w-3.5 h-3.5 text-violet-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19H4v-3L16.5 3.5z"/></svg>
+                        <span className="text-violet-800 flex-1">Save as preference?</span>
+                        <button
+                          type="button"
+                          onClick={() => saveCorrection(field.id)}
+                          className="text-violet-700 font-semibold hover:text-violet-900 transition-colors"
+                        >
+                          Save
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => dismissCorrectionToast(field.id)}
+                          className="text-violet-400 hover:text-violet-600 transition-colors"
+                          aria-label="Dismiss"
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                        </button>
+                      </div>
+                    )}
+                    {correctionToasts[field.id] === "saving" && (
+                      <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-violet-50 border border-violet-200 rounded-lg text-xs">
+                        <svg className="w-3.5 h-3.5 animate-spin text-violet-600" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25"/><path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75"/></svg>
+                        <span className="text-violet-700">Saving...</span>
+                      </div>
+                    )}
+                    {correctionToasts[field.id] === "saved" && (
+                      <div className="mt-2 flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs animate-slide-down">
+                        <svg className="w-3.5 h-3.5 text-emerald-600" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd"/></svg>
+                        <span className="text-emerald-700 font-medium">Saved as preference</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Right column: confidence + actions */}
