@@ -98,6 +98,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, { value: string; source: string; sourceType?: "memory" | "history" } | { error: true } | null>>({});
   // correction toasts — fieldId → "pending" | "saving" | "saved" | "dismissed"
   const [correctionToasts, setCorrectionToasts] = useState<Record<string, "pending" | "saving" | "saved" | "dismissed">>({});
+  // help drawer
+  const [helpDrawerFieldId, setHelpDrawerFieldId] = useState<string | null>(null);
+  type ExplainResult = { explanation: string; example: string; commonMistakes: string | null; whereToFind: string | null; isPro: boolean; remaining: number };
+  const [helpCache, setHelpCache] = useState<Record<string, ExplainResult | "loading" | "error">>({});
   // original autofilled values keyed by fieldId — set once on mount, never updated
   const originalAutofillValues = useRef<Record<string, string>>(
     Object.fromEntries(
@@ -261,6 +265,37 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       dismissCorrectionToast(fieldId);
     }
   }
+
+  // -- help drawer --
+
+  async function openHelp(fieldId: string) {
+    setHelpDrawerFieldId(fieldId);
+    if (helpCache[fieldId]) return; // already cached or loading
+
+    setHelpCache((prev) => ({ ...prev, [fieldId]: "loading" }));
+    try {
+      const res = await fetch(`/api/forms/${form.id}/fields/${fieldId}/explain`, { method: "POST" });
+      if (!res.ok) throw new Error("explain failed");
+      const data = await res.json() as { explanation: string; example: string; commonMistakes: string | null; whereToFind: string | null; isPro: boolean; remaining: number };
+      setHelpCache((prev) => ({ ...prev, [fieldId]: data }));
+    } catch {
+      setHelpCache((prev) => ({ ...prev, [fieldId]: "error" }));
+    }
+  }
+
+  function closeHelp() {
+    setHelpDrawerFieldId(null);
+  }
+
+  // Close help drawer on Escape
+  useEffect(() => {
+    if (!helpDrawerFieldId) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") closeHelp();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [helpDrawerFieldId]);
 
   function handleAcceptAllHigh() {
     const newStates = { ...fieldStates };
@@ -565,6 +600,117 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         exporting={exporting}
       />
     )}
+
+    {/* Help drawer — right panel on desktop, bottom sheet on mobile */}
+    {helpDrawerFieldId !== null && (() => {
+      const helpField = fields.find((f) => f.id === helpDrawerFieldId);
+      const cached = helpCache[helpDrawerFieldId];
+      return (
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 z-40 bg-black/20 backdrop-blur-[1px]"
+            onClick={closeHelp}
+            aria-hidden="true"
+          />
+          {/* Drawer — right side on sm+, bottom sheet on mobile */}
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Help for ${helpField?.label ?? "field"}`}
+            className="fixed z-50 bg-white shadow-2xl
+              inset-x-0 bottom-0 rounded-t-2xl max-h-[75vh] sm:max-h-none
+              sm:inset-y-0 sm:right-0 sm:bottom-auto sm:top-0 sm:left-auto sm:w-80 sm:rounded-l-2xl sm:rounded-r-none
+              flex flex-col overflow-hidden"
+          >
+            {/* Drawer header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 shrink-0">
+              <div className="min-w-0">
+                <p className="text-xs font-medium text-slate-400 uppercase tracking-wide">Field help</p>
+                <p className="text-sm font-bold text-slate-900 truncate mt-0.5">{helpField?.label}</p>
+              </div>
+              <button
+                onClick={closeHelp}
+                className="ml-3 shrink-0 text-slate-400 hover:text-slate-600 transition-colors"
+                aria-label="Close help"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Drawer body */}
+            <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+              {cached === "loading" && (
+                <div className="space-y-3 animate-pulse">
+                  <div className="h-3 bg-slate-100 rounded w-1/3" />
+                  <div className="space-y-2">
+                    <div className="h-3 bg-slate-100 rounded w-full" />
+                    <div className="h-3 bg-slate-100 rounded w-4/5" />
+                    <div className="h-3 bg-slate-100 rounded w-3/5" />
+                  </div>
+                  <div className="h-3 bg-slate-100 rounded w-1/3 mt-4" />
+                  <div className="h-8 bg-slate-100 rounded w-full" />
+                  <div className="h-3 bg-slate-100 rounded w-1/3 mt-4" />
+                  <div className="h-3 bg-slate-100 rounded w-full" />
+                </div>
+              )}
+              {cached === "error" && (
+                <div className="text-center py-6 space-y-3">
+                  <p className="text-sm text-slate-500">Could not load explanation — try again</p>
+                  <button
+                    onClick={() => {
+                      setHelpCache((prev) => { const next = { ...prev }; delete next[helpDrawerFieldId]; return next; });
+                      openHelp(helpDrawerFieldId);
+                    }}
+                    className="text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
+              {cached && cached !== "loading" && cached !== "error" && (() => {
+                const result = cached as { explanation: string; example: string; commonMistakes: string | null; whereToFind: string | null; isPro: boolean; remaining: number };
+                return (
+                  <div className="space-y-4 text-sm">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">What this means</p>
+                      <p className="text-slate-700 leading-relaxed">{result.explanation}</p>
+                    </div>
+                    {result.example && (
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Example answer</p>
+                        <p className="font-mono text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-slate-800">{result.example}</p>
+                      </div>
+                    )}
+                    {result.commonMistakes && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+                        <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-1">Common mistake</p>
+                        <p className="text-amber-800 leading-relaxed">{result.commonMistakes}</p>
+                      </div>
+                    )}
+                    {result.whereToFind && (
+                      <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+                        <p className="text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1">Where to find this</p>
+                        <p className="text-slate-700 leading-relaxed">{result.whereToFind}</p>
+                      </div>
+                    )}
+                    {!result.isPro && (
+                      <p className="text-xs text-slate-400 pt-2 border-t border-slate-100">
+                        {result.remaining} help lookups remaining this hour.{" "}
+                        <a href="/dashboard/billing" className="text-blue-500 hover:text-blue-700 underline">Upgrade for unlimited.</a>
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
+          </div>
+        </>
+      );
+    })()}
+
     <div className="space-y-6">
       {/* Header Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-5 sm:p-6 space-y-5">
@@ -1027,6 +1173,20 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                           <span className="text-red-500 ml-0.5" aria-label="required">*</span>
                         )}
                       </label>
+                      {/* Help icon */}
+                      <button
+                        type="button"
+                        onClick={() => openHelp(field.id)}
+                        className="inline-flex items-center justify-center w-5 h-5 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors shrink-0"
+                        aria-label={`Help for ${field.label}`}
+                        title="What should I enter here?"
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <circle cx="12" cy="12" r="10" />
+                          <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
+                          <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                      </button>
 
                       {/* State badges */}
                       {state === "accepted" && (
