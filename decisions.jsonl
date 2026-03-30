@@ -20,3 +20,7 @@
 {"date":"2026-03-30","project":"FormPilot","summary":"#153 onboarding checklist: 3-step (profile/upload/autofill), localStorage dismiss, auto-dismiss on completion. Replaced ProfileBanner."}
 {"date":"2026-03-30","project":"FormPilot","summary":"#154 form completion share card: FormCompleteOverlay modal with editable tweet, X/Twitter share, copy-with-UTM, PDF download. FormViewer Mark as Complete button. localStorage fp_completed_${formId} prevents re-show."}
 {"date":"2026-03-30","project":"FormPilot","summary":"#155 mobile layout: DocumentImageViewer mobileCollapsed prop, FormViewer text-base/min-h-[48px] touch targets, responsive form detail page."}
+{"date":"2026-03-30","project":"FormPilot","summary":"#157 template management page: /dashboard/templates server page + TemplateCardList client (copy link, delete), Templates nav item added to DashboardNav"}
+{"date":"2026-03-30","project":"FormPilot","summary":"#162 use template: POST /api/templates/[id]/use creates Form with ANALYZED status + increments usedCount, Use template button in TemplateCardList and public /t/[slug] page"}
+{"date":"2026-03-30","project":"FormPilot","summary":"#164 profile completeness: live bar in ProfileForm (10 fields, blue/amber/emerald), amber nudge on dashboard < 60%"}
+{"date":"2026-03-30","project":"FormPilot","summary":"#161 landing social proof: testimonials behind SHOW_TESTIMONIALS env flag, footer with Privacy/Terms/Demo/Dashboard links + PH badge slot"}

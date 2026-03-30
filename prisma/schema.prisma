@@ -77,9 +77,10 @@ model Form {
   fields      Json       // Parsed field definitions
   filledData  Json?      // Autofilled values
   status      FormStatus @default(PENDING)
-  category    String?    // Detected form category (TAX, IMMIGRATION, LEGAL, HR_EMPLOYMENT, HEALTHCARE, GENERAL)
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  category     String?    // Detected form category (TAX, IMMIGRATION, LEGAL, HR_EMPLOYMENT, HEALTHCARE, GENERAL)
+  lastNudgedAt DateTime? // Set after sending re-engagement email — suppresses nudges for 7 days
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
