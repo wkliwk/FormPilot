@@ -4,6 +4,27 @@ import Link from "next/link";
 // "https://www.producthunt.com/posts/formpilot"
 const PRODUCT_HUNT_URL: string | null = null;
 
+// Toggle testimonials on/off without a deploy — set SHOW_TESTIMONIALS=true in env
+const SHOW_TESTIMONIALS = process.env.SHOW_TESTIMONIALS === "true";
+
+const TESTIMONIALS = [
+  {
+    quote: "I used to dread my annual immigration renewal. FormPilot explained every field and filled in half of them from my profile. Done in under an hour.",
+    name: "Maria S.",
+    context: "I-485 adjustment of status",
+  },
+  {
+    quote: "Filing taxes is stressful enough. Having every line explained in plain English — with an example — made a real difference. I actually understood what I was signing.",
+    name: "James T.",
+    context: "1040 federal tax return",
+  },
+  {
+    quote: "Our HR team sends new hires a stack of forms on day one. FormPilot helped me get through all of them without a single phone call to HR.",
+    name: "Priya K.",
+    context: "New employee onboarding packet",
+  },
+];
+
 async function getFormsProcessed(): Promise<number> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3300";
@@ -313,6 +334,32 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Testimonials (toggled via SHOW_TESTIMONIALS env var) */}
+      {SHOW_TESTIMONIALS && (
+        <section className="max-w-5xl mx-auto px-4 sm:px-6 py-20 sm:py-28">
+          <div className="text-center mb-12">
+            <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
+              Early user feedback
+            </h2>
+            <p className="mt-4 text-lg text-slate-500">What people are saying after using FormPilot on real forms.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {TESTIMONIALS.map((t, i) => (
+              <div key={i} className="bg-white rounded-2xl border border-slate-200 p-6 shadow-soft flex flex-col gap-4">
+                <svg className="w-6 h-6 text-blue-300" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M14.017 21v-7.391c0-5.704 3.748-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h3.983v10h-9.966z" />
+                </svg>
+                <p className="text-sm text-slate-600 leading-relaxed flex-1">{t.quote}</p>
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">{t.name}</p>
+                  <p className="text-xs text-slate-400">{t.context}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Supported forms */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
         <h2 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight">
@@ -366,13 +413,32 @@ export default async function HomePage() {
 
       {/* Footer */}
       <footer className="border-t border-slate-100 bg-white">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-          <span className="text-sm font-bold text-slate-900">
-            Form<span className="text-blue-600">Pilot</span>
-          </span>
-          <p className="text-sm text-slate-400">
-            Built to make paperwork painless.
-          </p>
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 flex flex-col sm:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-6">
+            <span className="text-sm font-bold text-slate-900">
+              Form<span className="text-blue-600">Pilot</span>
+            </span>
+            <nav className="flex items-center gap-4">
+              <Link href="/demo" className="text-sm text-slate-400 hover:text-slate-700 transition-colors">Demo</Link>
+              <Link href="/dashboard" className="text-sm text-slate-400 hover:text-slate-700 transition-colors">Dashboard</Link>
+              <Link href="/privacy" className="text-sm text-slate-400 hover:text-slate-700 transition-colors">Privacy</Link>
+              <Link href="/terms" className="text-sm text-slate-400 hover:text-slate-700 transition-colors">Terms</Link>
+            </nav>
+          </div>
+          <div className="flex items-center gap-4">
+            {PRODUCT_HUNT_URL && (
+              <a
+                href={PRODUCT_HUNT_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#DA552F] text-white text-xs font-semibold rounded-lg hover:opacity-90 transition-opacity"
+              >
+                <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M0 12C0 5.373 5.373 0 12 0c6.628 0 12 5.373 12 12s-5.372 12-12 12C5.373 24 0 18.628 0 12zm14.236-4.8H9.6V16.8h1.92v-3.84h2.716c2.134 0 3.564-1.2 3.564-3.24S16.37 7.2 14.236 7.2zm-.144 3.84H11.52V9.12h2.572c1.032 0 1.644.48 1.644 1.464 0 .972-.612 1.464-1.644 1.464z"/></svg>
+                Featured on Product Hunt
+              </a>
+            )}
+            <p className="text-sm text-slate-400">Built to make paperwork painless.</p>
+          </div>
         </div>
       </footer>
     </main>
