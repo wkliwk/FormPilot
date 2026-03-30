@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 interface BillingInfo {
   plan: "free" | "pro";
@@ -43,22 +44,38 @@ export default function BillingPage() {
       : 0;
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div>
+      {/* Breadcrumb */}
+      <nav className="bg-white border-b border-slate-100 px-4 sm:px-6 py-3">
+        <div className="max-w-2xl mx-auto flex items-center gap-2 text-sm">
+          <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors">
+            Dashboard
+          </Link>
+          <svg className="w-4 h-4 text-slate-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <span className="font-medium text-slate-900">Billing &amp; Plan</span>
+        </div>
+      </nav>
+
       <main className="max-w-2xl mx-auto px-4 py-10">
-        <h1 className="text-2xl font-bold text-gray-900 mb-8">Billing & Plan</h1>
+        <h1 className="text-2xl font-bold text-slate-900 mb-8">Billing &amp; Plan</h1>
 
         {loading ? (
-          <div className="text-gray-400 text-sm">Loading…</div>
+          <div className="space-y-6 animate-pulse">
+            <div className="bg-slate-100 rounded-2xl h-28" />
+            <div className="bg-slate-100 rounded-2xl h-20" />
+          </div>
         ) : billing ? (
           <div className="space-y-6">
             {/* Plan card */}
-            <div className="bg-white rounded-xl border border-gray-200 p-6 flex items-center justify-between">
+            <div className="bg-white rounded-2xl border border-slate-200 p-6 flex items-center justify-between">
               <div>
-                <div className="text-xs font-medium text-gray-400 uppercase tracking-wide mb-1">
+                <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">
                   Current plan
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-gray-900 capitalize">
+                  <span className="text-2xl font-bold text-slate-900 capitalize">
                     {billing.plan}
                   </span>
                   {billing.plan === "pro" && (
@@ -68,7 +85,7 @@ export default function BillingPage() {
                   )}
                 </div>
                 {billing.plan === "free" && (
-                  <p className="text-sm text-gray-500 mt-1">
+                  <p className="text-sm text-slate-500 mt-1">
                     Upgrade to Pro for unlimited forms, form memory, and shared templates.
                   </p>
                 )}
@@ -86,7 +103,7 @@ export default function BillingPage() {
                   <button
                     onClick={handleManage}
                     disabled={actionLoading}
-                    className="border border-gray-300 text-gray-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+                    className="border border-slate-300 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-50 disabled:opacity-50"
                   >
                     {actionLoading ? "Redirecting…" : "Manage subscription"}
                   </button>
@@ -96,16 +113,16 @@ export default function BillingPage() {
 
             {/* Usage meter (free only) */}
             {billing.plan === "free" && billing.formsLimit && (
-              <div className="bg-white rounded-xl border border-gray-200 p-6">
+              <div className="bg-white rounded-2xl border border-slate-200 p-6">
                 <div className="flex justify-between items-baseline mb-3">
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-slate-700">
                     Forms used this month
                   </span>
-                  <span className="text-sm font-bold text-gray-900">
+                  <span className="text-sm font-bold text-slate-900">
                     {billing.formsUsed} / {billing.formsLimit}
                   </span>
                 </div>
-                <div className="w-full bg-gray-100 rounded-full h-2 mb-3">
+                <div className="w-full bg-slate-100 rounded-full h-2 mb-3">
                   <div
                     className={`h-2 rounded-full transition-all ${
                       usagePct >= 100
@@ -129,7 +146,7 @@ export default function BillingPage() {
                     for unlimited forms.
                   </p>
                 )}
-                <p className="text-xs text-gray-400 mt-2">
+                <p className="text-xs text-slate-400 mt-2">
                   Resets on your billing cycle.
                 </p>
               </div>
@@ -137,11 +154,11 @@ export default function BillingPage() {
 
             {/* Pro features list */}
             {billing.plan === "free" && (
-              <div className="bg-blue-50 border border-blue-100 rounded-xl p-6">
-                <h3 className="font-semibold text-gray-900 mb-3">
+              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6">
+                <h3 className="font-semibold text-slate-900 mb-3">
                   Pro includes
                 </h3>
-                <ul className="space-y-2 text-sm text-gray-700">
+                <ul className="space-y-2 text-sm text-slate-700">
                   {[
                     "Unlimited form uploads",
                     "Form Memory — learns from your completed forms",
