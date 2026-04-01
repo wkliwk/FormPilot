@@ -118,6 +118,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   );
   // keyboard navigation for unanswered fields
   const [currentUnansweredIndex, setCurrentUnansweredIndex] = useState(0);
+  // field currently flashing the highlight ring (cleared after animation ends)
+  const [highlightedFieldId, setHighlightedFieldId] = useState<string | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
   const titleSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -533,27 +535,31 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
   // -- keyboard navigation --
 
-  // Get list of unanswered field IDs (fields with no value)
+  // Get list of unfilled field IDs: no value AND fieldState is not "accepted"
   const unansweredFieldIds = fields
-    .filter((f) => !values[f.id])
+    .filter((f) => (!values[f.id] || values[f.id] === "") && fieldStates[f.id] !== "accepted")
     .map((f) => f.id);
 
   const unansweredCount = unansweredFieldIds.length;
 
-  // Navigate to an unanswered field by index
+  // Navigate to an unanswered field by index (wraps around)
   const navigateToUnansweredField = useCallback((index: number) => {
     if (unansweredFieldIds.length === 0) return;
-    const clampedIndex = Math.max(0, Math.min(index, unansweredFieldIds.length - 1));
-    setCurrentUnansweredIndex(clampedIndex);
-    const fieldId = unansweredFieldIds[clampedIndex];
+    // Wrap-around
+    const wrappedIndex = ((index % unansweredFieldIds.length) + unansweredFieldIds.length) % unansweredFieldIds.length;
+    setCurrentUnansweredIndex(wrappedIndex);
+    const fieldId = unansweredFieldIds[wrappedIndex];
     const element = document.getElementById(`field-${fieldId}`);
     if (element) {
       element.scrollIntoView({ behavior: "smooth", block: "center" });
       element.focus();
     }
+    // Trigger highlight ring animation — clear first to allow re-trigger on same field
+    setHighlightedFieldId(null);
+    requestAnimationFrame(() => setHighlightedFieldId(fieldId));
   }, [unansweredFieldIds]);
 
-  // Handle keyboard shortcuts: Alt+N (next), Alt+P (previous)
+  // Handle keyboard shortcuts: Alt+N / Alt+P (legacy) + N / ] when not in an input
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (unansweredCount === 0) return;
@@ -561,9 +567,23 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       if (e.altKey && e.key === "n") {
         e.preventDefault();
         navigateToUnansweredField(currentUnansweredIndex + 1);
-      } else if (e.altKey && e.key === "p") {
+        return;
+      }
+      if (e.altKey && e.key === "p") {
         e.preventDefault();
         navigateToUnansweredField(currentUnansweredIndex - 1);
+        return;
+      }
+
+      // N or ] advances to next empty field — but only when focus is NOT inside a text input/textarea/select
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isEditable = (e.target as HTMLElement)?.isContentEditable;
+      const isInputFocused = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || isEditable;
+      if (!isInputFocused && !e.altKey && !e.ctrlKey && !e.metaKey) {
+        if (e.key === "n" || e.key === "N" || e.key === "]") {
+          e.preventDefault();
+          navigateToUnansweredField(currentUnansweredIndex + 1);
+        }
       }
     };
 
@@ -790,6 +810,23 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {/* Jump to next empty field */}
+            {unansweredCount > 0 && (
+              <button
+                type="button"
+                onClick={() => navigateToUnansweredField(currentUnansweredIndex)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 border border-blue-200 bg-blue-50 text-blue-700 text-sm rounded-lg font-medium hover:bg-blue-100 transition-colors active:scale-[0.98]"
+                aria-label={`Jump to next empty field. ${unansweredCount} empty field${unansweredCount === 1 ? "" : "s"} remaining.`}
+                title="Jump to next empty field (press N or ] when not typing)"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="12 8 16 12 12 16" />
+                  <line x1="8" y1="12" x2="16" y2="12" />
+                </svg>
+                {unansweredCount} empty field{unansweredCount === 1 ? "" : "s"}
+              </button>
+            )}
             {/* Sample fill button */}
             <button
               onClick={handleSampleFill}
@@ -1160,10 +1197,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           const fieldErrors = validation?.errors.filter((e) => e.fieldId === field.id) ?? [];
           const fieldWarnings = validation?.warnings.filter((w) => w.fieldId === field.id && w.rule === "low_confidence") ?? [];
 
+          const isHighlighted = highlightedFieldId === field.id;
+
           return (
             <div
               key={field.id}
-              className={`rounded-2xl border transition-all shadow-soft ${cardClasses}`}
+              className={`rounded-2xl border transition-all shadow-soft ${cardClasses}${isHighlighted ? " field-highlight" : ""}`}
+              onAnimationEnd={() => {
+                if (isHighlighted) setHighlightedFieldId(null);
+              }}
             >
               <div className="p-5 space-y-3">
                 {/* Top row: label + actions */}
