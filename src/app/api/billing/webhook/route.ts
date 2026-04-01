@@ -9,6 +9,15 @@ import * as React from "react";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://getformpilot.com";
 
+/** Extract subscription period end from item-level billing data (Stripe v21+) */
+function getSubscriptionPeriodEnd(sub: Stripe.Subscription): Date | null {
+  const firstItem = sub.items?.data?.[0];
+  if (firstItem?.current_period_end) {
+    return new Date(firstItem.current_period_end * 1000);
+  }
+  return null;
+}
+
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const sig = req.headers.get("stripe-signature");
@@ -39,6 +48,10 @@ export async function POST(req: NextRequest) {
 
       if (!userId || !subscriptionId) break;
 
+      // Fetch the Stripe subscription to get the accurate period end
+      const stripeSub = await getStripe().subscriptions.retrieve(subscriptionId);
+      const periodEnd = getSubscriptionPeriodEnd(stripeSub);
+
       await prisma.subscription.upsert({
         where: { userId },
         create: {
@@ -46,10 +59,12 @@ export async function POST(req: NextRequest) {
           stripeCustomerId: session.customer as string,
           stripeSubscriptionId: subscriptionId,
           status: "ACTIVE",
+          ...(periodEnd ? { currentPeriodEnd: periodEnd } : {}),
         },
         update: {
           stripeSubscriptionId: subscriptionId,
           status: "ACTIVE",
+          ...(periodEnd ? { currentPeriodEnd: periodEnd } : {}),
         },
       });
 
@@ -78,10 +93,13 @@ export async function POST(req: NextRequest) {
       });
       if (!sub) break;
 
-      // Use invoice period_end as the subscription period end
-      const periodEnd = invoice.period_end
-        ? new Date(invoice.period_end * 1000)
-        : null;
+      // Fetch subscription's period end from Stripe (not invoice.period_end,
+      // which refers to the invoicing period and can be in the past)
+      let periodEnd: Date | null = null;
+      if (sub.stripeSubscriptionId) {
+        const stripeSubObj = await getStripe().subscriptions.retrieve(sub.stripeSubscriptionId);
+        periodEnd = getSubscriptionPeriodEnd(stripeSubObj);
+      }
 
       await prisma.subscription.update({
         where: { stripeCustomerId: customerId },
@@ -111,11 +129,14 @@ export async function POST(req: NextRequest) {
           ? "PAST_DUE"
           : "CANCELED";
 
+      const subPeriodEnd = getSubscriptionPeriodEnd(stripeSub);
+
       await prisma.subscription.updateMany({
         where: { stripeCustomerId: customerId },
         data: {
           status,
           stripeSubscriptionId: stripeSub.id,
+          ...(subPeriodEnd ? { currentPeriodEnd: subPeriodEnd } : {}),
         },
       });
       break;
