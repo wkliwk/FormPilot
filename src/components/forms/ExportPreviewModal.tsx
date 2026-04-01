@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import dynamic from "next/dynamic";
 import type { FormField } from "@/lib/ai/analyze-form";
-import DocumentImageViewer from "./DocumentImageViewer";
+
+const DocumentImageViewer = dynamic(() => import("./DocumentImageViewer"), { ssr: false });
 
 type ExportFormat = "pdf" | "json" | "clipboard";
 

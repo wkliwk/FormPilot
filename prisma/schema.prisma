@@ -76,6 +76,7 @@ model Form {
   fileBytes   Bytes?     // Raw uploaded file bytes for PDF re-fill on export
   fields      Json       // Parsed field definitions
   filledData  Json?      // Autofilled values
+  language    String     @default("en") // Active explanation language (ISO 639 code)
   status      FormStatus @default(PENDING)
   category     String?    // Detected form category (TAX, IMMIGRATION, LEGAL, HR_EMPLOYMENT, HEALTHCARE, GENERAL)
   lastNudgedAt DateTime? // Set after sending re-engagement email — suppresses nudges for 7 days

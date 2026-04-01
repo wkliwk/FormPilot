@@ -126,6 +126,9 @@ const MAX_TEXT_LENGTH = 50_000;
 const LANGUAGE_NAMES: Record<string, string> = {
   es: "Spanish",
   zh: "Chinese Simplified",
+  "zh-Hans": "Chinese Simplified",
+  "zh-Hant": "Chinese Traditional",
+  yue: "Cantonese",
   ko: "Korean",
   vi: "Vietnamese",
   tl: "Tagalog",
@@ -506,4 +509,100 @@ Only include fields with confidence > 0.`;
   });
 
   return updatedFields;
+}
+
+// --- Translation ---
+
+const translatedFieldSchema = z.array(z.object({
+  id: z.string(),
+  explanation: z.string(),
+  example: z.string(),
+  commonMistakes: z.string(),
+}));
+
+/**
+ * Translate only the explanation/example/commonMistakes of existing fields
+ * into the target language. Preserves all other field properties (value,
+ * fieldState, confidence, profileKey, id, etc.).
+ */
+export async function translateFieldExplanations(
+  fields: FormField[],
+  language?: string | null
+): Promise<FormField[]> {
+  if (!language || language === "en") {
+    return fields;
+  }
+
+  const languageName = LANGUAGE_NAMES[language];
+  if (!languageName) return fields;
+
+  const cantoneseInstruction =
+    language === "yue"
+      ? "\n\nTranslate into natural Hong Kong Cantonese. Use Cantonese particles, vocabulary, and phrasing rather than standard Mandarin phrasing. Provide short, conversational sentences that people in Hong Kong would actually say."
+      : "";
+
+  const translatableFields = fields.map((field) => ({
+    id: field.id,
+    label: field.label,
+    type: field.type,
+    explanation: field.explanation,
+    example: field.example,
+    commonMistakes: field.commonMistakes,
+  }));
+
+  const locationInstruction = `\n\nAfter each explanation, add a short sentence describing where to find the requested value. Examples: "Ask your employer or HR for the EIN letter" or "Look at last year's W-2 or 1099".`;
+
+  const prompt = `Translate the field help content into ${languageName}.${cantoneseInstruction}${locationInstruction}
+
+Rules:
+- Keep id exactly unchanged.
+- Do not translate label or type.
+- Translate explanation, example, and commonMistakes into ${languageName}.
+- Preserve practical formatting and short examples.
+- Return ONLY valid JSON as an array of objects:
+[
+  {
+    "id": "field_id",
+    "explanation": "translated explanation",
+    "example": "translated example",
+    "commonMistakes": "translated common mistakes"
+  }
+]
+
+FIELDS:
+${JSON.stringify(translatableFields, null, 2)}`;
+
+  const client = getClient();
+  const completion = await withRetry(
+    () =>
+      client.chat.completions.create({
+        model: MODEL,
+        max_tokens: 4096,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.2,
+      }),
+    "translateFieldExplanations"
+  );
+
+  const text = completion.choices[0]?.message?.content;
+  if (!text) throw new Error("Empty response from AI for translation");
+
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const cleaned = fenceMatch ? fenceMatch[1] : text;
+  const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) throw new Error("No JSON found in translation response");
+
+  const translated = translatedFieldSchema.parse(JSON.parse(jsonMatch[0]));
+  const translatedMap = new Map(translated.map((field) => [field.id, field]));
+
+  return fields.map((field) => {
+    const hit = translatedMap.get(field.id);
+    if (!hit) return field;
+    return {
+      ...field,
+      explanation: hit.explanation,
+      example: hit.example,
+      commonMistakes: hit.commonMistakes,
+    };
+  });
 }
