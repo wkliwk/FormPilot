@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import FormCardList from "@/components/forms/FormCardList";
+import DashboardEmptyState from "@/components/forms/DashboardEmptyState";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
 import DashboardStats from "@/components/DashboardStats";
 import QuotaBar from "@/components/QuotaBar";
@@ -160,31 +161,7 @@ export default async function DashboardPage() {
 
         {/* Content */}
         {pagedForms.length === 0 ? (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-12 sm:p-16 text-center">
-            <div className="mx-auto w-16 h-16 rounded-2xl bg-blue-50 flex items-center justify-center mb-6">
-              <svg className="w-8 h-8 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                <polyline points="14 2 14 8 20 8" />
-                <line x1="12" y1="18" x2="12" y2="12" />
-                <line x1="9" y1="15" x2="12" y2="12" />
-                <line x1="15" y1="15" x2="12" y2="12" />
-              </svg>
-            </div>
-            <h2 className="text-lg font-semibold text-slate-900">Fill your first form</h2>
-            <p className="text-slate-500 mt-2 max-w-sm mx-auto text-sm">
-              Upload any PDF, Word doc, or photo of a paper form — FormPilot will explain every field and help you fill it.
-            </p>
-            <Link
-              href="/dashboard/upload"
-              className="inline-flex items-center gap-2 mt-6 px-6 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-all shadow-sm active:scale-[0.98]"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Upload a Form
-            </Link>
-          </div>
+          <DashboardEmptyState />
         ) : (
           <FormCardList
             initialHasMore={hasMore}
