@@ -1,15 +1,13 @@
 /**
  * AI provider fallback chain for text generation.
  *
- * Chain: Groq (llama-3.3-70b) → Anthropic Claude Haiku → Google Gemini Flash
+ * Chain: Groq (llama-3.3-70b) → OpenRouter (same model via aggregator)
  *
  * - 429 rate limit: immediately skip to next provider (no backoff on current)
  * - Other transient errors (5xx, network): retry within provider before moving on
- * - Only if all three providers fail does an error propagate to the caller
+ * - Only if all providers fail does an error propagate to the caller
  */
 import Groq from "groq-sdk";
-import Anthropic from "@anthropic-ai/sdk";
-import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ─── Singletons ──────────────────────────────────────────────────────────────
 
@@ -20,24 +18,6 @@ function getGroqClient(): Groq {
     _groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   }
   return _groq;
-}
-
-let _anthropic: Anthropic | null = null;
-function getAnthropicFallbackClient(): Anthropic {
-  if (!_anthropic) {
-    if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set");
-    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  }
-  return _anthropic;
-}
-
-let _gemini: GoogleGenerativeAI | null = null;
-function getGeminiClient(): GoogleGenerativeAI {
-  if (!_gemini) {
-    if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not set");
-    _gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-  }
-  return _gemini;
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -104,51 +84,63 @@ async function callGroq(prompt: string, maxTokens: number): Promise<string> {
   }, "groq");
 }
 
-async function callAnthropic(prompt: string, maxTokens: number): Promise<string> {
-  const client = getAnthropicFallbackClient();
-  return withProviderRetry(async () => {
-    const res = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: maxTokens,
-      messages: [{ role: "user", content: prompt }],
-    });
-    const block = res.content[0];
-    if (block.type !== "text" || !block.text) throw new Error("Empty response from Anthropic");
-    return block.text;
-  }, "anthropic");
-}
+/**
+ * OpenRouter — OpenAI-compatible aggregator.
+ * Uses the same model as Groq when available, falls back to router's choice.
+ * Set OPENROUTER_MODEL to override (e.g. "anthropic/claude-haiku-4-5").
+ */
+async function callOpenRouter(prompt: string, maxTokens: number): Promise<string> {
+  const apiKey = process.env.OPENROUTER_API_KEY;
+  if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
 
-async function callGemini(prompt: string, maxTokens: number): Promise<string> {
-  const client = getGeminiClient();
+  const model = process.env.OPENROUTER_MODEL ?? "meta-llama/llama-3.3-70b-instruct";
+
   return withProviderRetry(async () => {
-    const model = client.getGenerativeModel({
-      model: "gemini-2.0-flash",
-      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.1 },
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "HTTP-Referer": process.env.NEXT_PUBLIC_APP_URL ?? "https://formpilot.app",
+        "X-Title": "FormPilot",
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.1,
+      }),
     });
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
-    if (!text) throw new Error("Empty response from Gemini");
+
+    if (!res.ok) {
+      const err = new Error(`OpenRouter HTTP ${res.status}`) as Error & { status: number };
+      err.status = res.status;
+      throw err;
+    }
+
+    const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const text = json.choices?.[0]?.message?.content;
+    if (!text) throw new Error("Empty response from OpenRouter");
     return text;
-  }, "gemini");
+  }, "openrouter");
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-type ProviderName = "groq" | "anthropic" | "gemini";
+type ProviderName = "groq" | "openrouter";
 
 const PROVIDERS: Array<{
   name: ProviderName;
   fn: (prompt: string, maxTokens: number) => Promise<string>;
 }> = [
   { name: "groq", fn: callGroq },
-  { name: "anthropic", fn: callAnthropic },
-  { name: "gemini", fn: callGemini },
+  { name: "openrouter", fn: callOpenRouter },
 ];
 
 /**
  * Call text AI with automatic provider fallback.
  *
- * Tries Groq first, then Anthropic Claude Haiku, then Gemini Flash.
+ * Tries Groq first, then OpenRouter.
  * On 429 rate limit, skips immediately to the next provider.
  * On other transient errors, retries within the same provider before moving on.
  */
