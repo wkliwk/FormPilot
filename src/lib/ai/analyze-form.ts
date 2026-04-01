@@ -389,7 +389,7 @@ Rules:
 FIELDS:
 ${JSON.stringify(translatableFields, null, 2)}`;
 
-  const text = await callTextAI(prompt, "translateFieldExplanations", 4096);
+  const text = await callTextAI(prompt, "translateFieldExplanations", 8192);
 
   const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const cleaned = fenceMatch ? fenceMatch[1] : text;
