@@ -13,6 +13,9 @@
     "db:studio": "prisma studio",
     "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
     "test": "jest",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
     "build:check": "prisma generate && next build",
     "build:extension": "cd extension && zip -r ../public/formpilot-extension.zip . --exclude '*.DS_Store' --exclude 'icons/generate-icons.js' && echo 'Extension zip written to public/formpilot-extension.zip'"
   },
@@ -53,6 +56,7 @@
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@types/canvas-confetti": "^1.9.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^20",
