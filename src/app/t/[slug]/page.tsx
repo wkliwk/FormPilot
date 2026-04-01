@@ -13,7 +13,24 @@ export async function generateMetadata({ params }: Props) {
   const { slug } = await params;
   const template = await prisma.formTemplate.findUnique({ where: { slug } });
   if (!template || template.revokedAt) return { title: "Template not found — FormPilot" };
-  return { title: `${template.name} — FormPilot` };
+  const description = `Fill the ${template.name} with AI guidance and auto-fill from your profile — powered by FormPilot`;
+  const ogImage = "/og-image.png";
+  return {
+    title: `${template.name} — FormPilot`,
+    description,
+    openGraph: {
+      type: "website",
+      title: `${template.name} — FormPilot`,
+      description,
+      images: [{ url: ogImage, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${template.name} — FormPilot`,
+      description,
+      images: [ogImage],
+    },
+  };
 }
 
 export default async function TemplatePage({ params }: Props) {
