@@ -64,12 +64,11 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
       (form.fields as FormField[]).filter((f) => f.value).map((f) => [f.id, f.value!])
     )
   );
-  const [sideBySide, setSideBySide] = useState(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("fp-side-by-side") === "true";
-    }
-    return false;
-  });
+  const [sideBySide, setSideBySide] = useState(false);
+  useEffect(() => {
+    const stored = localStorage.getItem("fp-side-by-side");
+    if (stored === "true") setSideBySide(true);
+  }, []);
   const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
   const [jumpToFieldRequest, setJumpToFieldRequest] = useState<{ fieldId: string; nonce: number } | null>(null);
 

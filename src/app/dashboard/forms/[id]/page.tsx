@@ -20,6 +20,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
       filledData: true,
       status: true,
       category: true,
+      language: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -43,7 +44,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
         <FormPageClient
           form={serializableForm}
           hasProfile={!!profile}
-          preferredLanguage={profile?.preferredLanguage ?? null}
+          preferredLanguage={form.language ?? profile?.preferredLanguage ?? null}
           profileCountry={profile?.country ?? null}
           hasFile={!!fileBytes}
           sourceType={form.sourceType}
