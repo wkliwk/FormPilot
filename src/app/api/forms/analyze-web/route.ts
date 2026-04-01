@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { getClient } from "@/lib/ai/analyze-form";
+import { callTextAI } from "@/lib/ai/provider-chain";
 import { handleCorsPreFlight, withCors } from "@/lib/cors";
 import { handleApiError } from "@/lib/api-error";
 import { z } from "zod";
@@ -8,11 +8,14 @@ import { z } from "zod";
 export const maxDuration = 60;
 import { log } from "@/lib/logger";
 
-const SUPPORTED_LANGUAGES = ["en", "es", "zh", "ko", "vi", "tl", "ar", "hi", "fr", "pt"] as const;
+const SUPPORTED_LANGUAGES = ["en", "es", "zh", "zh-Hans", "zh-Hant", "yue", "ko", "vi", "tl", "ar", "hi", "fr", "pt"] as const;
 
 const LANGUAGE_NAMES: Record<string, string> = {
   es: "Spanish",
   zh: "Chinese Simplified",
+  "zh-Hans": "Chinese Simplified",
+  "zh-Hant": "Chinese Traditional",
+  yue: "Cantonese Traditional Chinese",
   ko: "Korean",
   vi: "Vietnamese",
   tl: "Tagalog",
@@ -98,15 +101,7 @@ export async function POST(req: NextRequest) {
   let analyzedFields: Array<Record<string, unknown>>;
 
   try {
-    const client = getClient();
-    const completion = await client.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      max_tokens: 4096,
-      temperature: 0.1,
-      messages: [
-        {
-          role: "user",
-          content: `You are a form analysis expert. Analyze these web form fields and provide explanations.
+    const webPrompt = `You are a form analysis expert. Analyze these web form fields and provide explanations.
 
 For each field, provide:
 1. A plain-language explanation of what information belongs there
@@ -132,12 +127,9 @@ Return ONLY a valid JSON array (no markdown fences, no extra text) matching this
 Profile keys available: firstName, lastName, email, phone, dateOfBirth, address.street, address.city, address.state, address.zip, address.country, ssn, passportNumber, employerName, jobTitle, annualIncome${langInstruction}
 
 WEB FORM FIELDS:
-${fieldDescriptions}`,
-        },
-      ],
-    });
+${fieldDescriptions}`;
 
-    const responseText = completion.choices[0]?.message?.content;
+    const responseText = await callTextAI(webPrompt, "analyze-web", 4096);
     if (!responseText) {
       return withCors(
         NextResponse.json({ error: "Empty AI response", code: "AI_PARSE_ERROR" }, { status: 500 }),

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
-import { getClient } from "@/lib/ai/analyze-form";
+import { callTextAI } from "@/lib/ai/provider-chain";
 import { log } from "@/lib/logger";
 import { z } from "zod";
 import type { FormField } from "@/lib/ai/analyze-form";
@@ -90,15 +90,7 @@ Return ONLY a valid JSON array (no markdown, no extra text) in this exact format
 
 Include ALL new field IDs in the output. Set value to null when there is no reasonable match.`;
 
-    const client = getClient();
-    const completion = await client.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.1,
-      max_tokens: 2048,
-    });
-
-    const raw = completion.choices[0]?.message?.content ?? "[]";
+    const raw = await callTextAI(prompt, "re-fill", 2048).catch(() => "[]");
 
     // Strip markdown fences if present
     const cleaned = raw

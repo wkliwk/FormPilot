@@ -4,8 +4,10 @@ import { z } from "zod";
 import { buildCacheKey, lookupCacheEntries, storeCacheEntries } from "./field-cache";
 import { withRetry } from "./retry";
 import { detectCategory, CATEGORY_SYSTEM_PROMPTS } from "./form-categories";
+import { callTextAI } from "./provider-chain";
 
-// Shared Groq client singleton
+// Shared Groq client singleton — kept for direct use in image-analysis fallback
+// and for callers that import getClient() directly (route files).
 let _client: Groq | null = null;
 export function getClient(): Groq {
   if (!_client) {
@@ -28,8 +30,6 @@ function getAnthropicClient(): Anthropic {
   }
   return _anthropicClient;
 }
-
-const MODEL = "llama-3.3-70b-versatile";
 
 // Sensitive profile keys that must never be sent to external APIs
 const SENSITIVE_KEYS = new Set([
@@ -320,7 +320,6 @@ export async function analyzeFormFields(
   language?: string | null,
   country?: string | null
 ): Promise<FormAnalysis> {
-  const client = getClient();
   const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
   const langInstruction = buildLanguageInstruction(language);
   const countryInstruction = buildCountryInstruction(country);
@@ -330,17 +329,8 @@ export async function analyzeFormFields(
   const categoryPrompt = CATEGORY_SYSTEM_PROMPTS[category];
   const fullPrompt = `${categoryPrompt}\n\n${BASE_ANALYSIS_PROMPT}${langInstruction}${countryInstruction}\n\nFORM CONTENT:\n${truncatedText}`;
 
-  const analysis = await withRetry(async () => {
-    const completion = await client.chat.completions.create({
-      model: MODEL,
-      max_tokens: 4096,
-      messages: [{ role: "user", content: fullPrompt }],
-      temperature: 0.1,
-    });
-    const text = completion.choices[0]?.message?.content;
-    if (!text) throw new Error("Empty response from AI");
-    return parseAndCacheAnalysis(text, language);
-  }, "analyzeFormFields");
+  const text = await callTextAI(fullPrompt, "analyzeFormFields", 4096);
+  const analysis = await parseAndCacheAnalysis(text, language);
   analysis.category = category;
   return analysis;
 }
@@ -368,7 +358,6 @@ export async function translateFieldExplanations(
       ? "\n\nTranslate into natural Hong Kong Cantonese. Use Cantonese particles, vocabulary, and phrasing (e.g., 僱主, 同, 咁) rather than standard Mandarin phrasing. Provide short, conversational sentences that people in Hong Kong would actually say."
       : "";
 
-  const client = getClient();
   const translatableFields = fields.map((field) => ({
     id: field.id,
     label: field.label,
@@ -400,18 +389,7 @@ Rules:
 FIELDS:
 ${JSON.stringify(translatableFields, null, 2)}`;
 
-  const completion = await withRetry(
-    () => client.chat.completions.create({
-      model: MODEL,
-      max_tokens: 4096,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.1,
-    }),
-    "translateFieldExplanations"
-  );
-
-  const text = completion.choices[0]?.message?.content;
-  if (!text) throw new Error("Empty response from AI");
+  const text = await callTextAI(prompt, "translateFieldExplanations", 4096);
 
   const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
   const cleaned = fenceMatch ? fenceMatch[1] : text;
@@ -551,8 +529,6 @@ export async function autofillFields(
   profile: Record<string, string>,
   historicalSuggestions?: HistorySuggestion[]
 ): Promise<FormField[]> {
-  const client = getClient();
-
   // Strip sensitive fields before sending to AI
   const safeProfile = stripSensitiveFields(profile);
 
@@ -582,17 +558,7 @@ confidence is 0.0–1.0 (1.0 = exact match from profile, 0.5 = inferred/transfor
 For fields filled from history suggestions, use confidence 0.6.
 Only include fields with confidence > 0.`;
 
-  const completion = await withRetry(
-    () => client.chat.completions.create({
-      model: MODEL,
-      max_tokens: 2048,
-      messages: [{ role: "user", content: prompt }],
-      temperature: 0.1,
-    }),
-    "autofillFields"
-  );
-
-  const responseText = completion.choices[0]?.message?.content;
+  const responseText = await callTextAI(prompt, "autofillFields", 2048).catch(() => null);
   if (!responseText) return fields;
 
   // Strip markdown fences if present
