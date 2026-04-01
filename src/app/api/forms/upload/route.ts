@@ -11,6 +11,7 @@ import { log } from "@/lib/logger";
 import type { FormAnalysis } from "@/lib/ai/analyze-form";
 import { sendEmail } from "@/lib/email";
 import FormAnalyzedEmail from "@/emails/FormAnalyzedEmail";
+import QuotaApproachingEmail from "@/emails/QuotaApproachingEmail";
 
 export const maxDuration = 60;
 
@@ -90,7 +91,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const formData = await req.formData();
+  let formData: FormData;
+  try {
+    formData = await req.formData();
+  } catch {
+    return NextResponse.json({ error: "Could not read uploaded file. Please try again." }, { status: 400 });
+  }
   const file = formData.get("file") as File | null;
 
   if (!file) {
@@ -107,7 +113,13 @@ export async function POST(req: NextRequest) {
   }
 
   const start = Date.now();
-  const buffer = Buffer.from(await file.arrayBuffer());
+  // eslint-disable-next-line prefer-const
+  let buffer: ReturnType<typeof Buffer.from>;
+  try {
+    buffer = Buffer.from(await file.arrayBuffer());
+  } catch {
+    return NextResponse.json({ error: "Could not read file contents. Please try again." }, { status: 400 });
+  }
 
   if (!validateMagicBytes(buffer, file.type)) {
     return NextResponse.json(
@@ -118,13 +130,32 @@ export async function POST(req: NextRequest) {
 
   const isImage = IMAGE_TYPES.includes(file.type);
 
+  let preferredLanguage: string | null = null;
+  let profileCountry: string | null = null;
+  try {
+    const profile = await prisma.profile.findUnique({
+      where: { userId: session.user.id },
+      select: { preferredLanguage: true, country: true },
+    });
+    preferredLanguage = profile?.preferredLanguage ?? null;
+    profileCountry = profile?.country ?? null;
+  } catch {
+    // Non-fatal — proceed with defaults if profile lookup fails
+  }
+
   let analysis: FormAnalysis;
   let sourceType: "PDF" | "WORD" | "IMAGE";
 
   try {
     if (isImage) {
       const processed = await preprocessImage(buffer, file.type);
-      analysis = await analyzeFormFieldsFromImage(processed.base64, processed.mimeType, file.name);
+      analysis = await analyzeFormFieldsFromImage(
+        processed.base64,
+        processed.mimeType,
+        file.name,
+        preferredLanguage,
+        profileCountry
+      );
       sourceType = "IMAGE";
     } else {
       const text = await extractTextFromBuffer(buffer, file.type);
@@ -134,7 +165,7 @@ export async function POST(req: NextRequest) {
           { status: 422 }
         );
       }
-      analysis = await analyzeFormFields(text);
+      analysis = await analyzeFormFields(text, preferredLanguage, profileCountry);
       sourceType = (file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" || file.type === "application/msword")
         ? "WORD" : "PDF";
     }
@@ -174,7 +205,42 @@ export async function POST(req: NextRequest) {
     });
 
     // Non-blocking usage increment — don't fail the upload if this errors
-    incrementFormUsage(session.user.id).catch(() => {});
+    incrementFormUsage(session.user.id).then(async () => {
+      // After incrementing, check if user has hit the quota-nudge threshold (4/5 forms)
+      // Only fires once per billing period via quotaNudgeSentAt guard
+      if (session.user.email) {
+        try {
+          const usage = await prisma.usageCount.findUnique({ where: { userId: session.user.id } });
+          const FREE_LIMIT = 5;
+          if (
+            usage &&
+            usage.formsThisMonth >= 4 &&
+            usage.formsThisMonth < FREE_LIMIT &&
+            !usage.quotaNudgeSentAt
+          ) {
+            const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://getformpilot.com";
+            await Promise.all([
+              sendEmail(
+                session.user.email,
+                `You have ${FREE_LIMIT - usage.formsThisMonth} free form${FREE_LIMIT - usage.formsThisMonth !== 1 ? "s" : ""} left this month`,
+                QuotaApproachingEmail({
+                  name: session.user.name ?? undefined,
+                  formsUsed: usage.formsThisMonth,
+                  limit: FREE_LIMIT,
+                  appUrl,
+                })
+              ),
+              prisma.usageCount.update({
+                where: { userId: session.user.id },
+                data: { quotaNudgeSentAt: new Date() },
+              }),
+            ]);
+          }
+        } catch {
+          // Non-blocking — don't fail the upload on nudge email error
+        }
+      }
+    }).catch(() => {});
 
     // Non-blocking "form is ready" email — skip if no email on session
     if (session.user.email) {

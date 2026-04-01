@@ -95,14 +95,14 @@ const formAnalysisSchema = z.object({
     id: z.string(),
     label: z.string(),
     type: z.string(),
-    required: z.boolean(),
+    required: z.coerce.boolean(),
     explanation: z.string(),
     example: z.string(),
     commonMistakes: z.string(),
     profileKey: z.string().nullable().optional(),
     coordinates: coordinatesSchema,
   })),
-  estimatedMinutes: z.number(),
+  estimatedMinutes: z.coerce.number(),
 });
 
 const autofillResponseSchema = z.array(z.object({
@@ -128,6 +128,9 @@ const MAX_TEXT_LENGTH = 50_000;
 const LANGUAGE_NAMES: Record<string, string> = {
   es: "Spanish",
   zh: "Chinese Simplified",
+  "zh-Hans": "Chinese Simplified",
+  "zh-Hant": "Chinese Traditional",
+  yue: "Cantonese Traditional Chinese",
   ko: "Korean",
   vi: "Vietnamese",
   tl: "Tagalog",
@@ -137,6 +140,8 @@ const LANGUAGE_NAMES: Record<string, string> = {
   pt: "Portuguese",
 };
 
+const SUPPORTED_TRANSLATION_LANGUAGES = new Set(Object.keys(LANGUAGE_NAMES));
+
 /** Returns the language instruction suffix when language is non-English, or empty string. */
 function buildLanguageInstruction(language?: string | null): string {
   if (!language || language === "en") return "";
@@ -145,10 +150,35 @@ function buildLanguageInstruction(language?: string | null): string {
   return `\n\nProvide the explanation, example, and commonMistakes fields in ${name}. Keep the field label, id, and type in English as they must match the original form.`;
 }
 
+const COUNTRY_INSTRUCTIONS: Record<string, string> = {
+  US: "Focus on United States formats: phone numbers like (123) 456-7890, ZIP codes of 5 digits or 5+4, states as two-letter codes, and tax IDs using EIN/SSN conventions.",
+  CA: "Use Canadian formats: six-digit postal codes with alternating letters/numbers, provinces, and phone numbers grouped as 3-3-4 digits. Mention SIN and CRA references when relevant.",
+  HK: "Use Hong Kong conventions: eight-digit phone numbers, district-based addresses, and mention Hong Kong identity card or business registration numbers when appropriate.",
+  SG: "Use Singapore formats: six-digit postal codes, street names with suffixes, and phone numbers starting with 6/8/9. Mention NRIC or UEN references if the field looks like an ID.",
+  GB: "Use United Kingdom formats: +44-prefixed phone numbers, postcode patterns (e.g., SW1A 1AA), and reference HMRC/Companies House IDs when discussing taxes or employers.",
+  AU: "Use Australian formats: +61 phone numbers, four-digit postcodes, and mention TFN/ABN for tax identifiers where relevant.",
+  PH: "Use Philippine formats: mobile prefixes (09xx), postal codes, and reference the BIR or employer-issued IDs for tax/SS numbers.",
+  JP: "Use Japanese formats: 10- or 11-digit phone numbers, 7-digit postal codes, and mention My Number or employer-specific identifiers.",
+  KR: "Use South Korean formats: 2-3-4 phone groupings, 5-digit postal codes, and reference resident registration numbers or business numbers when appropriate.",
+  IN: "Use Indian formats: +91 phone numbers, six-digit PIN codes, and mention PAN/Aadhaar or GST numbers for tax-related fields.",
+  DE: "Use German formats: postcodes with five digits, +49 phone numbers, and reference Steuer-ID or USt-IdNr for tax fields.",
+  MX: "Use Mexican formats: +52 phone numbers, five-digit postal codes, and reference RFC numbers for tax identifiers.",
+  FR: "Use French formats: +33 phone numbers, five-digit postal codes, and mention numéro fiscal or SIRET when relevant.",
+  BR: "Use Brazilian formats: +55 phone numbers, eight-digit CEP codes, and reference CPF/CNPJ IDs.",
+  VN: "Use Vietnamese formats: +84 phone numbers, six-digit postal codes and mention tax code/CMND numbers where applicable.",
+};
+
+function buildCountryInstruction(country?: string | null): string {
+  if (!country) return "";
+  const normalized = country.toUpperCase();
+  const instruction = COUNTRY_INSTRUCTIONS[normalized];
+  return instruction ? `\n\n${instruction}` : "";
+}
+
 const BASE_ANALYSIS_PROMPT = `You are a form analysis expert. Analyze the following form and extract all fillable fields.
 
 For each field, provide:
-1. A plain-language explanation of what information belongs there
+1. A plain-language explanation of what information belongs there _and how to find it_, for example pointing to previous tax forms, employer HR, a bank statement, or another authority who can provide the number.
 2. A realistic example answer
 3. Common mistakes people make
 4. The profile data key that could auto-fill it (if applicable)
@@ -178,7 +208,7 @@ Return ONLY a valid JSON object (no markdown fences, no extra text) matching thi
 const IMAGE_ANALYSIS_PROMPT = `You are a form analysis expert. Look at the form image and extract all fillable fields.
 
 For each field, provide:
-1. A plain-language explanation of what information belongs there
+1. A plain-language explanation of what information belongs there and where to find it (for example, previous tax paperwork, official letters, or the person who can provide that number).
 2. A realistic example answer
 3. Common mistakes people make
 4. The profile data key that could auto-fill it (if applicable)
@@ -287,32 +317,120 @@ async function parseAndCacheAnalysis(
 
 export async function analyzeFormFields(
   rawText: string,
-  language?: string | null
+  language?: string | null,
+  country?: string | null
 ): Promise<FormAnalysis> {
   const client = getClient();
   const truncatedText = rawText.slice(0, MAX_TEXT_LENGTH);
   const langInstruction = buildLanguageInstruction(language);
+  const countryInstruction = buildCountryInstruction(country);
 
   // Detect category from raw text before sending to AI.
   const category = detectCategory(truncatedText, []);
   const categoryPrompt = CATEGORY_SYSTEM_PROMPTS[category];
-  const fullPrompt = `${categoryPrompt}\n\n${BASE_ANALYSIS_PROMPT}${langInstruction}\n\nFORM CONTENT:\n${truncatedText}`;
+  const fullPrompt = `${categoryPrompt}\n\n${BASE_ANALYSIS_PROMPT}${langInstruction}${countryInstruction}\n\nFORM CONTENT:\n${truncatedText}`;
+
+  const analysis = await withRetry(async () => {
+    const completion = await client.chat.completions.create({
+      model: MODEL,
+      max_tokens: 4096,
+      messages: [{ role: "user", content: fullPrompt }],
+      temperature: 0.1,
+    });
+    const text = completion.choices[0]?.message?.content;
+    if (!text) throw new Error("Empty response from AI");
+    return parseAndCacheAnalysis(text, language);
+  }, "analyzeFormFields");
+  analysis.category = category;
+  return analysis;
+}
+
+const translatedFieldSchema = z.array(z.object({
+  id: z.string(),
+  explanation: z.string(),
+  example: z.string(),
+  commonMistakes: z.string(),
+}));
+
+export async function translateFieldExplanations(
+  fields: FormField[],
+  language?: string | null
+): Promise<FormField[]> {
+  if (!language || language === "en" || !SUPPORTED_TRANSLATION_LANGUAGES.has(language)) {
+    return fields;
+  }
+
+  const languageName = LANGUAGE_NAMES[language];
+  if (!languageName) return fields;
+
+  const cantoneseInstruction =
+    language === "yue"
+      ? "\n\nTranslate into natural Hong Kong Cantonese. Use Cantonese particles, vocabulary, and phrasing (e.g., 僱主, 同, 咁) rather than standard Mandarin phrasing. Provide short, conversational sentences that people in Hong Kong would actually say."
+      : "";
+
+  const client = getClient();
+  const translatableFields = fields.map((field) => ({
+    id: field.id,
+    label: field.label,
+    type: field.type,
+    explanation: field.explanation,
+    example: field.example,
+    commonMistakes: field.commonMistakes,
+  }));
+
+  const locationInstruction = `\n\nAfter each explanation, add a short sentence describing where to find the requested value. Examples: "Ask your employer or HR for the EIN letter" or "Look at last year's W-2 or 1099".`
+
+  const prompt = `Translate the field help content into ${languageName}.${cantoneseInstruction}${locationInstruction}
+
+Rules:
+- Keep id exactly unchanged.
+- Do not translate label or type.
+- Translate explanation, example, and commonMistakes into ${languageName}.
+- Preserve practical formatting and short examples.
+- Return ONLY valid JSON as an array of objects:
+[
+  {
+    "id": "field_id",
+    "explanation": "translated explanation",
+    "example": "translated example",
+    "commonMistakes": "translated common mistakes"
+  }
+]
+
+FIELDS:
+${JSON.stringify(translatableFields, null, 2)}`;
 
   const completion = await withRetry(
     () => client.chat.completions.create({
       model: MODEL,
       max_tokens: 4096,
-      messages: [{ role: "user", content: fullPrompt }],
+      messages: [{ role: "user", content: prompt }],
       temperature: 0.1,
     }),
-    "analyzeFormFields"
+    "translateFieldExplanations"
   );
 
   const text = completion.choices[0]?.message?.content;
   if (!text) throw new Error("Empty response from AI");
-  const analysis = await parseAndCacheAnalysis(text, language);
-  analysis.category = category;
-  return analysis;
+
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const cleaned = fenceMatch ? fenceMatch[1] : text;
+  const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) throw new Error("No JSON found in translation response");
+
+  const translated = translatedFieldSchema.parse(JSON.parse(jsonMatch[0]));
+  const translatedMap = new Map(translated.map((field) => [field.id, field]));
+
+  return fields.map((field) => {
+    const hit = translatedMap.get(field.id);
+    if (!hit) return field;
+    return {
+      ...field,
+      explanation: hit.explanation,
+      example: hit.example,
+      commonMistakes: hit.commonMistakes,
+    };
+  });
 }
 
 /** Analyze a form image using Claude (Anthropic) vision — primary path. */
@@ -320,7 +438,8 @@ async function analyzeImageWithClaude(
   base64: string,
   mimeType: string,
   titleHint: string | undefined,
-  langInstruction: string
+  langInstruction: string,
+  countryInstruction: string
 ): Promise<string> {
   const anthropic = getAnthropicClient();
   const response = await withRetry(
@@ -340,10 +459,10 @@ async function analyzeImageWithClaude(
                   data: base64,
                 },
               },
-              {
-                type: "text",
-                text: `${IMAGE_ANALYSIS_PROMPT}${langInstruction}${titleHint ? `\n\nThe form title may be: ${titleHint}` : ""}`,
-              },
+                {
+                  type: "text",
+                  text: `${IMAGE_ANALYSIS_PROMPT}${langInstruction}${countryInstruction}${titleHint ? `\n\nThe form title may be: ${titleHint}` : ""}`,
+                },
             ],
           },
         ],
@@ -360,7 +479,8 @@ async function analyzeImageWithGroq(
   base64: string,
   mimeType: string,
   titleHint: string | undefined,
-  langInstruction: string
+  langInstruction: string,
+  countryInstruction: string
 ): Promise<string> {
   const client = getClient();
   const completion = await withRetry(
@@ -376,10 +496,10 @@ async function analyzeImageWithGroq(
                 type: "image_url",
                 image_url: { url: `data:${mimeType};base64,${base64}` },
               },
-              {
-                type: "text",
-                text: `${IMAGE_ANALYSIS_PROMPT}${langInstruction}${titleHint ? `\n\nThe form title may be: ${titleHint}` : ""}`,
-              },
+                {
+                  type: "text",
+                  text: `${IMAGE_ANALYSIS_PROMPT}${langInstruction}${countryInstruction}${titleHint ? `\n\nThe form title may be: ${titleHint}` : ""}`,
+                },
             ],
           },
         ],
@@ -396,19 +516,21 @@ export async function analyzeFormFieldsFromImage(
   base64: string,
   mimeType: string,
   titleHint?: string,
-  language?: string | null
+  language?: string | null,
+  country?: string | null
 ): Promise<FormAnalysis> {
   const langInstruction = buildLanguageInstruction(language);
+  const countryInstruction = buildCountryInstruction(country);
 
   // Primary: Claude Haiku (reliable vision)
   // Fallback: Groq vision (cost-saving, less reliable)
   let responseText: string;
   try {
-    responseText = await analyzeImageWithClaude(base64, mimeType, titleHint, langInstruction);
+      responseText = await analyzeImageWithClaude(base64, mimeType, titleHint, langInstruction, countryInstruction);
   } catch (primaryErr) {
     console.warn("[image-analysis] Claude vision failed, trying Groq fallback:", primaryErr instanceof Error ? primaryErr.message : primaryErr);
     try {
-      responseText = await analyzeImageWithGroq(base64, mimeType, titleHint, langInstruction);
+      responseText = await analyzeImageWithGroq(base64, mimeType, titleHint, langInstruction, countryInstruction);
     } catch (fallbackErr) {
       console.error("[image-analysis] Both vision models failed. Claude:", primaryErr instanceof Error ? primaryErr.message : primaryErr, "Groq:", fallbackErr instanceof Error ? fallbackErr.message : fallbackErr);
       throw new Error("Image analysis failed. Please try again or upload a clearer image.");
