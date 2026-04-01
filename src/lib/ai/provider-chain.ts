@@ -1,13 +1,14 @@
 /**
  * AI provider fallback chain for text generation.
  *
- * Chain: Groq (llama-3.3-70b) → OpenRouter (same model via aggregator)
+ * Chain: Groq → OpenRouter/free → Gemini Flash
  *
  * - 429 rate limit: immediately skip to next provider (no backoff on current)
  * - Other transient errors (5xx, network): retry within provider before moving on
  * - Only if all providers fail does an error propagate to the caller
  */
 import Groq from "groq-sdk";
+import { GoogleGenerativeAI } from "@google/generative-ai";
 
 // ─── Singletons ──────────────────────────────────────────────────────────────
 
@@ -126,9 +127,33 @@ async function callOpenRouter(prompt: string, maxTokens: number): Promise<string
   }, "openrouter");
 }
 
+let _gemini: GoogleGenerativeAI | null = null;
+function getGeminiClient(): GoogleGenerativeAI {
+  if (!_gemini) {
+    if (!process.env.GEMINI_API_KEY) throw new Error("GEMINI_API_KEY is not set");
+    _gemini = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+  }
+  return _gemini;
+}
+
+/** Gemini Flash — third fallback. Uses gemini-flash-latest (resolves to gemini-3-flash-preview). */
+async function callGemini(prompt: string, maxTokens: number): Promise<string> {
+  const client = getGeminiClient();
+  return withProviderRetry(async () => {
+    const model = client.getGenerativeModel({
+      model: "gemini-flash-latest",
+      generationConfig: { maxOutputTokens: maxTokens, temperature: 0.1 },
+    });
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
+    if (!text) throw new Error("Empty response from Gemini");
+    return text;
+  }, "gemini");
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-type ProviderName = "groq" | "openrouter";
+type ProviderName = "groq" | "openrouter" | "gemini";
 
 const PROVIDERS: Array<{
   name: ProviderName;
@@ -136,12 +161,13 @@ const PROVIDERS: Array<{
 }> = [
   { name: "groq", fn: callGroq },
   { name: "openrouter", fn: callOpenRouter },
+  { name: "gemini", fn: callGemini },
 ];
 
 /**
  * Call text AI with automatic provider fallback.
  *
- * Tries Groq first, then OpenRouter.
+ * Tries Groq → OpenRouter/free → Gemini Flash.
  * On 429 rate limit, skips immediately to the next provider.
  * On other transient errors, retries within the same provider before moving on.
  */
