@@ -10,6 +10,8 @@ interface Props {
   initialStates: Record<string, FieldState>;
   hasProfile: boolean;
   onExit: () => void;
+  /** Called when the user presses "Finish" on the last step. Defaults to onExit if not provided. */
+  onFinish?: () => void;
   onValuesChange: (values: Record<string, string>, states: Record<string, FieldState>) => void;
 }
 
@@ -84,6 +86,7 @@ export default function GuidedFillMode({
   initialStates,
   hasProfile,
   onExit,
+  onFinish,
   onValuesChange,
 }: Props) {
   const groups = groupFields(fields);
@@ -504,7 +507,7 @@ export default function GuidedFillMode({
             </button>
           ) : (
             <button
-              onClick={onExit}
+              onClick={onFinish ?? onExit}
               className="inline-flex items-center justify-center gap-1.5 px-4 py-3 sm:py-2.5 min-h-[48px] sm:min-h-0 text-sm bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors active:scale-[0.98]"
             >
               <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
