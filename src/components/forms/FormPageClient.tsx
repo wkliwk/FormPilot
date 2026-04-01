@@ -3,16 +3,22 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import FormViewer from "./FormViewer";
 import GuidedFillMode from "./GuidedFillMode";
-import DocumentImageViewer from "./DocumentImageViewer";
 import FormCompleteOverlay from "./FormCompleteOverlay";
+
+// pdf.js uses DOMMatrix at module-level — must be client-only (no SSR)
+const DocumentImageViewer = dynamic(() => import("./DocumentImageViewer"), { ssr: false });
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
+import { getUIString } from "@/lib/i18n";
 
 const SUPPORTED_LANGUAGES = [
   { code: "en", label: "English" },
   { code: "es", label: "Español" },
-  { code: "zh", label: "中文" },
+  { code: "zh-Hans", label: "简体中文" },
+  { code: "zh-Hant", label: "繁體中文" },
+  { code: "yue", label: "廣東話" },
   { code: "ko", label: "한국어" },
   { code: "vi", label: "Tiếng Việt" },
   { code: "tl", label: "Tagalog" },
@@ -23,6 +29,12 @@ const SUPPORTED_LANGUAGES = [
 ] as const;
 
 type LanguageCode = typeof SUPPORTED_LANGUAGES[number]["code"];
+
+function normalizeLanguageCode(language?: string | null): LanguageCode {
+  if (language === "zh") return "zh-Hans";
+  const matched = SUPPORTED_LANGUAGES.find((option) => option.code === language);
+  return matched?.code ?? "en";
+}
 
 interface FormRecord {
   id: string;
@@ -35,11 +47,12 @@ interface Props {
   form: FormRecord;
   hasProfile: boolean;
   preferredLanguage?: string | null;
+  profileCountry?: string | null;
   hasFile?: boolean;
   sourceType?: string;
 }
 
-export default function FormPageClient({ form, hasProfile, preferredLanguage, hasFile, sourceType }: Props) {
+export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [deleting, setDeleting] = useState(false);
@@ -58,6 +71,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
     return false;
   });
   const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
+  const [jumpToFieldRequest, setJumpToFieldRequest] = useState<{ fieldId: string; nonce: number } | null>(null);
 
   // Check if this form has already been celebrated (prevents re-show on reload)
   useEffect(() => {
@@ -71,6 +85,14 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
   const canShowDocument = hasFile && (sourceType === "PDF" || sourceType === "IMAGE");
   const documentUrl = canShowDocument ? `/api/forms/${form.id}/file` : null;
 
+  useEffect(() => {
+    setLiveValues(
+      Object.fromEntries(
+        (formData.fields as FormField[]).filter((f) => f.value).map((f) => [f.id, f.value!])
+      )
+    );
+  }, [formData.fields]);
+
   function toggleSideBySide() {
     setSideBySide((prev) => {
       const next = !prev;
@@ -78,8 +100,13 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
       return next;
     });
   }
+
+  function handleDocumentFieldSelect(fieldId: string) {
+    setActiveFieldId(fieldId);
+    setJumpToFieldRequest({ fieldId, nonce: Date.now() });
+  }
   const [activeLanguage, setActiveLanguage] = useState<LanguageCode>(
-    (preferredLanguage as LanguageCode | undefined) ?? "en"
+    normalizeLanguageCode(preferredLanguage)
   );
   const [reExplaining, setReExplaining] = useState(false);
   const [reExplainError, setReExplainError] = useState<string | null>(null);
@@ -103,6 +130,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
       fieldState: newStates[f.id] ?? f.fieldState,
     }));
     setFormData({ ...formData, fields: updatedFields as unknown });
+    setLiveValues(newValues);
   }
 
   async function handleLanguageChange(lang: LanguageCode) {
@@ -398,7 +426,9 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
               fields={fields}
               activeFieldId={activeFieldId}
               liveValues={liveValues}
+              onFieldSelect={handleDocumentFieldSelect}
               mobileCollapsed
+              language={activeLanguage}
             />
           </div>
           {/* Left: Fields panel */}
@@ -406,18 +436,21 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
             <FormViewer
               form={formData}
               hasProfile={hasProfile}
+              jumpToFieldRequest={jumpToFieldRequest}
               hasFile={hasFile}
               sourceType={sourceType}
               onFieldFocus={setActiveFieldId}
               onValueChange={(fieldId, value) =>
                 setLiveValues((prev) => ({ ...prev, [fieldId]: value }))
               }
+              onValuesSnapshotChange={setLiveValues}
               onTitleChange={setPageTitle}
               onComplete={() => {
                 if (!localStorage.getItem(`fp_completed_${form.id}`)) {
                   setShowCompleteOverlay(true);
                 }
               }}
+              language={activeLanguage}
             />
           </div>
           {/* Right: Document panel — sticky, desktop only */}
@@ -428,15 +461,17 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
                   <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
                   <polyline points="14 2 14 8 20 8" />
                 </svg>
-                <span className="text-xs font-medium text-slate-600">Original Document</span>
+                <span className="text-xs font-medium text-slate-600">{getUIString(activeLanguage, "originalDocument")}</span>
               </div>
-              <DocumentImageViewer
-                formId={form.id}
-                sourceType={sourceType ?? "PDF"}
-                fields={fields}
-                activeFieldId={activeFieldId}
-                liveValues={liveValues}
-              />
+            <DocumentImageViewer
+              formId={form.id}
+              sourceType={sourceType ?? "PDF"}
+              fields={fields}
+              activeFieldId={activeFieldId}
+              liveValues={liveValues}
+              onFieldSelect={handleDocumentFieldSelect}
+              language={activeLanguage}
+            />
             </div>
           </div>
         </div>
@@ -445,28 +480,36 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
           {/* On mobile with a document, show collapsible thumbnail strip */}
           {canShowDocument && (
             <div className="md:hidden mb-4">
-              <DocumentImageViewer
-                formId={form.id}
-                sourceType={sourceType ?? "PDF"}
-                fields={fields}
-                activeFieldId={activeFieldId}
-                liveValues={liveValues}
-                mobileCollapsed
-              />
+            <DocumentImageViewer
+              formId={form.id}
+              sourceType={sourceType ?? "PDF"}
+              fields={fields}
+              activeFieldId={activeFieldId}
+              liveValues={liveValues}
+              onFieldSelect={handleDocumentFieldSelect}
+              mobileCollapsed
+              language={activeLanguage}
+            />
             </div>
           )}
           <FormViewer
             form={formData}
             hasProfile={hasProfile}
+            jumpToFieldRequest={jumpToFieldRequest}
             hasFile={hasFile}
             sourceType={sourceType}
             onFieldFocus={setActiveFieldId}
+            onValueChange={(fieldId, value) =>
+              setLiveValues((prev) => ({ ...prev, [fieldId]: value }))
+            }
+            onValuesSnapshotChange={setLiveValues}
             onTitleChange={setPageTitle}
             onComplete={() => {
               if (!localStorage.getItem(`fp_completed_${form.id}`)) {
                 setShowCompleteOverlay(true);
               }
             }}
+            language={activeLanguage}
           />
         </div>
       )}

@@ -2,7 +2,10 @@
 
 import { useState } from "react";
 import type { FormField } from "@/lib/ai/analyze-form";
-import DocumentImageViewer from "./DocumentImageViewer";
+import dynamic from "next/dynamic";
+
+// pdf.js uses DOMMatrix at module-level — must be client-only (no SSR)
+const DocumentImageViewer = dynamic(() => import("./DocumentImageViewer"), { ssr: false });
 
 type ExportFormat = "pdf" | "json" | "clipboard";
 
