@@ -3,10 +3,13 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import FormViewer from "./FormViewer";
 import GuidedFillMode from "./GuidedFillMode";
-import DocumentImageViewer from "./DocumentImageViewer";
 import FormCompleteOverlay from "./FormCompleteOverlay";
+
+// pdf.js uses DOMMatrix at module-level — must skip SSR
+const DocumentImageViewer = dynamic(() => import("./DocumentImageViewer"), { ssr: false });
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 
 const SUPPORTED_LANGUAGES = [
@@ -24,11 +27,18 @@ const SUPPORTED_LANGUAGES = [
 
 type LanguageCode = typeof SUPPORTED_LANGUAGES[number]["code"];
 
+function normalizeLanguageCode(language?: string | null): LanguageCode {
+  if (!language) return "en";
+  const matched = SUPPORTED_LANGUAGES.find((option) => option.code === language);
+  return matched?.code ?? "en";
+}
+
 interface FormRecord {
   id: string;
   title: string;
   status: string;
   fields: unknown;
+  language?: string | null;
 }
 
 interface Props {
@@ -79,7 +89,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
     });
   }
   const [activeLanguage, setActiveLanguage] = useState<LanguageCode>(
-    (preferredLanguage as LanguageCode | undefined) ?? "en"
+    normalizeLanguageCode(form.language ?? preferredLanguage)
   );
   const [reExplaining, setReExplaining] = useState(false);
   const [reExplainError, setReExplainError] = useState<string | null>(null);
@@ -119,7 +129,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, ha
         throw new Error(data.error ?? "Re-explain failed");
       }
       const data = await res.json() as { fields: FormField[] };
-      setFormData({ ...formData, fields: data.fields as unknown });
+      setFormData(prev => ({ ...prev, fields: data.fields as unknown }));
     } catch (err) {
       setReExplainError(err instanceof Error ? err.message : "Something went wrong");
     } finally {
