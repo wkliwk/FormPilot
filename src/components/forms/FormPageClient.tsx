@@ -247,6 +247,23 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     </nav>
   );
 
+  async function handleGuidedFinish() {
+    // Mark form as complete (same path as the "Mark as Complete" button in FormViewer)
+    await fetch(`/api/forms/${form.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "COMPLETED" }),
+    });
+
+    // Exit guided mode first so the overlay renders over the full form view
+    setMode("full");
+
+    // Show overlay only if not already celebrated
+    if (!localStorage.getItem(`fp_completed_${form.id}`)) {
+      setShowCompleteOverlay(true);
+    }
+  }
+
   if (mode === "guided") {
     return (
       <>
@@ -259,6 +276,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
           initialStates={initialStates}
           hasProfile={hasProfile}
           onExit={() => setMode("full")}
+          onFinish={handleGuidedFinish}
           onValuesChange={handleValuesChange}
         />
       </>
