@@ -93,7 +93,8 @@ async function callOpenRouter(prompt: string, maxTokens: number): Promise<string
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
 
-  const model = process.env.OPENROUTER_MODEL ?? "meta-llama/llama-3.3-70b-instruct";
+  // "openrouter/free" auto-routes to whichever free model is available — most resilient default.
+  const model = process.env.OPENROUTER_MODEL ?? "openrouter/free";
 
   return withProviderRetry(async () => {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
