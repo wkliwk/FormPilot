@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { analyzeFormFields } from "@/lib/ai/analyze-form";
+import { translateFieldExplanations } from "@/lib/ai/analyze-form";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export const maxDuration = 60;
@@ -9,7 +9,7 @@ import { handleApiError } from "@/lib/api-error";
 import { log } from "@/lib/logger";
 import type { FormField } from "@/lib/ai/analyze-form";
 
-const SUPPORTED_LANGUAGES = ["en", "es", "zh", "ko", "vi", "tl", "ar", "hi", "fr", "pt"] as const;
+const SUPPORTED_LANGUAGES = ["en", "es", "zh", "zh-Hans", "zh-Hant", "yue", "ko", "vi", "tl", "ar", "hi", "fr", "pt"] as const;
 
 export async function POST(
   req: NextRequest,
@@ -49,41 +49,20 @@ export async function POST(
 
   const start = Date.now();
 
-  // Re-analyze the form text in the requested language.
-  // We reconstruct a minimal text representation from the stored fields so we
-  // don't need to re-parse the original file. The labels and types are preserved.
   const existingFields = form.fields as unknown as FormField[];
 
-  const fieldSummary = existingFields
-    .map((f) => `Field: ${f.label} (${f.type})${f.required ? " [required]" : ""}`)
-    .join("\n");
-
-  const formText = `Form: ${form.title}\n\n${fieldSummary}`;
-
   try {
-    const analysis = await analyzeFormFields(formText, lang);
-
-    // Build a lookup map from the re-analyzed fields by label (normalized) so we
-    // can update just explanation/example/commonMistakes while preserving every
-    // other property (value, fieldState, confidence, profileKey, id, etc.).
-    const explanationMap = new Map(
-      analysis.fields.map((f) => [f.label.toLowerCase().trim(), f])
-    );
-
-    const updatedFields: FormField[] = existingFields.map((field) => {
-      const hit = explanationMap.get(field.label.toLowerCase().trim());
-      if (!hit) return field;
-      return {
-        ...field,
-        explanation: hit.explanation,
-        example: hit.example,
-        commonMistakes: hit.commonMistakes,
-      };
-    });
+    // Use translateFieldExplanations instead of full re-analysis — it preserves
+    // all existing field properties (value, fieldState, confidence, profileKey,
+    // id, etc.) and only translates explanation/example/commonMistakes.
+    const updatedFields = await translateFieldExplanations(existingFields, lang);
 
     await prisma.form.update({
       where: { id },
-      data: { fields: updatedFields as object },
+      data: {
+        fields: updatedFields as object,
+        language: lang,
+      },
     });
 
     log.info("Form re-explained", {
