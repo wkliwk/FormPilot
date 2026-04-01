@@ -241,6 +241,21 @@ describe("validateForm", () => {
     expect(result.errors[0].rule).toBe("invalid_format");
   });
 
+  it("does NOT apply ZIP validation to combined city/state/ZIP address fields (issue #213)", () => {
+    // "City or town, state, and ZIP code" contains "zip" but is a combined address field
+    const fields = [makeField({ id: "f1", label: "City or town, state, and ZIP code" })];
+    const result = validateForm(fields, { f1: "Springfield, IL 62701" }, {});
+
+    expect(result.errors.filter((e) => e.rule === "invalid_format")).toHaveLength(0);
+  });
+
+  it("does NOT apply ZIP validation to combined city/state label", () => {
+    const fields = [makeField({ id: "f1", label: "City, State, ZIP" })];
+    const result = validateForm(fields, { f1: "Austin, TX 78701" }, {});
+
+    expect(result.errors.filter((e) => e.rule === "invalid_format")).toHaveLength(0);
+  });
+
   it("detects zip by label even without profileKey", () => {
     const fields = [makeField({ id: "f1", label: "Postal Code / Zip" })];
     const result = validateForm(fields, { f1: "abc" }, {});
