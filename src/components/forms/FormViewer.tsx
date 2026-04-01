@@ -21,6 +21,8 @@ interface Props {
   onFieldFocus?: (fieldId: string | null) => void;
   /** Called on every keystroke with the updated field id + value (for live overlay). */
   onValueChange?: (fieldId: string, value: string) => void;
+  /** Called with full values snapshot after batch operations (autofill, clear, sample). */
+  onValuesSnapshotChange?: (values: Record<string, string>) => void;
   /** Whether there is a file stored (used for export preview). */
   hasFile?: boolean;
   /** Source type of the form (PDF, WORD, etc). */
@@ -29,6 +31,10 @@ interface Props {
   onTitleChange?: (newTitle: string) => void;
   /** Called after form status is PATCHed to COMPLETED. */
   onComplete?: () => void;
+  /** Jump-to-field request from the document viewer. */
+  jumpToFieldRequest?: { fieldId: string; nonce: number } | null;
+  /** Active language code for translations. */
+  language?: string;
 }
 
 // -- helpers --
