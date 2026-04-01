@@ -103,6 +103,17 @@ html {
   border-radius: 8px;
 }
 
+/* Jump-to-field highlight ring pulse */
+@keyframes field-highlight-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.45); }
+  50% { box-shadow: 0 0 0 6px rgba(37, 99, 235, 0.15); }
+  100% { box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+}
+
+.field-highlight {
+  animation: field-highlight-pulse 0.9s ease-out forwards;
+}
+
 /* Drag and drop styles */
 .drop-zone-active {
   border-color: #2563eb !important;
