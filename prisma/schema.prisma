@@ -59,6 +59,7 @@ model Profile {
   userId            String   @unique
   data              Json     // Encrypted profile fields (name, DOB, address, etc.)
   preferredLanguage String?  // ISO 639-1 code, e.g. "es", "zh", "ko". Null = English.
+  country           String?  // ISO 3166-1 alpha-2 country code (e.g. "US", "HK")
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -76,6 +77,7 @@ model Form {
   fileBytes   Bytes?     // Raw uploaded file bytes for PDF re-fill on export
   fields      Json       // Parsed field definitions
   filledData  Json?      // Autofilled values
+  language    String     @default("en") // Active explanation language (ISO 639 code)
   status      FormStatus @default(PENDING)
   category     String?    // Detected form category (TAX, IMMIGRATION, LEGAL, HR_EMPLOYMENT, HEALTHCARE, GENERAL)
   lastNudgedAt DateTime? // Set after sending re-engagement email — suppresses nudges for 7 days
