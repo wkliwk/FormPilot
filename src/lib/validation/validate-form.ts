@@ -57,11 +57,18 @@ function validateFieldFormat(field: FormField, value: string): string | null {
     if (!ITIN_RE.test(value)) return "Invalid ITIN format. Expected: 9XX-XX-XXXX (starts with 9)";
   }
 
-  // ZIP
+  // ZIP — only validate as ZIP-only when the label is not a combined address field.
+  // Combined labels like "City or town, state, and ZIP code" contain "zip" but expect
+  // a full address line, not a 5-digit code. Detect combined fields by checking for
+  // the presence of city/state indicators alongside zip.
+  const isCombinedAddressField =
+    (label.includes("city") || label.includes("town") || label.includes("state")) &&
+    label.includes("zip");
   if (
-    key === "address.zip" ||
-    label.includes("zip") ||
-    label.includes("postal code")
+    !isCombinedAddressField &&
+    (key === "address.zip" ||
+      label.includes("zip") ||
+      label.includes("postal code"))
   ) {
     if (!ZIP_RE.test(value)) return "Invalid ZIP code. Expected: 12345 or 12345-6789";
   }
