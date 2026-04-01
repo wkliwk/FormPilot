@@ -285,7 +285,7 @@ export default function UploadPage() {
       clearStepTimers();
 
       if (!res.ok) {
-        const data = await res.json();
+        const data = await res.json().catch(() => ({} as Record<string, unknown>));
         if (res.status === 402 && data.code === "UPGRADE_REQUIRED") {
           // Race condition: limit was hit between page load and submit
           setShowUpgradeModal(true);
