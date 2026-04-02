@@ -2,8 +2,26 @@ import { prisma } from "@/lib/prisma";
 
 export const FREE_FORM_LIMIT = 5;
 
-/** Returns true if the user has an active Pro subscription */
+const ADMIN_EMAILS = new Set([
+  "wkliwk@gmail.com",
+  ...(process.env.ADMIN_EMAILS?.split(",")
+    .map((e) => e.trim().toLowerCase())
+    .filter(Boolean) ?? []),
+]);
+
+/** Returns true if the user is a hardcoded admin — bypasses all quota and Pro checks */
+async function isAdminUser(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { email: true },
+  });
+  return !!user?.email && ADMIN_EMAILS.has(user.email.toLowerCase());
+}
+
+/** Returns true if the user has an active Pro subscription (or is an admin) */
 export async function isProUser(userId: string): Promise<boolean> {
+  if (await isAdminUser(userId)) return true;
+
   const sub = await prisma.subscription.findUnique({
     where: { userId },
     select: { status: true, currentPeriodEnd: true },
