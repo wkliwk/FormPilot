@@ -1,7 +1,14 @@
 import { signIn } from "@/lib/auth";
 import Link from "next/link";
 
-export default function LoginPage() {
+interface Props {
+  searchParams: Promise<{ from?: string }>;
+}
+
+export default async function LoginPage({ searchParams }: Props) {
+  const { from } = await searchParams;
+  const isFromDemo = from === "demo";
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-b from-white to-slate-50 px-4">
       <div className="w-full max-w-sm space-y-8">
@@ -15,9 +22,18 @@ export default function LoginPage() {
               Form<span className="text-blue-600">Pilot</span>
             </Link>
             <p className="text-slate-500 mt-2 text-sm">
-              Sign in to start filling forms with AI
+              {isFromDemo
+                ? "Create your account to save and fill your own forms"
+                : "Sign in to start filling forms with AI"}
             </p>
           </div>
+
+          {isFromDemo && (
+            <div className="bg-blue-50 border border-blue-100 rounded-xl px-4 py-3 text-sm text-blue-800">
+              <span className="font-semibold">You just tried the demo.</span>{" "}
+              Sign up to upload your own forms — FormPilot reads and autofills them from your saved profile.
+            </div>
+          )}
 
           <form
             action={async () => {
