@@ -18,6 +18,7 @@ interface Props {
   filledCount: number;
   totalFields: number;
   dismissUrl: string;
+  unsubscribeUrl: string;
   appUrl: string;
 }
 
@@ -27,6 +28,7 @@ export default function FormAbandonedEmail({
   filledCount,
   totalFields,
   dismissUrl,
+  unsubscribeUrl,
   appUrl,
 }: Props) {
   const formUrl = `${appUrl}/dashboard/forms/${formId}`;
@@ -74,8 +76,11 @@ export default function FormAbandonedEmail({
             Not interested in this form anymore?{" "}
             <a href={dismissUrl} style={link}>
               Mark as done
-            </a>{" "}
-            and we&apos;ll stop reminding you.
+            </a>
+            {" · "}
+            <a href={unsubscribeUrl} style={link}>
+              Unsubscribe from all reminders
+            </a>
           </Text>
         </Container>
       </Body>
