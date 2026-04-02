@@ -252,7 +252,7 @@ const PROVIDERS: Array<{
 export async function callTextAI(
   prompt: string,
   context: string,
-  maxTokens = 4096
+  maxTokens = 8192
 ): Promise<string> {
   const failures: Array<{ provider: ProviderName; reason: string }> = [];
 

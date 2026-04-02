@@ -261,6 +261,8 @@ async function parseAndCacheAnalysis(
     const parsed = JSON.parse(jsonMatch[0]);
     analysis = formAnalysisSchema.parse(parsed) as FormAnalysis;
   } catch (e) {
+    console.error("[parseAndCacheAnalysis] Parse error:", e instanceof Error ? e.message : e);
+    console.error("[parseAndCacheAnalysis] First 300 chars:", jsonMatch[0].substring(0, 300));
     throw new Error(`Failed to parse AI response: ${e instanceof Error ? e.message : "invalid JSON"}`);
   }
 
