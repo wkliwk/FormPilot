@@ -1,7 +1,7 @@
 /**
  * AI provider fallback chain for text generation.
  *
- * Chain: Groq → OpenRouter/free → Gemini Flash → Claude Haiku
+ * Chain: Groq → DeepSeek → Claude Haiku → OpenRouter → Gemini Flash
  *
  * - 429 rate limit: immediately skip to next provider (no backoff on current)
  * - Other transient errors (5xx, network): retry within provider before moving on
@@ -156,6 +156,43 @@ async function callGemini(prompt: string, maxTokens: number): Promise<string> {
   }, "gemini");
 }
 
+// ─── DeepSeek — reliable JSON output, OpenAI-compatible ────────────────────
+
+async function callDeepSeek(prompt: string, maxTokens: number): Promise<string> {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) throw new Error("DEEPSEEK_API_KEY is not set");
+
+  return withProviderRetry(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 60000);
+    const res = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "deepseek-chat",
+        max_tokens: maxTokens,
+        messages: [{ role: "user", content: prompt }],
+        temperature: 0.1,
+      }),
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
+
+    if (!res.ok) {
+      const err = new Error(`DeepSeek HTTP ${res.status}`) as Error & { status: number };
+      err.status = res.status;
+      throw err;
+    }
+
+    const json = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+    const text = json.choices?.[0]?.message?.content;
+    if (!text) throw new Error("Empty response from DeepSeek");
+    return text;
+  }, "deepseek");
+}
+
 // ─── Claude (Anthropic) — last-resort fallback ─────────────────────────────
 
 let _anthropic: Anthropic | null = null;
@@ -184,13 +221,14 @@ async function callClaude(prompt: string, maxTokens: number): Promise<string> {
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-type ProviderName = "groq" | "openrouter" | "gemini" | "claude";
+type ProviderName = "groq" | "deepseek" | "openrouter" | "gemini" | "claude";
 
 const PROVIDERS: Array<{
   name: ProviderName;
   fn: (prompt: string, maxTokens: number) => Promise<string>;
 }> = [
   { name: "groq", fn: callGroq },
+  { name: "deepseek", fn: callDeepSeek },
   { name: "claude", fn: callClaude },
   { name: "openrouter", fn: callOpenRouter },
   { name: "gemini", fn: callGemini },
@@ -199,7 +237,7 @@ const PROVIDERS: Array<{
 /**
  * Call text AI with automatic provider fallback.
  *
- * Tries Groq → OpenRouter/free → Gemini Flash → Claude Haiku.
+ * Tries Groq → DeepSeek → Claude Haiku → OpenRouter → Gemini Flash.
  * On 429 rate limit, skips immediately to the next provider.
  * On other transient errors, retries within the same provider before moving on.
  */
