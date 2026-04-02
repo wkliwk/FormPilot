@@ -157,22 +157,27 @@ async function callGemini(prompt: string, maxTokens: number): Promise<string> {
 }
 
 // ─── DeepSeek — reliable JSON output, OpenAI-compatible ────────────────────
+// Uses ChatAnywhere free proxy (30 req/day for deepseek-r1).
+// Set DEEPSEEK_BASE_URL to override (e.g. "https://api.deepseek.com" for direct).
 
 async function callDeepSeek(prompt: string, maxTokens: number): Promise<string> {
   const apiKey = process.env.DEEPSEEK_API_KEY;
   if (!apiKey) throw new Error("DEEPSEEK_API_KEY is not set");
 
+  const baseUrl = process.env.DEEPSEEK_BASE_URL ?? "https://api.chatanywhere.tech/v1";
+  const model = process.env.DEEPSEEK_MODEL ?? "deepseek-r1";
+
   return withProviderRetry(async () => {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 60000);
-    const res = await fetch("https://api.deepseek.com/chat/completions", {
+    const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "deepseek-chat",
+        model,
         max_tokens: maxTokens,
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
