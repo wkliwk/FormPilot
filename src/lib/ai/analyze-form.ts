@@ -329,9 +329,7 @@ export async function analyzeFormFields(
   const categoryPrompt = CATEGORY_SYSTEM_PROMPTS[category];
   const fullPrompt = `${categoryPrompt}\n\n${BASE_ANALYSIS_PROMPT}${langInstruction}${countryInstruction}\n\nFORM CONTENT:\n${truncatedText}`;
 
-  // 8192 tokens needed for forms with many fields (e.g. rental applications)
-  const analysisMaxTokens = 8192;
-  const text = await callTextAI(fullPrompt, "analyzeFormFields", analysisMaxTokens);
+  const text = await callTextAI(fullPrompt, "analyzeFormFields");
   const analysis = await parseAndCacheAnalysis(text, language);
   analysis.category = category;
   return analysis;
