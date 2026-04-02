@@ -60,7 +60,7 @@ export default function UpgradeNudgeBanner({ formsUsed, limit }: Props) {
           href="/dashboard/billing"
           className="shrink-0 text-xs font-semibold text-amber-900 bg-amber-100 hover:bg-amber-200 px-3 py-1.5 rounded-lg transition-colors"
         >
-          Upgrade — $9/mo
+          Upgrade — from $6.58/mo
         </Link>
         <button
           onClick={dismiss}

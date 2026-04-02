@@ -10,10 +10,13 @@ interface BillingInfo {
   periodStart: string;
 }
 
+type PlanChoice = "monthly" | "annual";
+
 export default function BillingPage() {
   const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<PlanChoice>("annual");
 
   useEffect(() => {
     fetch("/api/billing")
@@ -22,9 +25,9 @@ export default function BillingPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleUpgrade() {
+  async function handleUpgrade(plan: PlanChoice = selectedPlan) {
     setActionLoading(true);
-    const res = await fetch("/api/billing/create-checkout", { method: "POST" });
+    const res = await fetch(`/api/billing/create-checkout?plan=${plan}`, { method: "POST" });
     const data = await res.json();
     if (data.url) window.location.href = data.url;
     setActionLoading(false);
@@ -68,7 +71,7 @@ export default function BillingPage() {
           </div>
         ) : billing ? (
           <div className="space-y-6">
-            {/* Plan card */}
+            {/* Current plan card */}
             <div className="bg-white rounded-2xl border border-slate-200 p-6 flex items-center justify-between">
               <div>
                 <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">
@@ -93,11 +96,11 @@ export default function BillingPage() {
               <div>
                 {billing.plan === "free" ? (
                   <button
-                    onClick={handleUpgrade}
+                    onClick={() => handleUpgrade()}
                     disabled={actionLoading}
                     className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                   >
-                    {actionLoading ? "Redirecting…" : "Upgrade to Pro — $9/mo"}
+                    {actionLoading ? "Redirecting…" : "Upgrade to Pro"}
                   </button>
                 ) : (
                   <button
@@ -110,6 +113,61 @@ export default function BillingPage() {
                 )}
               </div>
             </div>
+
+            {/* Plan picker (free users only) */}
+            {billing.plan === "free" && (
+              <div className="space-y-3">
+                <h2 className="text-sm font-semibold text-slate-700">Choose your plan</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Monthly */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlan("monthly")}
+                    className={`relative text-left rounded-2xl border-2 p-5 transition-all ${
+                      selectedPlan === "monthly"
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="text-sm font-semibold text-slate-700 mb-1">Monthly</div>
+                    <div className="text-2xl font-bold text-slate-900">$9<span className="text-sm font-normal text-slate-500">/mo</span></div>
+                    <div className="text-xs text-slate-400 mt-1">Billed monthly · cancel anytime</div>
+                    {selectedPlan === "monthly" && (
+                      <div className="absolute top-3 right-3 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+
+                  {/* Annual */}
+                  <button
+                    type="button"
+                    onClick={() => setSelectedPlan("annual")}
+                    className={`relative text-left rounded-2xl border-2 p-5 transition-all ${
+                      selectedPlan === "annual"
+                        ? "border-blue-500 bg-blue-50"
+                        : "border-slate-200 bg-white hover:border-slate-300"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm font-semibold text-slate-700">Annual</span>
+                      <span className="text-xs font-semibold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Best value — save 27%</span>
+                    </div>
+                    <div className="text-2xl font-bold text-slate-900">$79<span className="text-sm font-normal text-slate-500">/yr</span></div>
+                    <div className="text-xs text-slate-400 mt-1">$6.58/mo · billed annually</div>
+                    {selectedPlan === "annual" && (
+                      <div className="absolute top-3 right-3 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center">
+                        <svg className="w-3 h-3 text-white" viewBox="0 0 20 20" fill="currentColor">
+                          <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Usage meter (free only) */}
             {billing.plan === "free" && billing.formsLimit && (
@@ -138,7 +196,7 @@ export default function BillingPage() {
                   <p className="text-sm text-red-600">
                     You&apos;ve reached your free limit.{" "}
                     <button
-                      onClick={handleUpgrade}
+                      onClick={() => handleUpgrade()}
                       className="underline font-medium"
                     >
                       Upgrade to Pro
@@ -171,11 +229,15 @@ export default function BillingPage() {
                   ))}
                 </ul>
                 <button
-                  onClick={handleUpgrade}
+                  onClick={() => handleUpgrade()}
                   disabled={actionLoading}
                   className="mt-4 w-full bg-blue-600 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {actionLoading ? "Redirecting…" : "Get Pro — $9/month"}
+                  {actionLoading
+                    ? "Redirecting…"
+                    : selectedPlan === "annual"
+                    ? "Get Pro — $79/year"
+                    : "Get Pro — $9/month"}
                 </button>
               </div>
             )}
