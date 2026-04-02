@@ -3,7 +3,9 @@ import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import ProfileForm from "@/components/forms/ProfileForm";
 import SavedCorrections from "@/components/forms/SavedCorrections";
+import ImportedBanner from "@/components/forms/ImportedBanner";
 import Link from "next/link";
+import { Suspense } from "react";
 
 export default async function ProfilePage() {
   const session = await auth();
@@ -34,6 +36,10 @@ export default async function ProfilePage() {
       </nav>
 
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
+        <Suspense fallback={null}>
+          <ImportedBanner />
+        </Suspense>
+
         <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-6 sm:p-8 space-y-6">
           <div>
             <h1 className="text-2xl font-bold text-slate-900">Profile Vault</h1>
