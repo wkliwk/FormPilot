@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import UpgradeGateModal, { isDismissed } from "@/components/UpgradeGateModal";
 
 interface PriorForm {
   id: string;
@@ -70,7 +71,6 @@ export default function UploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [billing, setBilling] = useState<BillingInfo | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
-  const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [retryAfter, setRetryAfter] = useState<number | null>(null);
   // Prior fill state
   const [priorFormId, setPriorFormId] = useState<string | null>(null);
@@ -133,14 +133,6 @@ export default function UploadPage() {
     if (!priorForms) {
       loadPriorForms();
     }
-  }
-
-  async function handleUpgrade() {
-    setUpgradeLoading(true);
-    const res = await fetch("/api/billing/create-checkout", { method: "POST" });
-    const data = await res.json();
-    if (data.url) window.location.href = data.url;
-    setUpgradeLoading(false);
   }
 
   const isAtLimit =
@@ -246,7 +238,8 @@ export default function UploadPage() {
     if (!file) return;
 
     // Pre-flight: show upsell modal instead of hitting the API when at limit
-    if (isAtLimit) {
+    // Skip the modal if the user dismissed with "Remind me next month"
+    if (isAtLimit && !isDismissed()) {
       setShowUpgradeModal(true);
       return;
     }
@@ -404,10 +397,6 @@ export default function UploadPage() {
   const badge = file ? getFileBadge(file) : null;
   const showImagePreview = file !== null && previewUrl !== null;
 
-  const usagePct =
-    billing && billing.formsLimit
-      ? Math.min(100, (billing.formsUsed / billing.formsLimit) * 100)
-      : 0;
 
   return (
     <div>
@@ -513,81 +502,7 @@ export default function UploadPage() {
 
       {/* Upgrade modal */}
       {showUpgradeModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
-          onClick={() => setShowUpgradeModal(false)}
-        >
-          <div
-            className="relative bg-white rounded-2xl shadow-card w-full max-w-md p-6 sm:p-8 animate-slide-down"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button
-              onClick={() => setShowUpgradeModal(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
-              aria-label="Close"
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-              </svg>
-            </button>
-
-            <div className="mb-5">
-              <div className="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center mb-4">
-                <svg className="w-6 h-6 text-amber-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold text-slate-900">
-                You&apos;ve used all {billing?.formsLimit ?? 5} free forms this month
-              </h2>
-              <p className="text-sm text-slate-500 mt-1.5">
-                Upgrade to Pro for unlimited uploads and more.
-              </p>
-            </div>
-
-            {/* Usage meter */}
-            {billing && billing.formsLimit && (
-              <div className="mb-5">
-                <div className="flex justify-between text-xs text-slate-500 mb-1.5">
-                  <span>Forms used</span>
-                  <span className="font-semibold">{billing.formsUsed} / {billing.formsLimit}</span>
-                </div>
-                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-red-500 rounded-full" style={{ width: `${usagePct}%` }} />
-                </div>
-                <p className="text-xs text-slate-400 mt-1.5">Resets on your billing cycle.</p>
-              </div>
-            )}
-
-            {/* Pro features */}
-            <ul className="space-y-2 mb-6">
-              {[
-                "Unlimited form uploads",
-                "Form Memory — learns from your completed forms",
-                "Shareable form templates",
-                "Priority AI processing",
-              ].map((f) => (
-                <li key={f} className="flex items-center gap-2.5 text-sm text-slate-700">
-                  <span className="text-blue-500 shrink-0">✓</span> {f}
-                </li>
-              ))}
-            </ul>
-
-            <button
-              onClick={handleUpgrade}
-              disabled={upgradeLoading}
-              className="w-full py-3 bg-blue-600 text-white rounded-xl font-semibold hover:bg-blue-700 transition-all disabled:opacity-50 shadow-sm"
-            >
-              {upgradeLoading ? "Redirecting…" : "Upgrade to Pro — $9/mo"}
-            </button>
-            <p className="text-center mt-3 text-sm text-slate-400">
-              or{" "}
-              <Link href="/dashboard/billing" className="text-slate-600 underline hover:text-slate-900">
-                View billing
-              </Link>
-            </p>
-          </div>
-        </div>
+        <UpgradeGateModal reason="limit" onClose={() => setShowUpgradeModal(false)} />
       )}
 
       {/* Breadcrumb */}
