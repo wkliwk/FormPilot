@@ -122,40 +122,147 @@ function highlightFields(analysisData) {
   });
 }
 
-// Fill fields with autofill data
-function fillFields(fieldValues) {
-  const selectors = [
-    "input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=reset]):not([type=image])",
-    "textarea",
-    "select",
-  ];
-  const elements = document.querySelectorAll(selectors.join(","));
+/**
+ * Normalize a date value to YYYY-MM-DD for <input type="date"> fields.
+ * Handles MM/DD/YYYY, DD-MM-YYYY, and ISO strings.
+ */
+function normalizeDateValue(value) {
+  if (!value) return value;
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  // MM/DD/YYYY
+  const mdy = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (mdy) return `${mdy[3]}-${mdy[1].padStart(2, "0")}-${mdy[2].padStart(2, "0")}`;
+  // Try generic Date parse as last resort
+  const d = new Date(value);
+  if (!isNaN(d.getTime())) return d.toISOString().slice(0, 10);
+  return value;
+}
 
-  fieldValues.forEach((fv) => {
-    const el = elements[fv.index];
-    if (!el || !fv.value) return;
+/**
+ * Fill a single element with a value.
+ * Returns true if filled, false if skipped (sets skipReason on the field object).
+ */
+function fillElement(el, fv) {
+  if (!fv.value) {
+    fv.skipReason = "no profile match";
+    return false;
+  }
+  if (el.disabled || el.readOnly) {
+    fv.skipReason = "field locked";
+    return false;
+  }
+  // Skip password and payment card fields (security exclusion)
+  if (
+    el.type === "password" ||
+    el.autocomplete === "cc-number" ||
+    el.autocomplete === "cc-csc" ||
+    el.autocomplete === "cc-exp"
+  ) {
+    fv.skipReason = "unsupported field type";
+    return false;
+  }
 
-    // Set value and dispatch events so frameworks pick it up
-    const nativeInputValueSetter =
-      Object.getOwnPropertyDescriptor(
-        el.tagName === "TEXTAREA"
-          ? window.HTMLTextAreaElement.prototype
-          : window.HTMLInputElement.prototype,
-        "value"
-      )?.set;
-
-    if (nativeInputValueSetter) {
-      nativeInputValueSetter.call(el, fv.value);
+  if (el.tagName === "SELECT") {
+    // React-controlled selects require the native HTMLSelectElement setter
+    const nativeSetter = Object.getOwnPropertyDescriptor(
+      HTMLSelectElement.prototype,
+      "value"
+    )?.set;
+    if (nativeSetter) {
+      nativeSetter.call(el, fv.value);
     } else {
       el.value = fv.value;
     }
-
     el.dispatchEvent(new Event("input", { bubbles: true }));
     el.dispatchEvent(new Event("change", { bubbles: true }));
+  } else if (el.type === "date") {
+    const normalized = normalizeDateValue(fv.value);
+    const nativeSetter = Object.getOwnPropertyDescriptor(
+      HTMLInputElement.prototype,
+      "value"
+    )?.set;
+    if (nativeSetter) {
+      nativeSetter.call(el, normalized);
+    } else {
+      el.value = normalized;
+    }
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  } else {
+    const proto =
+      el.tagName === "TEXTAREA"
+        ? HTMLTextAreaElement.prototype
+        : HTMLInputElement.prototype;
+    const nativeSetter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+    if (nativeSetter) {
+      nativeSetter.call(el, fv.value);
+    } else {
+      el.value = fv.value;
+    }
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
 
-    // Visual feedback
-    el.classList.add("formpilot-filled");
-    setTimeout(() => el.classList.remove("formpilot-filled"), 2000);
+  // Visual feedback
+  el.classList.add("formpilot-filled");
+  setTimeout(() => el.classList.remove("formpilot-filled"), 2000);
+  return true;
+}
+
+// Fill fields with autofill data — returns a stats object via Promise
+function fillFields(fieldValues) {
+  return new Promise((resolve) => {
+    const selectors = [
+      "input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=reset]):not([type=image])",
+      "textarea",
+      "select",
+    ];
+
+    const elements = document.querySelectorAll(selectors.join(","));
+    let filledCount = 0;
+    const filledIndices = new Set();
+    const skippedFields = [];
+
+    fieldValues.forEach((fv) => {
+      const el = elements[fv.index];
+      if (!el) {
+        skippedFields.push({ label: fv.label || "unknown", reason: "no profile match" });
+        return;
+      }
+      if (fillElement(el, fv)) {
+        filledCount++;
+        filledIndices.add(fv.index);
+      } else {
+        skippedFields.push({ label: fv.label || getFieldLabel(el), reason: fv.skipReason || "no profile match" });
+      }
+    });
+
+    // Post-fill re-scan after 500ms for dynamically revealed fields
+    // TODO: replace with MutationObserver for better reliability
+    setTimeout(() => {
+      const newElements = document.querySelectorAll(selectors.join(","));
+      let updatedAfterReaction = 0;
+
+      fieldValues.forEach((fv) => {
+        if (filledIndices.has(fv.index)) return; // already filled in first pass
+        const el = newElements[fv.index];
+        if (!el || !fv.value) return;
+        // Only fill newly visible elements
+        if (el.offsetParent !== null) {
+          if (fillElement(el, fv)) {
+            updatedAfterReaction++;
+          }
+        }
+      });
+
+      resolve({
+        filled: filledCount,
+        updatedAfterReaction,
+        skipped: skippedFields.length,
+        skippedFields,
+      });
+    }, 500);
   });
 }
 
@@ -180,8 +287,10 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 
   if (message.type === "FILL_FIELDS") {
-    fillFields(message.data);
-    sendResponse({ success: true });
+    fillFields(message.data).then((stats) => {
+      sendResponse({ success: true, stats });
+    });
+    return true; // keep channel open for async response
   }
 
   if (message.type === "CLEAR_HIGHLIGHTS") {
