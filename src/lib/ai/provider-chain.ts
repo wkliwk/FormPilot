@@ -1,7 +1,7 @@
 /**
  * AI provider fallback chain for text generation.
  *
- * Chain: Groq → OpenRouter/free → Gemini Flash
+ * Chain: Groq → OpenRouter/free → Gemini Flash → Claude Haiku
  *
  * - 429 rate limit: immediately skip to next provider (no backoff on current)
  * - Other transient errors (5xx, network): retry within provider before moving on
@@ -9,6 +9,7 @@
  */
 import Groq from "groq-sdk";
 import { GoogleGenerativeAI } from "@google/generative-ai";
+import Anthropic from "@anthropic-ai/sdk";
 
 // ─── Singletons ──────────────────────────────────────────────────────────────
 
@@ -151,9 +152,35 @@ async function callGemini(prompt: string, maxTokens: number): Promise<string> {
   }, "gemini");
 }
 
+// ─── Claude (Anthropic) — last-resort fallback ─────────────────────────────
+
+let _anthropic: Anthropic | null = null;
+function getAnthropicClient(): Anthropic {
+  if (!_anthropic) {
+    if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set");
+    _anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+  }
+  return _anthropic;
+}
+
+async function callClaude(prompt: string, maxTokens: number): Promise<string> {
+  const client = getAnthropicClient();
+  return withProviderRetry(async () => {
+    const res = await client.messages.create({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: maxTokens,
+      messages: [{ role: "user", content: prompt }],
+    });
+    const block = res.content[0];
+    const text = block.type === "text" ? block.text : "";
+    if (!text) throw new Error("Empty response from Claude");
+    return text;
+  }, "claude");
+}
+
 // ─── Public API ───────────────────────────────────────────────────────────────
 
-type ProviderName = "groq" | "openrouter" | "gemini";
+type ProviderName = "groq" | "openrouter" | "gemini" | "claude";
 
 const PROVIDERS: Array<{
   name: ProviderName;
@@ -162,12 +189,13 @@ const PROVIDERS: Array<{
   { name: "groq", fn: callGroq },
   { name: "openrouter", fn: callOpenRouter },
   { name: "gemini", fn: callGemini },
+  { name: "claude", fn: callClaude },
 ];
 
 /**
  * Call text AI with automatic provider fallback.
  *
- * Tries Groq → OpenRouter/free → Gemini Flash.
+ * Tries Groq → OpenRouter/free → Gemini Flash → Claude Haiku.
  * On 429 rate limit, skips immediately to the next provider.
  * On other transient errors, retries within the same provider before moving on.
  */
