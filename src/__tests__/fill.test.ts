@@ -4,7 +4,7 @@
  * We create in-memory PDFs using pdf-lib directly so tests run without fixtures.
  */
 
-import { PDFDocument } from "pdf-lib";
+import { PDFDocument, PDFName, PDFString } from "pdf-lib";
 import { fillPDF } from "../lib/pdf/fill";
 import type { FormField } from "../lib/ai/analyze-form";
 
@@ -21,6 +21,28 @@ function makeField(overrides: Partial<FormField> & { id: string; label: string }
     commonMistakes: "",
     ...overrides,
   };
+}
+
+/**
+ * Build an in-memory PDF with a text field that has an opaque internal name
+ * but a human-readable tooltip (/TU entry) — like W-4 AcroForm fields.
+ */
+async function buildPDFWithAltTextField(
+  internalName: string,
+  tooltip: string
+): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([600, 800]);
+  const form = doc.getForm();
+
+  const field = form.createTextField(internalName);
+  field.addToPage(page, { x: 50, y: 750, width: 200, height: 20 });
+
+  // Set the /TU (tooltip) entry directly on the AcroField dict
+  field.acroField.dict.set(PDFName.of("TU"), PDFString.of(tooltip));
+
+  const bytes = await doc.save();
+  return Buffer.from(bytes);
 }
 
 /**
@@ -298,6 +320,37 @@ describe("fillPDF — fallback summary page", () => {
     const resultDoc = await PDFDocument.load(filled);
 
     expect(resultDoc.getPageCount()).toBe(1);
+  });
+});
+
+describe("fillPDF — alt text (/TU) matching", () => {
+  it("fills a field via tooltip when internal name is opaque (W-4 style)", async () => {
+    // Simulate a W-4 field: internal name "f1_09[0]", tooltip "First name and middle initial"
+    const buf = await buildPDFWithAltTextField(
+      "f1_09[0]",
+      "First name and middle initial"
+    );
+    const fields: FormField[] = [
+      makeField({ id: "first_name", label: "First name and middle initial", value: "John A" }),
+    ];
+
+    const filled = await fillPDF(buf, fields);
+    const values = await readTextFields(filled);
+
+    expect(values["f1_09[0]"]).toBe("John A");
+  });
+
+  it("falls back to alt text substring match", async () => {
+    // Tooltip "Your Last Name" substring-matches FormField label "Last Name"
+    const buf = await buildPDFWithAltTextField("zz_opaque_99", "Your Last Name");
+    const fields: FormField[] = [
+      makeField({ id: "last_name", label: "Last Name", value: "Doe" }),
+    ];
+
+    const filled = await fillPDF(buf, fields);
+    const values = await readTextFields(filled);
+
+    expect(values["zz_opaque_99"]).toBe("Doe");
   });
 });
 
