@@ -44,6 +44,12 @@ interface FormRecord {
   fields: unknown;
 }
 
+interface PriorFormInfo {
+  id: string;
+  title: string;
+  createdAt: string; // ISO string
+}
+
 interface Props {
   form: FormRecord;
   hasProfile: boolean;
@@ -51,9 +57,10 @@ interface Props {
   profileCountry?: string | null;
   hasFile?: boolean;
   sourceType?: string;
+  priorForm?: PriorFormInfo | null;
 }
 
-export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType }: Props) {
+export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, priorForm }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [deleting, setDeleting] = useState(false);
@@ -78,6 +85,48 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
   const [savedAt, setSavedAt] = useState<Date | null>(() =>
     (form.fields as FormField[]).some((f) => f.value) ? new Date() : null
   );
+
+  // Re-fill banner state
+  const REFILL_DISMISS_KEY = `fp-refill-dismissed-${form.id}`;
+  const [reFillBanner, setReFillBanner] = useState<"show" | "loading" | "done" | "hidden">(() => {
+    if (!priorForm) return "hidden";
+    if (typeof window !== "undefined" && localStorage.getItem(REFILL_DISMISS_KEY)) return "hidden";
+    return "show";
+  });
+  const [reFillCount, setReFillCount] = useState(0);
+
+  async function handleReFill() {
+    if (!priorForm) return;
+    setReFillBanner("loading");
+    try {
+      const res = await fetch(`/api/forms/${form.id}/re-fill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceFormId: priorForm.id }),
+      });
+      const data = await res.json();
+      if (res.ok && data.fields) {
+        const updatedFields = data.fields as FormField[];
+        const filled = updatedFields.filter((f: FormField) => f.value && String(f.value).trim()).length;
+        setFormData((prev) => ({ ...prev, fields: updatedFields }));
+        setLiveValues(
+          Object.fromEntries(updatedFields.filter((f: FormField) => f.value).map((f: FormField) => [f.id, f.value!]))
+        );
+        setReFillCount(filled);
+        setReFillBanner("done");
+        setTimeout(() => setReFillBanner("hidden"), 4000);
+      } else {
+        setReFillBanner("show");
+      }
+    } catch {
+      setReFillBanner("show");
+    }
+  }
+
+  function dismissReFill() {
+    localStorage.setItem(REFILL_DISMISS_KEY, "1");
+    setReFillBanner("hidden");
+  }
 
   const handleSaveStatusChange = useCallback(
     (status: SaveStatus, ts: Date | null) => {
@@ -367,6 +416,48 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
           {shareError}
         </div>
       )}
+
+      {/* Proactive re-fill banner */}
+      {reFillBanner === "show" && priorForm && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0115-6.7L21 8" />
+            <path d="M3 22v-6h6" /><path d="M21 12a9 9 0 01-15 6.7L3 16" />
+          </svg>
+          <p className="flex-1 text-sm text-blue-800">
+            Found <strong>{priorForm.title}</strong> from {(() => {
+              const days = Math.round((Date.now() - new Date(priorForm.createdAt).getTime()) / 86400000);
+              return days === 0 ? "today" : days === 1 ? "yesterday" : `${days} days ago`;
+            })()} — reuse its answers to save time?
+          </p>
+          <button onClick={handleReFill} className="shrink-0 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 px-3 py-1.5 rounded-lg transition-colors">
+            Reuse answers
+          </button>
+          <button onClick={dismissReFill} className="shrink-0 text-xs text-blue-400 hover:text-blue-600 transition-colors">
+            Skip
+          </button>
+        </div>
+      )}
+      {reFillBanner === "loading" && (
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-blue-400 animate-spin shrink-0" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+            <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+          </svg>
+          <p className="text-sm text-blue-700">Copying answers from previous form…</p>
+        </div>
+      )}
+      {reFillBanner === "done" && (
+        <div className="flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-emerald-500 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+          </svg>
+          <p className="text-sm text-emerald-700 font-medium">
+            {reFillCount} {reFillCount === 1 ? "field" : "fields"} filled from {priorForm?.title}
+          </p>
+        </div>
+      )}
+
       {/* Mode toggle bar */}
       <div className="flex flex-wrap items-center justify-between gap-2 bg-white rounded-xl border border-slate-200 shadow-soft px-4 py-3">
         <div className="flex items-center gap-2">

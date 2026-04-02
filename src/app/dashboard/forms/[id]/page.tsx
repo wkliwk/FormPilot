@@ -35,6 +35,35 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
     select: { id: true, preferredLanguage: true, country: true },
   });
 
+  // Find a prior completed/in-progress form of the same category within 90 days
+  // with ≥3 filled fields (to avoid suggesting near-empty forms)
+  let priorForm: { id: string; title: string; createdAt: Date } | null = null;
+  if (form.category) {
+    const ninetyDaysAgo = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+    const candidates = await prisma.form.findMany({
+      where: {
+        userId: session.user.id!,
+        id: { not: id },
+        category: form.category,
+        status: { in: ["COMPLETED", "FILLING"] },
+        createdAt: { gte: ninetyDaysAgo },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      select: { id: true, title: true, filledData: true, createdAt: true },
+    });
+
+    // Only suggest forms with ≥3 filled values
+    const eligible = candidates.find((c) => {
+      if (!c.filledData || typeof c.filledData !== "object") return false;
+      const vals = Object.values(c.filledData as Record<string, unknown>);
+      return vals.filter((v) => v !== null && v !== undefined && String(v).trim()).length >= 3;
+    });
+    if (eligible) {
+      priorForm = { id: eligible.id, title: eligible.title, createdAt: eligible.createdAt };
+    }
+  }
+
   // Strip non-serializable fields (fileBytes is a Buffer) before passing to Client Component
   const { fileBytes, userId: _uid, ...serializableForm } = form;
 
@@ -48,6 +77,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
           profileCountry={profile?.country ?? null}
           hasFile={!!fileBytes}
           sourceType={form.sourceType}
+          priorForm={priorForm ? { id: priorForm.id, title: priorForm.title, createdAt: priorForm.createdAt.toISOString() } : null}
         />
       </main>
     </div>
