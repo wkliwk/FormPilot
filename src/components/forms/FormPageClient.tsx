@@ -101,7 +101,9 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     setLangBannerSaving(true);
     try {
       // Fetch current profile data then POST with updated language preference
-      const current = await fetch("/api/profile").then((r) => r.json()).catch(() => ({}));
+      const current = await fetch("/api/profile").then((r) => r.json()).catch(() => null);
+      // Guard: if fetch failed, dismiss without saving to avoid overwriting profile data
+      if (!current) { dismissLangBanner(); return; }
       await fetch("/api/profile", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
