@@ -5,6 +5,8 @@ import {
   PDFCheckBox,
   PDFRadioGroup,
   PDFDropdown,
+  PDFName,
+  PDFString,
   StandardFonts,
   rgb,
 } from "pdf-lib";
@@ -12,39 +14,65 @@ import type { FormField } from "@/lib/ai/analyze-form";
 import { normalize } from "./annotation-helpers";
 
 /**
+ * Get the tooltip / alternate name (/TU entry) from a PDF AcroForm field.
+ * W-4 and similar government PDFs store the human-readable label here even
+ * when the internal field name is an opaque identifier like "f1_09[0]".
+ */
+function getFieldAltText(pdfField: PDFField): string | undefined {
+  try {
+    const tu = pdfField.acroField.dict.get(PDFName.of("TU"));
+    if (tu instanceof PDFString) return tu.decodeText();
+  } catch {
+    // ignore — not all fields have /TU
+  }
+  return undefined;
+}
+
+/**
  * Resolve which FormField (if any) corresponds to a PDF AcroForm field.
  *
- * Matching priority:
- *  1. Exact normalized match between PDF field name and FormField label
- *  2. Substring match (either direction)
- *  3. Exact normalized match between PDF field name and FormField id
+ * Matching priority (tried against both the PDF field name and its /TU alt text):
+ *  1. Exact normalized match against FormField label
+ *  2. Substring match (either direction) against FormField label
+ *  3. Exact normalized match against FormField id
  *
  * Returns null when no match is found.
  */
-function resolveField(pdfName: string, fields: FormField[]): FormField | null {
-  const normName = normalize(pdfName);
-  if (!normName) return null;
+function resolveField(
+  pdfName: string,
+  altText: string | undefined,
+  fields: FormField[]
+): FormField | null {
+  // Build candidate list: field name first, then alt text (tooltip)
+  const candidates = [pdfName, altText].filter(Boolean) as string[];
 
   // 1. Exact label match
-  const exactLabel = fields.find(
-    (f) => f.value && normalize(f.label) === normName
-  );
-  if (exactLabel) return exactLabel;
+  for (const cand of candidates) {
+    const norm = normalize(cand);
+    if (!norm) continue;
+    const exact = fields.find((f) => f.value && normalize(f.label) === norm);
+    if (exact) return exact;
+  }
 
   // 2. Substring label match (either direction)
-  const subLabel = fields.find(
-    (f) =>
-      f.value &&
-      (normalize(f.label).includes(normName) ||
-        normName.includes(normalize(f.label)))
-  );
-  if (subLabel) return subLabel;
+  for (const cand of candidates) {
+    const norm = normalize(cand);
+    if (!norm) continue;
+    const sub = fields.find(
+      (f) =>
+        f.value &&
+        (normalize(f.label).includes(norm) || norm.includes(normalize(f.label)))
+    );
+    if (sub) return sub;
+  }
 
   // 3. Exact id match (AI snake_case ids occasionally align with PDF names)
-  const exactId = fields.find(
-    (f) => f.value && normalize(f.id) === normName
-  );
-  if (exactId) return exactId;
+  for (const cand of candidates) {
+    const norm = normalize(cand);
+    if (!norm) continue;
+    const exactId = fields.find((f) => f.value && normalize(f.id) === norm);
+    if (exactId) return exactId;
+  }
 
   return null;
 }
@@ -122,18 +150,20 @@ export async function fillPDF(
 
   for (const pdfField of pdfFields) {
     const pdfName = pdfField.getName();
-    const match = resolveField(pdfName, fields);
+    const altText = getFieldAltText(pdfField);
+    const match = resolveField(pdfName, altText, fields);
 
     if (match?.value) {
       const wrote = writeField(pdfField, match.value);
       if (wrote) {
         filled++;
-        console.log(`[fillPDF] matched "${pdfName}" → "${match.label}" = "${match.value}"`);
+        const via = altText && normalize(altText) !== normalize(pdfName) ? ` (via altText: "${altText}")` : "";
+        console.log(`[fillPDF] matched "${pdfName}"${via} → "${match.label}" = "${match.value}"`);
       } else {
         unmatched.push(`${pdfName} (type mismatch for value "${match.value}")`);
       }
     } else {
-      unmatched.push(pdfName);
+      unmatched.push(altText ? `${pdfName} / "${altText}"` : pdfName);
     }
   }
 
