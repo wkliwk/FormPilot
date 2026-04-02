@@ -100,6 +100,8 @@ async function callOpenRouter(prompt: string, maxTokens: number): Promise<string
   const model = process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3-super-120b-a12b:free";
 
   return withProviderRetry(async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 30000);
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -114,7 +116,8 @@ async function callOpenRouter(prompt: string, maxTokens: number): Promise<string
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
       }),
-    });
+      signal: controller.signal,
+    }).finally(() => clearTimeout(timeout));
 
     if (!res.ok) {
       const err = new Error(`OpenRouter HTTP ${res.status}`) as Error & { status: number };
