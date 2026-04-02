@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 
 interface Props {
@@ -94,6 +94,7 @@ export default function GuidedFillMode({
 
   const [currentStep, setCurrentStep] = useState(0);
   const [values, setValues] = useState<Record<string, string>>(initialValues);
+  const fieldsContainerRef = useRef<HTMLDivElement>(null);
   const [fieldStates, setFieldStates] = useState<Record<string, FieldState>>(initialStates);
   const [autofilling, setAutofilling] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
@@ -178,6 +179,18 @@ export default function GuidedFillMode({
       setAutofilling(false);
     }
   }
+
+  // Move focus to the first input in the group when the step changes
+  useEffect(() => {
+    const firstInput = fieldsContainerRef.current?.querySelector<HTMLElement>(
+      'input, textarea, button[role="checkbox"]'
+    );
+    if (firstInput) {
+      const t = setTimeout(() => firstInput.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentStep]);
 
   const filledInGroup = currentGroup?.fields.filter((f) => values[f.id]).length ?? 0;
   const totalInGroup = currentGroup?.fields.length ?? 0;
@@ -290,7 +303,7 @@ export default function GuidedFillMode({
       </div>
 
       {/* Fields */}
-      <div className="space-y-4">
+      <div ref={fieldsContainerRef} className="space-y-4">
         {currentGroup?.fields.map((field, index) => {
           const state: FieldState = fieldStates[field.id] ?? "pending";
           const hasValue = Boolean(values[field.id]);
