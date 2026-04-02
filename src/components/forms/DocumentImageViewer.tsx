@@ -249,37 +249,63 @@ export default function DocumentImageViewer({
       );
     }
 
+    const noCoordFields = fields.filter((f) => !getCoords(f));
+    const allCoordsAbsent = noCoordFields.length === fields.length;
+
     return (
       <div className="flex flex-col h-full min-h-0">
         <div className="flex items-center justify-end px-3 py-1.5 bg-slate-50 border-b border-slate-200 shrink-0">
           {zoomControls}
         </div>
+        {allCoordsAbsent && fields.length > 0 && (
+          <div className="px-3 py-2 bg-amber-50 border-b border-amber-200 text-xs text-amber-700 flex items-center gap-1.5 shrink-0">
+            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span>Field positions could not be detected from this image — highlights unavailable</span>
+          </div>
+        )}
         <div className="flex-1 overflow-auto bg-slate-100 p-4">
-        <div
-          className="relative inline-block shadow"
-          style={{ width: isFit ? "100%" : `${zoom * 100}%` }}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={fileUrl}
-            alt="Original document"
-            className="w-full h-auto rounded block"
-            onLoad={(e) => {
-              const img = e.currentTarget;
-              setRenderedSize({ w: img.clientWidth, h: img.clientHeight });
-            }}
-          />
-          {renderedSize && fields.map((field) => {
-            const c = getCoords(field);
-            if (!c || c.page !== 1) return null;
-            const isActive = field.id === activeFieldId;
-            const value = liveValues[field.id];
-            return (
-              <FieldOverlay key={field.id} c={c} isActive={isActive} value={value} fieldType={field.type} />
-            );
-          })}
+          <div
+            className="relative inline-block shadow"
+            style={{ width: isFit ? "100%" : `${zoom * 100}%` }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={fileUrl}
+              alt="Original document"
+              className="w-full h-auto rounded block"
+              onLoad={(e) => {
+                const img = e.currentTarget;
+                setRenderedSize({ w: img.clientWidth, h: img.clientHeight });
+              }}
+            />
+            {renderedSize && fields.map((field) => {
+              const c = getCoords(field);
+              if (!c || c.page !== 1) return null;
+              const isActive = field.id === activeFieldId;
+              const value = liveValues[field.id];
+              return (
+                <FieldOverlay
+                  key={field.id}
+                  c={c}
+                  isActive={isActive}
+                  value={value}
+                  fieldType={field.type}
+                  onClick={() => onFieldSelect?.(field.id)}
+                />
+              );
+            })}
+          </div>
         </div>
-        </div>
+        {activeField && !activeCoords && !allCoordsAbsent && (
+          <div className="px-3 py-2 bg-amber-50 border-t border-amber-200 text-xs text-amber-700 flex items-center gap-1.5 shrink-0">
+            <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span><strong>{activeField.label}</strong> — location not found in image</span>
+          </div>
+        )}
       </div>
     );
   }
