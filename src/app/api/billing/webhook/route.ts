@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { resetMonthlyUsage } from "@/lib/subscription";
 import { sendEmail } from "@/lib/email";
 import ProUpgradeEmail from "@/emails/ProUpgradeEmail";
+import PaymentFailedEmail from "@/emails/PaymentFailedEmail";
 import type Stripe from "stripe";
 import * as React from "react";
 
@@ -154,8 +155,29 @@ export async function POST(req: NextRequest) {
         where: { stripeCustomerId: customerId },
         data: { status: "PAST_DUE" },
       });
+
+      // Send payment-failed email (best-effort)
+      const sub = await prisma.subscription.findUnique({
+        where: { stripeCustomerId: customerId },
+        select: { userId: true },
+      });
+      if (sub?.userId) {
+        const user = await prisma.user.findUnique({ where: { id: sub.userId } });
+        if (user?.email) {
+          sendEmail(
+            user.email,
+            "Action required: your FormPilot payment failed",
+            React.createElement(PaymentFailedEmail, { name: user.name ?? undefined, appUrl: APP_URL })
+          ).catch(() => { /* best-effort */ });
+        }
+      }
       break;
     }
+
+    default:
+      // Log unhandled event types but always return 200 to avoid Stripe retries
+      console.log(`[stripe-webhook] unhandled event type: ${event.type}`);
+      break;
   }
 
   return NextResponse.json({ received: true });
