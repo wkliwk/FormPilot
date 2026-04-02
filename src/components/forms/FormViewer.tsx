@@ -168,6 +168,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [correctionToasts, setCorrectionToasts] = useState<Record<string, "pending" | "saving" | "saved" | "dismissed">>({});
   // blur-based inline validation errors — fieldId → error message string
   const [blurErrors, setBlurErrors] = useState<Record<string, string>>({});
+  // export pre-flight: required-fields-empty banner
+  const [showRequiredEmptyBanner, setShowRequiredEmptyBanner] = useState(false);
   // help drawer
   const [helpDrawerFieldId, setHelpDrawerFieldId] = useState<string | null>(null);
   type ExplainResult = { explanation: string; example: string; commonMistakes: string | null; whereToFind: string | null; isPro: boolean; remaining: number };
@@ -643,6 +645,18 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     onComplete?.();
   }
 
+  function navigateToFirstEmptyRequired() {
+    const firstId = emptyRequiredFieldIds[0];
+    if (!firstId) return;
+    const el = document.getElementById(`field-${firstId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.focus();
+    }
+    setHighlightedFieldId(null);
+    requestAnimationFrame(() => setHighlightedFieldId(firstId));
+  }
+
   async function handleExport() {
     // Run client-side validation first for instant feedback
     const result = validateForm(fields, values, fieldStates as Record<string, string>);
@@ -660,6 +674,11 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       }
       setShowForceExportDialog(true);
       return;
+    }
+
+    // Non-blocking required-field pre-flight: warn but allow export
+    if (emptyRequiredCount > 0) {
+      setShowRequiredEmptyBanner(true);
     }
 
     // Show preview modal before actual export
@@ -767,6 +786,12 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const filledCount = fields.filter((f) => values[f.id]).length;
   const acceptedCount = fields.filter((f) => fieldStates[f.id] === "accepted").length;
   const progress = fields.length > 0 ? Math.round((filledCount / fields.length) * 100) : 0;
+
+  // Required fields that have no value and are not accepted
+  const emptyRequiredFieldIds = fields
+    .filter((f) => f.required && fieldStates[f.id] !== "accepted" && !values[f.id])
+    .map((f) => f.id);
+  const emptyRequiredCount = emptyRequiredFieldIds.length;
 
   // Fields with AI confidence below review threshold that have been filled
   const uncertainFieldCount = fields.filter(
@@ -1021,6 +1046,21 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                   <line x1="8" y1="12" x2="16" y2="12" />
                 </svg>
                 {unansweredCount} empty field{unansweredCount === 1 ? "" : "s"}
+              </button>
+            )}
+            {/* Required-empty pill — visible only when some required fields have no value */}
+            {emptyRequiredCount > 0 && (
+              <button
+                type="button"
+                onClick={navigateToFirstEmptyRequired}
+                className="inline-flex items-center gap-1.5 px-4 py-2 border border-red-200 bg-red-50 text-red-700 text-sm rounded-lg font-medium hover:bg-red-100 transition-colors active:scale-[0.98]"
+                aria-label={`${emptyRequiredCount} required field${emptyRequiredCount === 1 ? "" : "s"} still empty. Click to jump to the first one.`}
+                title="Jump to first empty required field"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" />
+                </svg>
+                {emptyRequiredCount} required empty
               </button>
             )}
             {/* Sample fill button */}
@@ -1376,6 +1416,40 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         </div>
       )}
 
+      {/* Required-empty export pre-flight banner */}
+      {showRequiredEmptyBanner && emptyRequiredCount > 0 && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <svg className="w-4 h-4 text-amber-500 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+            </svg>
+            <p className="text-sm text-amber-800 truncate">
+              <span className="font-semibold">{emptyRequiredCount} required field{emptyRequiredCount === 1 ? "" : "s"} {emptyRequiredCount === 1 ? "is" : "are"} empty</span>
+              {" "}— the form may be rejected if submitted as-is.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => { setShowRequiredEmptyBanner(false); navigateToFirstEmptyRequired(); }}
+              className="text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2 whitespace-nowrap"
+            >
+              Review required fields
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowRequiredEmptyBanner(false)}
+              className="p-1 text-amber-400 hover:text-amber-700 transition-colors"
+              aria-label="Dismiss"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Field Cards */}
       <div className="space-y-3">
         {fields.map((field) => {
@@ -1550,12 +1624,18 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                             setActiveField(null);
                             onFieldFocus?.(null);
                             handleFieldBlurForCorrection(field.id, field.label);
-                            // Per-field format validation on blur
-                            const formatErr = validateFieldFormat(field, values[field.id] ?? "");
-                            if (formatErr) {
-                              setBlurErrors((prev) => ({ ...prev, [field.id]: formatErr }));
+                            const currentVal = values[field.id] ?? "";
+                            // Required-field check takes priority over format errors
+                            if (field.required && !currentVal.trim()) {
+                              setBlurErrors((prev) => ({ ...prev, [field.id]: "This field is required" }));
                             } else {
-                              setBlurErrors((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                              // Per-field format validation on blur
+                              const formatErr = validateFieldFormat(field, currentVal);
+                              if (formatErr) {
+                                setBlurErrors((prev) => ({ ...prev, [field.id]: formatErr }));
+                              } else {
+                                setBlurErrors((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                              }
                             }
                           }}
                           disabled={state === "accepted"}

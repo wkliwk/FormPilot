@@ -451,11 +451,16 @@ export default function GuidedFillMode({
                     value={values[field.id] ?? ""}
                     onChange={(e) => handleValueChange(field.id, e.target.value)}
                     onBlur={() => {
-                      const formatErr = validateFieldFormat(field, values[field.id] ?? "");
-                      if (formatErr) {
-                        setBlurErrors((prev) => ({ ...prev, [field.id]: formatErr }));
+                      const currentVal = values[field.id] ?? "";
+                      if (field.required && !currentVal.trim()) {
+                        setBlurErrors((prev) => ({ ...prev, [field.id]: "This field is required" }));
                       } else {
-                        setBlurErrors((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                        const formatErr = validateFieldFormat(field, currentVal);
+                        if (formatErr) {
+                          setBlurErrors((prev) => ({ ...prev, [field.id]: formatErr }));
+                        } else {
+                          setBlurErrors((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                        }
                       }
                     }}
                     disabled={state === "accepted"}
