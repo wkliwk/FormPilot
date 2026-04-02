@@ -95,8 +95,9 @@ async function callOpenRouter(prompt: string, maxTokens: number): Promise<string
   const apiKey = process.env.OPENROUTER_API_KEY;
   if (!apiKey) throw new Error("OPENROUTER_API_KEY is not set");
 
-  // "openrouter/free" auto-routes to whichever free model is available — most resilient default.
-  const model = process.env.OPENROUTER_MODEL ?? "openrouter/free";
+  // Nemotron 120B is a reliable free model for structured JSON output.
+  // "openrouter/free" auto-routes to random free models that often return empty/malformed responses.
+  const model = process.env.OPENROUTER_MODEL ?? "nvidia/nemotron-3-super-120b-a12b:free";
 
   return withProviderRetry(async () => {
     const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
