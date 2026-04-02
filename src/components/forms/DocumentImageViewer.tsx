@@ -240,7 +240,16 @@ export default function DocumentImageViewer({
                   if (!c || c.page !== 1) return null;
                   const isActive = field.id === activeFieldId;
                   const value = liveValues[field.id];
-                  return <FieldOverlay key={field.id} c={c} isActive={isActive} value={value} fieldType={field.type} />;
+                  return (
+                    <FieldOverlay
+                      key={field.id}
+                      c={c}
+                      isActive={isActive}
+                      value={value}
+                      fieldType={field.type}
+                      onClick={() => onFieldSelect?.(field.id)}
+                    />
+                  );
                 })}
               </div>
             </div>
