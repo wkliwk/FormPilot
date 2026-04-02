@@ -165,7 +165,7 @@ async function callDeepSeek(prompt: string, maxTokens: number): Promise<string> 
   if (!apiKey) throw new Error("DEEPSEEK_API_KEY is not set");
 
   const baseUrl = process.env.DEEPSEEK_BASE_URL ?? "https://api.chatanywhere.tech/v1";
-  const model = process.env.DEEPSEEK_MODEL ?? "deepseek-r1";
+  const model = process.env.DEEPSEEK_MODEL ?? "deepseek-v3";
 
   return withProviderRetry(async () => {
     const controller = new AbortController();
