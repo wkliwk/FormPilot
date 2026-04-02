@@ -84,7 +84,7 @@ export default function ProGateModal({ feature, benefit, isPro, children }: Prop
                 className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors active:scale-[0.98]"
                 onClick={() => setOpen(false)}
               >
-                Upgrade to Pro — $9/mo
+                Upgrade to Pro — from $6.58/mo
               </Link>
               <button
                 onClick={() => setOpen(false)}
