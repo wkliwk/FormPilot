@@ -87,6 +87,43 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     (form.fields as FormField[]).some((f) => f.value) ? new Date() : null
   );
 
+  // Language prompt banner — shown once to users who haven't set a language preference
+  const LANG_BANNER_DISMISS_KEY = "fp-lang-banner-dismissed";
+  const [langBannerSaving, setLangBannerSaving] = useState(false);
+  const [langBanner, setLangBanner] = useState<"show" | "hidden">(() => {
+    if (preferredLanguage) return "hidden"; // already set
+    if (typeof window !== "undefined" && localStorage.getItem(LANG_BANNER_DISMISS_KEY)) return "hidden";
+    return "show";
+  });
+  const [langBannerPick, setLangBannerPick] = useState<LanguageCode>("en");
+
+  async function handleLangBannerSave() {
+    setLangBannerSaving(true);
+    try {
+      // Fetch current profile data then POST with updated language preference
+      const current = await fetch("/api/profile").then((r) => r.json()).catch(() => ({}));
+      await fetch("/api/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...(current.data ?? {}), preferredLanguage: langBannerPick }),
+      });
+      localStorage.setItem(LANG_BANNER_DISMISS_KEY, "1");
+      setLangBanner("hidden");
+      if (langBannerPick !== activeLanguage) {
+        handleLanguageChange(langBannerPick);
+      }
+    } catch {
+      setLangBanner("hidden");
+    } finally {
+      setLangBannerSaving(false);
+    }
+  }
+
+  function dismissLangBanner() {
+    localStorage.setItem(LANG_BANNER_DISMISS_KEY, "1");
+    setLangBanner("hidden");
+  }
+
   // Re-fill banner state
   const REFILL_DISMISS_KEY = `fp-refill-dismissed-${form.id}`;
   const [reFillBanner, setReFillBanner] = useState<"show" | "loading" | "done" | "hidden">(() => {
@@ -415,6 +452,39 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
       {shareError && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
           {shareError}
+        </div>
+      )}
+
+      {/* Language preference prompt — one-time banner for users without a preference set */}
+      {langBanner === "show" && (
+        <div className="flex flex-wrap items-center gap-3 bg-violet-50 border border-violet-200 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-violet-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
+            <path d="M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20" />
+          </svg>
+          <p className="flex-1 text-sm text-violet-800 font-medium">
+            {getUIString("en", "language_banner.prompt")}
+          </p>
+          <select
+            value={langBannerPick}
+            onChange={(e) => setLangBannerPick(e.target.value as LanguageCode)}
+            className="text-sm border border-violet-200 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-400"
+            aria-label="Select preferred language"
+          >
+            {SUPPORTED_LANGUAGES.map((lang) => (
+              <option key={lang.code} value={lang.code}>{lang.label}</option>
+            ))}
+          </select>
+          <button
+            onClick={handleLangBannerSave}
+            disabled={langBannerSaving}
+            className="shrink-0 text-xs font-semibold text-white bg-violet-600 hover:bg-violet-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+          >
+            Save
+          </button>
+          <button onClick={dismissLangBanner} className="shrink-0 text-xs text-violet-400 hover:text-violet-600 transition-colors">
+            Skip
+          </button>
         </div>
       )}
 
