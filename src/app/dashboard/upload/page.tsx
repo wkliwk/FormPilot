@@ -82,6 +82,13 @@ export default function UploadPage() {
   const [hasMorePriorForms, setHasMorePriorForms] = useState(false);
   const [reFilling, setReFilling] = useState(false);
 
+  // Tab state: "file" | "url"
+  const [activeTab, setActiveTab] = useState<"file" | "url">("file");
+  // URL tab state
+  const [urlInput, setUrlInput] = useState("");
+  const [urlLoading, setUrlLoading] = useState(false);
+  const [urlError, setUrlError] = useState<string | null>(null);
+
   // Fetch billing info once on mount for pre-flight limit check
   useEffect(() => {
     fetch("/api/billing")
@@ -348,6 +355,52 @@ export default function UploadPage() {
     handleSubmit(syntheticEvent);
   }
 
+  async function handleUrlSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setUrlError(null);
+    const trimmed = urlInput.trim();
+    if (!trimmed) return;
+    // Basic client-side URL validation
+    try {
+      const u = new URL(trimmed);
+      if (u.protocol !== "http:" && u.protocol !== "https:") {
+        setUrlError("URL must start with http:// or https://");
+        return;
+      }
+    } catch {
+      setUrlError("Please enter a valid URL.");
+      return;
+    }
+    setUrlLoading(true);
+    try {
+      const res = await fetch("/api/forms/analyze-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmed }),
+      });
+      const data = await res.json().catch(() => ({} as Record<string, unknown>));
+      if (!res.ok) {
+        if (res.status === 402) {
+          setShowUpgradeModal(true);
+          return;
+        }
+        if (res.status === 429) {
+          const secs = typeof data.retryAfter === "number" ? data.retryAfter : 60;
+          setUrlError(`Too many requests. Try again in ${secs} seconds.`);
+          return;
+        }
+        setUrlError(typeof data.error === "string" ? data.error : "Analysis failed. Please try again.");
+        return;
+      }
+      const { formId } = data as { formId: string };
+      router.push(`/dashboard/forms/${formId}`);
+    } catch {
+      setUrlError("Something went wrong. Please try again.");
+    } finally {
+      setUrlLoading(false);
+    }
+  }
+
   const badge = file ? getFileBadge(file) : null;
   const showImagePreview = file !== null && previewUrl !== null;
 
@@ -583,11 +636,98 @@ export default function UploadPage() {
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8 sm:py-10">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-6 sm:p-8 space-y-6">
           <div>
-            <h1 className="text-2xl font-bold text-slate-900">Upload a Form</h1>
+            <h1 className="text-2xl font-bold text-slate-900">Add a Form</h1>
             <p className="text-slate-500 mt-1 text-sm">
               We will parse every field, explain what to enter, and help you fill it out.
             </p>
           </div>
+
+          {/* Tab switcher */}
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => { setActiveTab("file"); setError(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                activeTab === "file"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              Upload File
+            </button>
+            <button
+              type="button"
+              onClick={() => { setActiveTab("url"); setError(null); setUrlError(null); }}
+              className={`flex-1 flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                activeTab === "url"
+                  ? "bg-white text-slate-900 shadow-sm"
+                  : "text-slate-500 hover:text-slate-700"
+              }`}
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="2" y1="12" x2="22" y2="12" />
+                <path d="M12 2a15.3 15.3 0 014 10 15.3 15.3 0 01-4 10 15.3 15.3 0 01-4-10 15.3 15.3 0 014-10z" />
+              </svg>
+              Fill from URL
+            </button>
+          </div>
+
+          {activeTab === "url" ? (
+            <form onSubmit={handleUrlSubmit} className="space-y-4">
+              <div>
+                <label htmlFor="url-input" className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Web form URL
+                </label>
+                <input
+                  id="url-input"
+                  type="url"
+                  value={urlInput}
+                  onChange={(e) => { setUrlInput(e.target.value); setUrlError(null); }}
+                  placeholder="https://example.gov/apply"
+                  className="w-full px-4 py-3 border border-slate-200 rounded-xl text-base focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all"
+                  disabled={urlLoading}
+                  autoComplete="off"
+                />
+                {urlError && (
+                  <p className="mt-2 text-sm text-red-600 flex items-center gap-1.5">
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" /></svg>
+                    {urlError}
+                  </p>
+                )}
+                <p className="mt-2 text-xs text-slate-400">
+                  Paste the URL of any web form — government portals, HR systems, online applications. We&apos;ll fetch and analyze it without requiring the browser extension.
+                </p>
+              </div>
+
+              <button
+                type="submit"
+                disabled={urlLoading || !urlInput.trim()}
+                className="w-full inline-flex items-center justify-center gap-2 px-5 py-3 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-40 active:scale-[0.98]"
+              >
+                {urlLoading ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                    </svg>
+                    Analyzing…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                    </svg>
+                    Analyze Form
+                  </>
+                )}
+              </button>
+            </form>
+          ) : (
 
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Drop zone */}
@@ -861,6 +1001,7 @@ export default function UploadPage() {
               )}
             </button>
           </form>
+          )} {/* end activeTab === "url" ? ... : ... */}
 
           {/* Privacy trust signals */}
           <div className="border-t border-slate-100 pt-5 space-y-2.5">
