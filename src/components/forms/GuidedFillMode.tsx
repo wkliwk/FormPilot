@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
+import { validateFieldFormat } from "@/lib/validation/field-rules";
 
 interface Props {
   formId: string;
@@ -97,6 +98,7 @@ export default function GuidedFillMode({
   const [fieldStates, setFieldStates] = useState<Record<string, FieldState>>(initialStates);
   const [autofilling, setAutofilling] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
+  const [blurErrors, setBlurErrors] = useState<Record<string, string>>({});
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const currentGroup = groups[currentStep];
@@ -132,6 +134,9 @@ export default function GuidedFillMode({
     const newValues = { ...values, [fieldId]: value };
     setValues(newValues);
     scheduleSave(newValues, fieldStates);
+    if (blurErrors[fieldId]) {
+      setBlurErrors((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
+    }
   }
 
   function handleAccept(fieldId: string) {
@@ -426,19 +431,37 @@ export default function GuidedFillMode({
                   </span>
                 </div>
               ) : state !== "rejected" ? (
-                <input
-                  id={`guided-${field.id}`}
-                  type={field.type === "date" ? "date" : "text"}
-                  value={values[field.id] ?? ""}
-                  onChange={(e) => handleValueChange(field.id, e.target.value)}
-                  disabled={state === "accepted"}
-                  className={`w-full px-4 py-3 border rounded-xl text-base md:text-sm min-h-[48px] focus:outline-none focus:ring-2 focus:ring-blue-400 transition-all ${
-                    state === "accepted"
-                      ? "border-emerald-200 bg-emerald-50/60 cursor-not-allowed"
-                      : "border-slate-200 bg-white"
-                  }`}
-                  placeholder={field.example}
-                />
+                <>
+                  <input
+                    id={`guided-${field.id}`}
+                    type={field.type === "date" ? "date" : "text"}
+                    value={values[field.id] ?? ""}
+                    onChange={(e) => handleValueChange(field.id, e.target.value)}
+                    onBlur={() => {
+                      const formatErr = validateFieldFormat(field, values[field.id] ?? "");
+                      if (formatErr) {
+                        setBlurErrors((prev) => ({ ...prev, [field.id]: formatErr }));
+                      } else {
+                        setBlurErrors((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                      }
+                    }}
+                    disabled={state === "accepted"}
+                    className={`w-full px-4 py-3 border rounded-xl text-base md:text-sm min-h-[48px] focus:outline-none focus:ring-2 transition-all ${
+                      blurErrors[field.id]
+                        ? "border-red-300 bg-red-50/50 focus:ring-red-400"
+                        : state === "accepted"
+                        ? "border-emerald-200 bg-emerald-50/60 cursor-not-allowed focus:ring-blue-400"
+                        : "border-slate-200 bg-white focus:ring-blue-400"
+                    }`}
+                    placeholder={field.example}
+                  />
+                  {blurErrors[field.id] && (
+                    <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                      <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" /></svg>
+                      {blurErrors[field.id]}
+                    </p>
+                  )}
+                </>
               ) : (
                 <div className="flex items-center gap-2">
                   <input

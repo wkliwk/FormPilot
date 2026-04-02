@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 import type { ValidationResult } from "@/lib/validation/validate-form";
 import { validateForm } from "@/lib/validation/validate-form";
+import { validateFieldFormat } from "@/lib/validation/field-rules";
 import { generateSampleValue } from "@/lib/sample-data";
 import { CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/constants";
 import ExportPreviewModal from "./ExportPreviewModal";
@@ -113,6 +114,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, { value: string; source: string; sourceType?: "memory" | "history" } | { error: true } | null>>({});
   // correction toasts — fieldId → "pending" | "saving" | "saved" | "dismissed"
   const [correctionToasts, setCorrectionToasts] = useState<Record<string, "pending" | "saving" | "saved" | "dismissed">>({});
+  // blur-based inline validation errors — fieldId → error message string
+  const [blurErrors, setBlurErrors] = useState<Record<string, string>>({});
   // help drawer
   const [helpDrawerFieldId, setHelpDrawerFieldId] = useState<string | null>(null);
   type ExplainResult = { explanation: string; example: string; commonMistakes: string | null; whereToFind: string | null; isPro: boolean; remaining: number };
@@ -187,6 +190,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     setValues(newValues);
     scheduleSave(newValues, fieldStates);
     onValueChange?.(fieldId, value);
+    // Clear blur error as soon as the user starts correcting
+    if (blurErrors[fieldId]) {
+      setBlurErrors((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
+    }
   }
 
   function handleAccept(fieldId: string) {
@@ -556,6 +563,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     setValidation(result);
 
     if (!result.valid) {
+      // Scroll to and focus the first invalid field so users can fix it in context
+      const firstErrorId = result.errors[0]?.fieldId;
+      if (firstErrorId) {
+        const el = document.getElementById(`field-${firstErrorId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.focus();
+        }
+      }
       setShowForceExportDialog(true);
       return;
     }
@@ -1266,7 +1282,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           const config = tier ? tierConfig[tier] : null;
           const isExplanationExpanded = expandedExplanations.has(field.id);
 
-          const hasError = errorFieldIds.has(field.id);
+          const hasError = errorFieldIds.has(field.id) || Boolean(blurErrors[field.id]);
           const hasWarning = warningFieldIds.has(field.id);
 
           // Card border color
@@ -1431,6 +1447,13 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                             setActiveField(null);
                             onFieldFocus?.(null);
                             handleFieldBlurForCorrection(field.id, field.label);
+                            // Per-field format validation on blur
+                            const formatErr = validateFieldFormat(field, values[field.id] ?? "");
+                            if (formatErr) {
+                              setBlurErrors((prev) => ({ ...prev, [field.id]: formatErr }));
+                            } else {
+                              setBlurErrors((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                            }
                           }}
                           disabled={state === "accepted"}
                           aria-disabled={state === "accepted"}
@@ -1454,7 +1477,13 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                         )}
                       </div>
                     )}
-                    {/* Inline validation messages */}
+                    {/* Inline validation messages — blur errors shown in real-time; fieldErrors after export */}
+                    {blurErrors[field.id] && !fieldErrors.some((e) => e.message === blurErrors[field.id]) && (
+                      <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
+                        <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" /></svg>
+                        {blurErrors[field.id]}
+                      </p>
+                    )}
                     {fieldErrors.map((err, i) => (
                       <p key={`fe-${i}`} className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
                         <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" /></svg>
