@@ -5,7 +5,9 @@ import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 import type { ValidationResult } from "@/lib/validation/validate-form";
 import { validateForm } from "@/lib/validation/validate-form";
 import { generateSampleValue } from "@/lib/sample-data";
+import { CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/constants";
 import ExportPreviewModal from "./ExportPreviewModal";
+import ConfidenceReviewPanel from "./ConfidenceReviewPanel";
 
 interface FormRecord {
   id: string;
@@ -101,6 +103,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showForceExportDialog, setShowForceExportDialog] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showConfidenceReview, setShowConfidenceReview] = useState(false);
   const [sampleFilling, setSampleFilling] = useState(false);
   const [sampleFillMessage, setSampleFillMessage] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -654,6 +657,11 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const acceptedCount = fields.filter((f) => fieldStates[f.id] === "accepted").length;
   const progress = fields.length > 0 ? Math.round((filledCount / fields.length) * 100) : 0;
 
+  // Fields with AI confidence below review threshold that have been filled
+  const uncertainFieldCount = fields.filter(
+    (f) => f.confidence !== undefined && f.confidence < CONFIDENCE_REVIEW_THRESHOLD && values[f.id]
+  ).length;
+
   // Build set of field IDs with validation errors for inline indicators
   const errorFieldIds = new Set(validation?.errors.map((e) => e.fieldId) ?? []);
   const warningFieldIds = new Set(validation?.warnings.filter((w) => w.rule === "low_confidence").map((w) => w.fieldId) ?? []);
@@ -680,6 +688,21 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         sourceType={sourceType}
         onConfirmExport={handleConfirmExport}
         onClose={() => setShowPreviewModal(false)}
+        exporting={exporting}
+      />
+    )}
+    {showConfidenceReview && (
+      <ConfidenceReviewPanel
+        fields={fields}
+        values={values}
+        onUpdateValue={(fieldId, value) => {
+          handleValueChange(fieldId, value);
+        }}
+        onConfirmExport={() => {
+          setShowConfidenceReview(false);
+          handleExport();
+        }}
+        onClose={() => setShowConfidenceReview(false)}
         exporting={exporting}
       />
     )}
@@ -924,6 +947,19 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                   <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
                 </svg>
                 Validate
+              </button>
+            )}
+            {filledCount > 0 && uncertainFieldCount > 0 && (
+              <button
+                onClick={() => setShowConfidenceReview(true)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 border border-amber-300 text-amber-700 bg-amber-50 text-sm rounded-lg font-medium hover:bg-amber-100 transition-colors active:scale-[0.98]"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </svg>
+                Review {uncertainFieldCount} uncertain field{uncertainFieldCount !== 1 ? "s" : ""}
               </button>
             )}
             {filledCount > 0 && (
