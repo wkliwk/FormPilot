@@ -9,6 +9,7 @@ import { generateSampleValue } from "@/lib/sample-data";
 import { CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/constants";
 import ExportPreviewModal from "./ExportPreviewModal";
 import ConfidenceReviewPanel from "./ConfidenceReviewPanel";
+import FieldQA from "./FieldQA";
 
 interface FormRecord {
   id: string;
@@ -855,6 +856,9 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                         {result.remaining} help lookups remaining this hour.{" "}
                         <a href="/dashboard/billing" className="text-blue-500 hover:text-blue-700 underline">Upgrade for unlimited.</a>
                       </p>
+                    )}
+                    {helpField && (
+                      <FieldQA formId={form.id} fieldId={helpField.id} />
                     )}
                   </div>
                 );
