@@ -73,7 +73,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -456,6 +456,39 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       setAutofillError(err instanceof Error ? err.message : "Autofill is temporarily unavailable — please try again in a moment.");
     } finally {
       setAutofilling(false);
+    }
+  }
+
+  // -- clear all --
+
+  async function handleClearAll() {
+    if (!window.confirm("Clear all filled values and reset review states? This cannot be undone.")) return;
+
+    const clearValues: Record<string, string> = {};
+    const clearStates: Record<string, FieldState> = {};
+
+    setValues(clearValues);
+    setFieldStates(clearStates);
+    onValuesSnapshotChange?.(clearValues);
+
+    setSaveStatus("saving");
+    onSaveStatusChange?.("saving", null);
+    try {
+      const fieldUpdates = fields.map((f) => ({ id: f.id, value: "", fieldState: "pending" as FieldState }));
+      await fetch(`/api/forms/${form.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ fields: fieldUpdates, status: "FILLING" }),
+      });
+      const now = new Date();
+      setSaveStatus("saved");
+      setSavedAt(now);
+      setSaveError(false);
+      onSaveStatusChange?.("saved", now);
+    } catch {
+      setSaveStatus("error");
+      setSaveError(true);
+      onSaveStatusChange?.("error", null);
     }
   }
 
@@ -940,6 +973,20 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                     Autofill from Profile
                   </>
                 )}
+              </button>
+            )}
+            {filledCount > 0 && (
+              <button
+                onClick={handleClearAll}
+                className="inline-flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-500 text-sm rounded-lg font-medium hover:border-red-200 hover:text-red-600 hover:bg-red-50 transition-colors active:scale-[0.98]"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                  <path d="M10 11v6M14 11v6" />
+                  <path d="M9 6V4h6v2" />
+                </svg>
+                Clear All
               </button>
             )}
           </div>
