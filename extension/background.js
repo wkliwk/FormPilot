@@ -62,6 +62,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .catch(() => sendResponse({ authenticated: false }));
     return true;
   }
+
+  if (message.type === "SET_BADGE") {
+    const tabId = sender.tab && sender.tab.id;
+    if (tabId) {
+      if (message.count >= 3) {
+        chrome.action.setBadgeText({ text: "•", tabId });
+        chrome.action.setBadgeBackgroundColor({ color: "#3B82F6", tabId });
+      } else {
+        chrome.action.setBadgeText({ text: "", tabId });
+      }
+    }
+  }
 });
 
 async function getAuthStatus() {

@@ -3,6 +3,139 @@
 let highlightedFields = [];
 let tooltips = [];
 
+// ── Badge / proactive detection ──────────────────────────────────────────────
+
+const BADGE_THRESHOLD = 3;
+
+const QUALIFYING_SELECTOR = [
+  "input:not([type=hidden]):not([type=submit]):not([type=button])" +
+    ":not([type=reset]):not([type=image]):not([type=password]):not([type=file])",
+  "textarea",
+  "select",
+].join(",");
+
+function countQualifyingInputs() {
+  const els = document.querySelectorAll(QUALIFYING_SELECTOR);
+  let count = 0;
+  for (const el of els) {
+    // Skip visually hidden elements
+    if (el.offsetParent !== null || el.getBoundingClientRect().width > 0) {
+      count++;
+    }
+  }
+  return count;
+}
+
+function sendBadgeUpdate(count) {
+  try {
+    chrome.runtime.sendMessage({ type: "SET_BADGE", count });
+  } catch {
+    // Extension context may be invalidated after SW restart — ignore
+  }
+}
+
+let _toastShownThisSession = false;
+
+async function maybeShowDetectionToast() {
+  if (_toastShownThisSession) return;
+
+  const hostname = location.hostname;
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const storageKey = `fp_toast_${hostname}_${today}`;
+
+  let alreadyShown = false;
+  try {
+    const result = await chrome.storage.local.get(storageKey);
+    alreadyShown = !!result[storageKey];
+  } catch {
+    return; // storage unavailable
+  }
+  if (alreadyShown) return;
+
+  _toastShownThisSession = true;
+
+  // Mark as shown for today
+  try {
+    await chrome.storage.local.set({ [storageKey]: true });
+  } catch {
+    // best-effort
+  }
+
+  // Inject toast
+  const toast = document.createElement("div");
+  toast.id = "fp-detection-toast";
+  toast.style.cssText = [
+    "position:fixed", "bottom:20px", "right:20px", "z-index:2147483647",
+    "display:flex", "align-items:center", "gap:10px",
+    "background:#1e293b", "color:#f8fafc", "border-radius:12px",
+    "padding:12px 14px 12px 14px", "font-family:-apple-system,sans-serif",
+    "font-size:13px", "line-height:1.4", "max-width:300px",
+    "box-shadow:0 4px 20px rgba(0,0,0,0.25)",
+    "transition:opacity 0.3s ease", "opacity:0",
+  ].join(";");
+
+  toast.innerHTML = `
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <span style="flex:1">FormPilot detected a form — click the extension to autofill</span>
+    <button id="fp-toast-dismiss" style="background:none;border:none;color:#94a3b8;cursor:pointer;font-size:16px;line-height:1;padding:0;flex-shrink:0" aria-label="Dismiss">✕</button>
+  `;
+
+  document.body.appendChild(toast);
+
+  // Fade in
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => { toast.style.opacity = "1"; });
+  });
+
+  function dismissToast() {
+    toast.style.opacity = "0";
+    setTimeout(() => toast.remove(), 300);
+  }
+
+  document.getElementById("fp-toast-dismiss").addEventListener("click", dismissToast);
+  setTimeout(dismissToast, 4000);
+}
+
+let _mutationTimer = null;
+
+function checkAndUpdateBadge() {
+  const count = countQualifyingInputs();
+  sendBadgeUpdate(count);
+  if (count >= BADGE_THRESHOLD) {
+    maybeShowDetectionToast();
+  }
+}
+
+function initFormDetection() {
+  checkAndUpdateBadge();
+
+  // Watch for DOM changes (SPAs, lazy-rendered forms)
+  const observer = new MutationObserver(() => {
+    clearTimeout(_mutationTimer);
+    _mutationTimer = setTimeout(checkAndUpdateBadge, 400);
+  });
+  observer.observe(document.body, { childList: true, subtree: true });
+
+  // SPA navigation via history API
+  const _origPushState = history.pushState.bind(history);
+  history.pushState = function (...args) {
+    _origPushState(...args);
+    setTimeout(checkAndUpdateBadge, 200);
+  };
+  window.addEventListener("popstate", () => setTimeout(checkAndUpdateBadge, 200));
+}
+
+// Run after DOM is ready
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initFormDetection);
+} else {
+  initFormDetection();
+}
+
+// ── End badge / proactive detection ─────────────────────────────────────────
+
 // Scan for all input fields on the page
 function scanFields() {
   const selectors = [
