@@ -6,22 +6,34 @@ import { z } from "zod";
 
 const bodySchema = z.object({ token: z.string().min(1).max(4096) });
 
-// Per-user import rate limit: 5 imports/hour
+// Per-user import rate limit: 5 imports/hour — stored in DB for serverless-safe enforcement
 const IMPORT_WINDOW_MS = 60 * 60_000;
 const IMPORT_LIMIT = 5;
-const importStore = new Map<string, { timestamps: number[] }>();
+const RATE_LIMIT_KEY = (userId: string) => `${userId}:profile_import`;
 
-function checkImportRateLimit(userId: string): { allowed: boolean; retryAfter?: number } {
-  const now = Date.now();
-  const cutoff = now - IMPORT_WINDOW_MS;
-  let entry = importStore.get(userId);
-  if (!entry) { entry = { timestamps: [] }; importStore.set(userId, entry); }
-  entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
-  if (entry.timestamps.length >= IMPORT_LIMIT) {
-    const retryAfter = Math.ceil((entry.timestamps[0] + IMPORT_WINDOW_MS - now) / 1000);
-    return { allowed: false, retryAfter: retryAfter > 0 ? retryAfter : 1 };
+async function checkImportRateLimit(userId: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+  const now = new Date();
+  const key = RATE_LIMIT_KEY(userId);
+
+  const record = await prisma.rateLimit.findUnique({ where: { key } });
+
+  if (record) {
+    const windowAge = now.getTime() - record.windowStart.getTime();
+    if (windowAge >= IMPORT_WINDOW_MS) {
+      // Window expired — reset
+      await prisma.rateLimit.update({ where: { key }, data: { count: 1, windowStart: now } });
+      return { allowed: true };
+    }
+    if (record.count >= IMPORT_LIMIT) {
+      const retryAfter = Math.ceil((IMPORT_WINDOW_MS - windowAge) / 1000);
+      return { allowed: false, retryAfter: retryAfter > 0 ? retryAfter : 1 };
+    }
+    await prisma.rateLimit.update({ where: { key }, data: { count: { increment: 1 } } });
+    return { allowed: true };
   }
-  entry.timestamps.push(now);
+
+  // First import — create record
+  await prisma.rateLimit.create({ data: { key, count: 1, windowStart: now } });
   return { allowed: true };
 }
 
@@ -31,7 +43,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const rl = checkImportRateLimit(session.user.id);
+  const rl = await checkImportRateLimit(session.user.id);
   if (!rl.allowed) {
     return NextResponse.json({ error: "Too many imports. Try again later.", retryAfter: rl.retryAfter }, { status: 429 });
   }

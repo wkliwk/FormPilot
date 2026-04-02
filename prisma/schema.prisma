@@ -178,6 +178,17 @@ model UsageCount {
 }
 
 // Shareable form templates — strips personal values, preserves form structure + guidance
+// Persistent rate limit counters — replaces in-memory Map for serverless-safe enforcement
+model RateLimit {
+  id         String   @id @default(cuid())
+  key        String   @unique // "{userId}:{action}", e.g. "clxyz:profile_import"
+  count      Int      @default(0)
+  windowStart DateTime // Start of the current rate limit window
+  updatedAt  DateTime @updatedAt
+
+  @@index([key])
+}
+
 model FormTemplate {
   id           String    @id @default(cuid())
   userId       String
