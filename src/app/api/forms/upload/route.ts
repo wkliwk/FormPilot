@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canUploadForm, incrementFormUsage, isProUser } from "@/lib/subscription";
+import { grantReferralBonus } from "@/lib/referral";
 import { extractTextFromBuffer } from "@/lib/pdf/extract";
 import { analyzeFormFields, analyzeFormFieldsFromImage } from "@/lib/ai/analyze-form";
 import { preprocessImage } from "@/lib/image/preprocess";
@@ -242,6 +243,9 @@ export async function POST(req: NextRequest) {
         }
       }
     }).catch(() => {});
+
+    // Non-blocking referral bonus — grant once when referred user uploads their first form
+    grantReferralBonus(session.user.id).catch(() => {});
 
     // Non-blocking "form is ready" email — skip if no email on session
     if (session.user.email) {

@@ -38,3 +38,8 @@
 {"date":"2026-04-02","project":"FormPilot","decision":"UpgradeNudgeBanner uses localStorage 7-day suppress rather than DB flag","why":"Avoid extra DB column for transient UI state; localStorage is sufficient for cross-session dismiss"}
 {"date":"2026-04-02","project":"FormPilot","decision":"ConfidenceReviewPanel calls handleExport() not doExport() directly","why":"Preserves the normal export path (validation + preview modal). Confidence review is a pre-step, not a bypass."}
 {"date":"2026-04-02","project":"FormPilot","summary":"Fixed missing onClick on IMAGE mobile FieldOverlay (#210) — PDF branch was correct, only IMAGE mobile collapsed branch was affected"}
+{"date":"2026-04-02","project":"FormPilot","summary":"feat(#271): shareable profile import via URL and QR code — signed JWT export, blank-only deep merge import, public import page, QR modal in ProfileForm"}
+{"date":"2026-04-02","project":"FormPilot","summary":"feat(#283): PH launch kit — testimonials on by default, PRODUCT_HUNT_URL from NEXT_PUBLIC_PH_URL env var"}
+{"date":"2026-04-02","project":"FormPilot","summary":"feat(#282): annual pricing plan — $79/yr tier, plan picker UI, from $6.58/mo copy across CTAs"}
+{"date":"2026-04-02","project":"FormPilot","summary":"feat(#284): contextual field Q&A — ask follow-up questions in the help drawer, Claude answers with field context"}
+{"date":"2026-04-02","project":"FormPilot","summary":"feat(#286): proactive re-fill banner — detects same-category prior form within 90 days, offers one-click answer reuse"}

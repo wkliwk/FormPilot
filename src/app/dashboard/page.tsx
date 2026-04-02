@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { cookies } from "next/headers";
 import Link from "next/link";
 import FormCardList from "@/components/forms/FormCardList";
 import DashboardEmptyState from "@/components/forms/DashboardEmptyState";
@@ -9,14 +10,39 @@ import DashboardStats from "@/components/DashboardStats";
 import QuotaBar from "@/components/QuotaBar";
 import UpgradeNudgeBanner from "@/components/UpgradeNudgeBanner";
 import ProGateModal from "@/components/ProGateModal";
+import ReferralCard from "@/components/ReferralCard";
 import { getUserPlan, getOrCreateUsage, FREE_FORM_LIMIT } from "@/lib/subscription";
+import { getUserByReferralCode, getOrCreateReferralCode, getReferralStats } from "@/lib/referral";
 
 export default async function DashboardPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
+  // Apply referral code from cookie if not yet set (best-effort, non-blocking for page render)
+  try {
+    const cookieStore = await cookies();
+    const refCode = cookieStore.get("fp_ref")?.value;
+    if (refCode) {
+      const userRecord = await prisma.user.findUnique({
+        where: { id: session.user.id! },
+        select: { referredBy: true },
+      });
+      if (!userRecord?.referredBy) {
+        const referrerId = await getUserByReferralCode(refCode);
+        if (referrerId && referrerId !== session.user.id) {
+          await prisma.user.update({
+            where: { id: session.user.id! },
+            data: { referredBy: referrerId },
+          });
+        }
+      }
+    }
+  } catch {
+    // Non-blocking — referral tracking failure must not break dashboard
+  }
+
   const PAGE_SIZE = 20;
-  const [forms, allForms, profile, plan, usage] = await Promise.all([
+  const [forms, allForms, profile, plan, usage, referralCode, referralStats] = await Promise.all([
     prisma.form.findMany({
       where: { userId: session.user.id! },
       orderBy: { createdAt: "desc" },
@@ -29,6 +55,8 @@ export default async function DashboardPage() {
     prisma.profile.findUnique({ where: { userId: session.user.id! } }),
     getUserPlan(session.user.id!),
     getOrCreateUsage(session.user.id!),
+    getOrCreateReferralCode(session.user.id!),
+    getReferralStats(session.user.id!),
   ]);
   const hasMore = forms.length > PAGE_SIZE;
   const pagedForms = hasMore ? forms.slice(0, PAGE_SIZE) : forms;
@@ -131,6 +159,15 @@ export default async function DashboardPage() {
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
         {/* Stats widget — only shown after first form is used */}
         {allForms.length > 0 && <DashboardStats {...dashboardStats} />}
+
+        {/* Referral card — free users only */}
+        {plan !== "pro" && (
+          <ReferralCard
+            referralCode={referralCode}
+            referralCount={referralStats.count}
+            bonusForms={referralStats.bonusForms}
+          />
+        )}
 
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
