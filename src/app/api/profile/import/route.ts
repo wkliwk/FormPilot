@@ -43,7 +43,10 @@ export async function POST(req: NextRequest) {
   }
 
   const { token } = parsed.data;
-  const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET ?? "dev-secret");
+  if (!process.env.NEXTAUTH_SECRET) {
+    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+  }
+  const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
 
   let importedProfile: Record<string, unknown>;
   try {
@@ -71,8 +74,9 @@ export async function POST(req: NextRequest) {
         );
       } else {
         // Only import if the field is blank/missing in the target
+        // Use explicit null/undefined check to avoid overwriting valid falsy values (0, false)
         const current = result[key];
-        if (!current || String(current).trim() === "") {
+        if (current === null || current === undefined || String(current).trim() === "") {
           result[key] = val;
         }
       }

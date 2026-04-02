@@ -47,7 +47,10 @@ export async function POST() {
     return NextResponse.json({ error: "Your profile is empty. Add some details first." }, { status: 400 });
   }
 
-  const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET ?? "dev-secret");
+  if (!process.env.NEXTAUTH_SECRET) {
+    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+  }
+  const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
   const token = await new SignJWT({ profile: safePayload })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()

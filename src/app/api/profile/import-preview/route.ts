@@ -7,7 +7,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });
   }
 
-  const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET ?? "dev-secret");
+  if (!process.env.NEXTAUTH_SECRET) {
+    return NextResponse.json({ error: "Server misconfiguration" }, { status: 500 });
+  }
+  const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET);
   try {
     const { payload } = await jwtVerify(token, secret, { algorithms: ["HS256"] });
     if (!payload.profile || typeof payload.profile !== "object") {
