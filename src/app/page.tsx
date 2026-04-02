@@ -1,11 +1,10 @@
 import Link from "next/link";
 
-// Set to Product Hunt launch URL once live, e.g.:
-// "https://www.producthunt.com/posts/formpilot"
-const PRODUCT_HUNT_URL: string | null = null;
+// Set NEXT_PUBLIC_PH_URL in env once the Product Hunt post is live
+const PRODUCT_HUNT_URL: string | null = process.env.NEXT_PUBLIC_PH_URL ?? null;
 
-// Toggle testimonials on/off without a deploy — set SHOW_TESTIMONIALS=true in env
-const SHOW_TESTIMONIALS = process.env.SHOW_TESTIMONIALS === "true";
+// Testimonials shown by default; set SHOW_TESTIMONIALS=false to hide
+const SHOW_TESTIMONIALS = process.env.SHOW_TESTIMONIALS !== "false";
 
 const PRO_PRICE = process.env.NEXT_PUBLIC_PRO_PRICE ?? "$9/mo";
 
