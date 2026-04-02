@@ -7,6 +7,8 @@ import DashboardEmptyState from "@/components/forms/DashboardEmptyState";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
 import DashboardStats from "@/components/DashboardStats";
 import QuotaBar from "@/components/QuotaBar";
+import UpgradeNudgeBanner from "@/components/UpgradeNudgeBanner";
+import ProGateModal from "@/components/ProGateModal";
 import { getUserPlan, getOrCreateUsage, FREE_FORM_LIMIT } from "@/lib/subscription";
 
 export default async function DashboardPage() {
@@ -120,6 +122,12 @@ export default async function DashboardPage() {
           isPro={plan === "pro"}
         />
       )}
+      {plan !== "pro" && (
+        <UpgradeNudgeBanner
+          formsUsed={usage.formsThisMonth}
+          limit={FREE_FORM_LIMIT}
+        />
+      )}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
         {/* Stats widget — only shown after first form is used */}
         {allForms.length > 0 && <DashboardStats {...dashboardStats} />}
@@ -137,15 +145,21 @@ export default async function DashboardPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
-            <Link
-              href="/dashboard/batch"
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all shadow-sm active:scale-[0.98]"
+            <ProGateModal
+              feature="Batch Fill"
+              benefit="Upload and auto-fill up to 10 forms at once. Save hours on repetitive paperwork."
+              isPro={plan === "pro"}
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
-              </svg>
-              Batch Fill
-            </Link>
+              <Link
+                href="/dashboard/batch"
+                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all shadow-sm active:scale-[0.98]"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" /><rect x="3" y="14" width="7" height="7" /><rect x="14" y="14" width="7" height="7" />
+                </svg>
+                Batch Fill
+              </Link>
+            </ProGateModal>
             <Link
               href="/dashboard/upload"
               className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-all shadow-sm active:scale-[0.98]"
