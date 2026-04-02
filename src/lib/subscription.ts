@@ -47,8 +47,9 @@ export async function canUploadForm(userId: string): Promise<
 
   // getOrCreateUsage lazily resets the counter when a new calendar month starts
   const usage = await getOrCreateUsage(userId);
-  if (usage.formsThisMonth < FREE_FORM_LIMIT) return { allowed: true };
-  return { allowed: false, formsUsed: usage.formsThisMonth, limit: FREE_FORM_LIMIT };
+  const effectiveLimit = FREE_FORM_LIMIT + (usage.bonusForms ?? 0);
+  if (usage.formsThisMonth < effectiveLimit) return { allowed: true };
+  return { allowed: false, formsUsed: usage.formsThisMonth, limit: effectiveLimit };
 }
 
 /** Increments the user's monthly form usage counter */

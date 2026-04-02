@@ -14,6 +14,8 @@ model User {
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  referralCode  String?   @unique // Short code for referral links (generated on first use)
+  referredBy    String?           // userId of the user who referred this user
 
   accounts     Account[]
   sessions     Session[]
@@ -167,6 +169,7 @@ model UsageCount {
   id               String    @id @default(cuid())
   userId           String    @unique
   formsThisMonth   Int       @default(0)
+  bonusForms       Int       @default(0) // Extra forms earned via referrals (max 5)
   periodStart      DateTime  @default(now())
   quotaNudgeSentAt DateTime? // Set after sending quota-approaching email — suppresses re-sends
   updatedAt        DateTime  @updatedAt

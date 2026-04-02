@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { Suspense } from "react";
+import ReferralTracker from "@/components/ReferralTracker";
 
 // Set NEXT_PUBLIC_PH_URL in env once the Product Hunt post is live
 const PRODUCT_HUNT_URL: string | null = process.env.NEXT_PUBLIC_PH_URL ?? null;
@@ -161,6 +163,10 @@ export default async function HomePage() {
 
   return (
     <main className="min-h-screen">
+      {/* Invisible referral tracker — sets fp_ref cookie when ?ref=CODE is in the URL */}
+      <Suspense fallback={null}>
+        <ReferralTracker />
+      </Suspense>
       {/* Nav */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
