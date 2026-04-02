@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fillPDF } from "@/lib/pdf/fill";
 import { validateForm } from "@/lib/validation/validate-form";
+import { generateStructuredDocx } from "@/lib/docx/generate";
+import { isProUser } from "@/lib/subscription";
 import type { FormField } from "@/lib/ai/analyze-form";
 
 export async function GET(
@@ -47,6 +49,29 @@ export async function GET(
 
   if (filledFields.length === 0) {
     return NextResponse.json({ error: "No filled fields to export" }, { status: 400 });
+  }
+
+  const requestedFormat = req.nextUrl.searchParams.get("format");
+
+  // DOCX export (Pro only)
+  if (requestedFormat === "docx") {
+    const isPro = await isProUser(session.user.id);
+    if (!isPro) {
+      return NextResponse.json({ error: "Pro plan required for Word export" }, { status: 403 });
+    }
+    try {
+      const docxBuffer = await generateStructuredDocx(form.title, fields);
+      const safeTitle = form.title.replace(/[^a-z0-9]/gi, "_");
+      return new NextResponse(new Uint8Array(docxBuffer), {
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+          "Content-Disposition": `attachment; filename="${safeTitle}-filled.docx"`,
+        },
+      });
+    } catch (err) {
+      console.error("[export] DOCX generation failed:", err);
+      return NextResponse.json({ error: "DOCX generation failed" }, { status: 500 });
+    }
   }
 
   // PDF export: use stored file bytes to produce a filled PDF

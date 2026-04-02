@@ -7,7 +7,7 @@ import { validateForm } from "@/lib/validation/validate-form";
 import { validateFieldFormat } from "@/lib/validation/field-rules";
 import { generateSampleValue } from "@/lib/sample-data";
 import { CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/constants";
-import ExportPreviewModal from "./ExportPreviewModal";
+import ExportPreviewModal, { type ExportFormat } from "./ExportPreviewModal";
 import ConfidenceReviewPanel from "./ConfidenceReviewPanel";
 import FieldQA from "./FieldQA";
 
@@ -41,6 +41,8 @@ interface Props {
   language?: string;
   /** Called whenever the save status changes — passes status and the timestamp of the last successful save. */
   onSaveStatusChange?: (status: "idle" | "saving" | "saved" | "error", savedAt: Date | null) => void;
+  /** Whether the user has a Pro plan (enables Pro-only export formats). */
+  isPro?: boolean;
 }
 
 // -- helpers --
@@ -77,7 +79,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange, isPro }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -543,11 +545,14 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
   // -- export --
 
-  async function doExport(force = false) {
+  async function doExport(force = false, format: ExportFormat = "pdf") {
     setExporting(true);
     setShowForceExportDialog(false);
     try {
-      const url = force ? `/api/forms/${form.id}/export?force=true` : `/api/forms/${form.id}/export`;
+      const params = new URLSearchParams();
+      if (force) params.set("force", "true");
+      if (format === "docx") params.set("format", "docx");
+      const url = `/api/forms/${form.id}/export?${params.toString()}`;
       const res = await fetch(url);
 
       if (res.status === 422) {
@@ -612,8 +617,17 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     setShowPreviewModal(true);
   }
 
-  async function handleConfirmExport() {
-    await doExport();
+  async function handleConfirmExport(format: ExportFormat) {
+    if (format === "clipboard") {
+      // Build plain-text representation of filled fields and copy to clipboard
+      const lines = fields
+        .filter((f) => values[f.id])
+        .map((f) => `${f.label}: ${values[f.id]}`);
+      await navigator.clipboard.writeText(lines.join("\n")).catch(() => {});
+      setShowPreviewModal(false);
+      return;
+    }
+    await doExport(false, format);
     setShowPreviewModal(false);
   }
 
@@ -734,6 +748,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         values={values}
         hasFile={hasFile ?? false}
         sourceType={sourceType}
+        isPro={isPro}
         onConfirmExport={handleConfirmExport}
         onClose={() => setShowPreviewModal(false)}
         exporting={exporting}

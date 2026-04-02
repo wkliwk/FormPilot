@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
+import { isProUser } from "@/lib/subscription";
 import FormPageClient from "@/components/forms/FormPageClient";
 
 export default async function FormPage({ params }: { params: Promise<{ id: string }> }) {
@@ -30,10 +31,13 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
     notFound();
   }
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId: session.user.id! },
-    select: { id: true, preferredLanguage: true, country: true },
-  });
+  const [profile, isPro] = await Promise.all([
+    prisma.profile.findUnique({
+      where: { userId: session.user.id! },
+      select: { id: true, preferredLanguage: true, country: true },
+    }),
+    isProUser(session.user.id!),
+  ]);
 
   // Find a prior completed/in-progress form of the same category within 90 days
   // with ≥3 filled fields (to avoid suggesting near-empty forms)
@@ -77,6 +81,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
           profileCountry={profile?.country ?? null}
           hasFile={!!fileBytes}
           sourceType={form.sourceType}
+          isPro={isPro}
           priorForm={priorForm ? { id: priorForm.id, title: priorForm.title, createdAt: priorForm.createdAt.toISOString() } : null}
         />
       </main>

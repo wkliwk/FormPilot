@@ -57,10 +57,11 @@ interface Props {
   profileCountry?: string | null;
   hasFile?: boolean;
   sourceType?: string;
+  isPro?: boolean;
   priorForm?: PriorFormInfo | null;
 }
 
-export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, priorForm }: Props) {
+export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, priorForm }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [deleting, setDeleting] = useState(false);
@@ -630,6 +631,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
               jumpToFieldRequest={jumpToFieldRequest}
               hasFile={hasFile}
               sourceType={sourceType}
+              isPro={isPro}
               onFieldFocus={setActiveFieldId}
               onValueChange={(fieldId, value) =>
                 setLiveValues((prev) => ({ ...prev, [fieldId]: value }))
