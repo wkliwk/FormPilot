@@ -8,6 +8,7 @@ import FormCompletedEmail from "@/emails/FormCompletedEmail";
 import type { FormField } from "@/lib/ai/analyze-form";
 import { z } from "zod";
 import * as React from "react";
+import { resetMonthlyUsage, getOrCreateUsage } from "@/lib/subscription";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://getformpilot.com";
 
@@ -57,7 +58,22 @@ export async function DELETE(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    // Revoke any templates created from this form so shared links show a graceful page
+    await prisma.formTemplate.updateMany({
+      where: { sourceFormId: id, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+
     await prisma.form.delete({ where: { id } });
+
+    // Decrement monthly usage so the user gets their slot back
+    const usage = await getOrCreateUsage(session.user.id);
+    if (usage.formsThisMonth > 0) {
+      await prisma.usageCount.update({
+        where: { userId: session.user.id },
+        data: { formsThisMonth: { decrement: 1 }, updatedAt: new Date() },
+      });
+    }
 
     return NextResponse.json({ success: true }, { status: 200 });
   } catch (err) {

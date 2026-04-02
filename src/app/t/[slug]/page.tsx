@@ -37,8 +37,29 @@ export default async function TemplatePage({ params }: Props) {
   const { slug } = await params;
   const template = await prisma.formTemplate.findUnique({ where: { slug } });
 
-  if (!template || template.revokedAt) {
+  if (!template) {
     notFound();
+  }
+
+  if (template.revokedAt) {
+    return (
+      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center px-4">
+        <div className="max-w-md w-full text-center space-y-4">
+          <div className="w-14 h-14 rounded-2xl bg-slate-100 flex items-center justify-center mx-auto">
+            <svg className="w-7 h-7 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="9" y1="15" x2="15" y2="15" />
+            </svg>
+          </div>
+          <h1 className="text-xl font-semibold text-slate-900">This form is no longer available</h1>
+          <p className="text-sm text-slate-500">The owner has removed this form. If you need access, please contact them directly.</p>
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-blue-600 hover:text-blue-700">
+            Go to FormPilot
+          </Link>
+        </div>
+      </div>
+    );
   }
 
   const fields = template.fields as unknown as FormField[];

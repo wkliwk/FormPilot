@@ -87,6 +87,7 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
   const router = useRouter();
   const [forms, setForms] = useState(initialForms);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -127,9 +128,12 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
         throw new Error(data.error ?? "Delete failed");
       }
       setForms((prev) => prev.filter((f) => f.id !== id));
+      setToast("Form deleted");
+      setTimeout(() => setToast(null), 3000);
       router.refresh();
     } catch (err) {
-      alert(err instanceof Error ? err.message : "Could not delete form");
+      setToast(err instanceof Error ? err.message : "Could not delete form");
+      setTimeout(() => setToast(null), 4000);
     } finally {
       setDeletingId(null);
     }
@@ -357,6 +361,13 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 px-4 py-2.5 bg-slate-900 text-white text-sm font-medium rounded-xl shadow-lg animate-fade-in">
+          {toast}
         </div>
       )}
 
