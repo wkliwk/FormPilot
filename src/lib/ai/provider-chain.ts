@@ -30,7 +30,10 @@ function isRateLimited(err: unknown): boolean {
 
 function isNonRetryable(err: unknown): boolean {
   const status = (err as { status?: number }).status;
-  return status === 400 || status === 401 || status === 404;
+  if (status === 400 || status === 401 || status === 404) return true;
+  // Abort/timeout errors should not be retried — move to next provider
+  if (err instanceof Error && (err.name === "AbortError" || err.message.includes("aborted"))) return true;
+  return false;
 }
 
 const BACKOFF_MS = [1000, 2000, 4000];
@@ -169,7 +172,7 @@ async function callDeepSeek(prompt: string, maxTokens: number): Promise<string> 
 
   return withProviderRetry(async () => {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 60000);
+    const timeout = setTimeout(() => controller.abort(), 120000);
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
