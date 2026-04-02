@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { generateSampleValue } from "@/lib/sample-data";
+import DemoNudgeBanner from "@/components/forms/DemoNudgeBanner";
 
 interface DemoField {
   id: string;
@@ -145,7 +146,7 @@ export default function DemoPage() {
               Sign In
             </Link>
             <Link
-              href="/dashboard"
+              href="/login?from=demo"
               className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
             >
               Get Started
@@ -155,25 +156,8 @@ export default function DemoPage() {
       </nav>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
-        {/* Signup nudge banner */}
-        <div className="mb-8 flex flex-col sm:flex-row items-center justify-between gap-4 bg-blue-600 rounded-2xl px-5 py-4 shadow-md">
-          <div>
-            <p className="text-white font-semibold text-sm">
-              This is a live demo — no account needed.
-            </p>
-            <p className="text-blue-100 text-xs mt-0.5">
-              Sign up to upload your own forms and save your profile for instant
-              autofill.
-            </p>
-          </div>
-          <Link
-            href="/dashboard"
-            className="shrink-0 inline-flex items-center gap-2 px-4 py-2.5 bg-white text-blue-700 text-sm font-semibold rounded-xl hover:bg-blue-50 transition-colors shadow-sm"
-          >
-            Sign up to fill your own forms
-            <ArrowRightIcon />
-          </Link>
-        </div>
+        {/* Signup nudge banner — dynamic copy after user scrolls into the demo */}
+        <DemoNudgeBanner />
 
         {/* Form header */}
         <div className="mb-6">
@@ -307,10 +291,10 @@ export default function DemoPage() {
           </p>
           <div className="mt-6 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
-              href="/dashboard"
+              href="/login?from=demo"
               className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-all shadow-md active:scale-[0.98]"
             >
-              Sign up to fill your own forms
+              Create your free account
               <ArrowRightIcon />
             </Link>
             <Link
