@@ -86,6 +86,15 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
   const [savedAt, setSavedAt] = useState<Date | null>(() =>
     (form.fields as FormField[]).some((f) => f.value) ? new Date() : null
   );
+  const [showResumeToast, setShowResumeToast] = useState(() =>
+    (form.fields as FormField[]).some((f) => f.value)
+  );
+
+  useEffect(() => {
+    if (!showResumeToast) return;
+    const t = setTimeout(() => setShowResumeToast(false), 2000);
+    return () => clearTimeout(t);
+  }, [showResumeToast]);
 
   // Language prompt banner — shown once to users who haven't set a language preference
   const LANG_BANNER_DISMISS_KEY = "fp-lang-banner-dismissed";
@@ -526,6 +535,16 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
           <p className="text-sm text-emerald-700 font-medium">
             {reFillCount} {reFillCount === 1 ? "field" : "fields"} filled from {priorForm?.title}
           </p>
+        </div>
+      )}
+
+      {/* Resume toast — shown briefly when saved draft values exist on load */}
+      {showResumeToast && (
+        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-slate-500 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
+          </svg>
+          <p className="text-sm text-slate-600">Resuming your saved progress</p>
         </div>
       )}
 
