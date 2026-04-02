@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import FormViewer from "./FormViewer";
 import GuidedFillMode from "./GuidedFillMode";
 import FormCompleteOverlay from "./FormCompleteOverlay";
+import AutoSaveIndicator, { type SaveStatus } from "./AutoSaveIndicator";
 
 // pdf.js uses DOMMatrix at module-level — must be client-only (no SSR)
 const DocumentImageViewer = dynamic(() => import("./DocumentImageViewer"), { ssr: false });
@@ -71,6 +72,20 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
   }, []);
   const [showCompleteOverlay, setShowCompleteOverlay] = useState(false);
   const [jumpToFieldRequest, setJumpToFieldRequest] = useState<{ fieldId: string; nonce: number } | null>(null);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>(() =>
+    (form.fields as FormField[]).some((f) => f.value) ? "saved" : "idle"
+  );
+  const [savedAt, setSavedAt] = useState<Date | null>(() =>
+    (form.fields as FormField[]).some((f) => f.value) ? new Date() : null
+  );
+
+  const handleSaveStatusChange = useCallback(
+    (status: SaveStatus, ts: Date | null) => {
+      setSaveStatus(status);
+      if (ts) setSavedAt(ts);
+    },
+    []
+  );
 
   // Check if this form has already been celebrated (prevents re-show on reload)
   useEffect(() => {
@@ -343,6 +358,13 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Auto-save indicator */}
+          <AutoSaveIndicator
+            status={saveStatus}
+            savedAt={savedAt}
+            onDismissError={() => setSaveStatus("idle")}
+          />
+
           {/* Share as Template */}
           <button
             onClick={handleShare}
@@ -468,6 +490,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
                 }
               }}
               language={activeLanguage}
+              onSaveStatusChange={handleSaveStatusChange}
             />
           </div>
           {/* Right: Document panel — sticky, desktop only */}
@@ -527,6 +550,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
               }
             }}
             language={activeLanguage}
+            onSaveStatusChange={handleSaveStatusChange}
           />
         </div>
       )}

@@ -35,6 +35,8 @@ interface Props {
   jumpToFieldRequest?: { fieldId: string; nonce: number } | null;
   /** Active language code for translations. */
   language?: string;
+  /** Called whenever the save status changes — passes status and the timestamp of the last successful save. */
+  onSaveStatusChange?: (status: "idle" | "saving" | "saved" | "error", savedAt: Date | null) => void;
 }
 
 // -- helpers --
@@ -71,7 +73,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, hasFile, sourceType, onTitleChange, onComplete }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -92,6 +94,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [exporting, setExporting] = useState(false);
   const [activeField, setActiveField] = useState<string | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [savedAt, setSavedAt] = useState<Date | null>(() =>
+    // If the form already has field values on mount, treat it as already saved
+    (form.fields as FormField[]).some((f) => f.value) ? new Date() : null
+  );
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showForceExportDialog, setShowForceExportDialog] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -124,12 +130,22 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const titleInputRef = useRef<HTMLInputElement>(null);
   const titleSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Notify parent of initial saved state on mount (if the form already has values)
+  useEffect(() => {
+    if (savedAt) {
+      onSaveStatusChange?.("saved", savedAt);
+    }
+    // Only run once on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // -- persistence --
 
   const scheduleSave = useCallback(
     (newValues: Record<string, string>, newStates: Record<string, FieldState>) => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
       setSaveStatus("saving");
+      onSaveStatusChange?.("saving", null);
       saveTimer.current = setTimeout(async () => {
         try {
           const allFieldIds = new Set([
@@ -146,15 +162,19 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ fields: fieldUpdates, status: "FILLING" }),
           });
+          const now = new Date();
           setSaveStatus("saved");
+          setSavedAt(now);
           setSaveError(false);
+          onSaveStatusChange?.("saved", now);
         } catch {
           setSaveStatus("error");
           setSaveError(true);
+          onSaveStatusChange?.("error", null);
         }
       }, 800);
     },
-    [form.id]
+    [form.id, onSaveStatusChange]
   );
 
   // -- field actions --
@@ -353,6 +373,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
     setEditingTitle(false);
     setSaveStatus("saving");
+    onSaveStatusChange?.("saving", null);
 
     try {
       const res = await fetch(`/api/forms/${form.id}`, {
@@ -369,7 +390,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       onTitleChange?.(trimmed);
 
       // Show "Saved" confirmation
+      const now = new Date();
       setSaveStatus("saved");
+      setSavedAt(now);
+      onSaveStatusChange?.("saved", now);
       if (titleSaveTimer.current) clearTimeout(titleSaveTimer.current);
       titleSaveTimer.current = setTimeout(() => setSaveStatus("idle"), 2000);
     } catch {
