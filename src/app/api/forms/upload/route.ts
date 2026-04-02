@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { canUploadForm, incrementFormUsage } from "@/lib/subscription";
+import { canUploadForm, incrementFormUsage, isProUser } from "@/lib/subscription";
 import { extractTextFromBuffer } from "@/lib/pdf/extract";
 import { analyzeFormFields, analyzeFormFieldsFromImage } from "@/lib/ai/analyze-form";
 import { preprocessImage } from "@/lib/image/preprocess";
@@ -208,7 +208,8 @@ export async function POST(req: NextRequest) {
     incrementFormUsage(session.user.id).then(async () => {
       // After incrementing, check if user has hit the quota-nudge threshold (4/5 forms)
       // Only fires once per billing period via quotaNudgeSentAt guard
-      if (session.user.email) {
+      // Skip entirely for Pro users — they have no quota cap
+      if (session.user.email && !(await isProUser(session.user.id))) {
         try {
           const usage = await prisma.usageCount.findUnique({ where: { userId: session.user.id } });
           const FREE_LIMIT = 5;
