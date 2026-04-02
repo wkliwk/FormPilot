@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 // pdf.js uses DOMMatrix at module-level — must be client-only (no SSR)
 const DocumentImageViewer = dynamic(() => import("./DocumentImageViewer"), { ssr: false });
 
-type ExportFormat = "pdf" | "json" | "clipboard";
+export type ExportFormat = "pdf" | "json" | "docx" | "clipboard";
 
 interface Props {
   formId: string;
@@ -16,6 +16,7 @@ interface Props {
   values: Record<string, string>;
   hasFile: boolean;
   sourceType?: string;
+  isPro?: boolean;
   onConfirmExport: (format: ExportFormat) => void;
   onClose: () => void;
   exporting: boolean;
@@ -28,6 +29,7 @@ export default function ExportPreviewModal({
   values,
   hasFile,
   sourceType,
+  isPro,
   onConfirmExport,
   onClose,
   exporting,
@@ -43,7 +45,7 @@ export default function ExportPreviewModal({
   const filledFields = fields.filter((f) => values[f.id]);
   const emptyRequired = fields.filter((f) => f.required && !values[f.id]);
 
-  const formatOptions: { value: ExportFormat; label: string; description: string; icon: React.ReactNode; disabled?: boolean; disabledReason?: string }[] = [
+  const formatOptions: { value: ExportFormat; label: string; description: string; icon: React.ReactNode; disabled?: boolean; disabledReason?: string; proOnly?: boolean }[] = [
     {
       value: "pdf",
       label: "Filled PDF",
@@ -55,6 +57,21 @@ export default function ExportPreviewModal({
           <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
           <polyline points="14 2 14 8 20 8" />
           <path d="M9 13h6M9 17h4" />
+        </svg>
+      ),
+    },
+    {
+      value: "docx",
+      label: "Word (.docx)",
+      description: sourceType === "WORD" ? "Structured Word document with all field values" : "Two-column table: Field Name | Value",
+      proOnly: true,
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <line x1="8" y1="13" x2="16" y2="13" />
+          <line x1="8" y1="17" x2="16" y2="17" />
+          <line x1="10" y1="9" x2="14" y2="9" />
         </svg>
       ),
     },
@@ -117,6 +134,7 @@ export default function ExportPreviewModal({
   }, []);
 
   function handleConfirm() {
+    // Pro gate: for docx, if not Pro, call confirm (parent opens ProGateModal)
     onConfirmExport(format);
     if (format === "clipboard") {
       setCopied(true);
@@ -126,6 +144,8 @@ export default function ExportPreviewModal({
 
   const confirmLabel = format === "pdf"
     ? "Download PDF"
+    : format === "docx"
+    ? "Download Word"
     : format === "json"
     ? "Download JSON"
     : copied
@@ -172,43 +192,51 @@ export default function ExportPreviewModal({
           <div className="px-4 py-3 border-b border-slate-200 bg-white">
             <p className="text-xs font-semibold text-slate-700 mb-2">Export format</p>
             <div className="flex flex-col gap-1.5">
-              {formatOptions.map((opt) => (
+              {formatOptions.map((opt) => {
+                const isDisabled = opt.disabled || (opt.proOnly && !isPro);
+                return (
                 <label
                   key={opt.value}
                   className={`flex items-start gap-3 px-3 py-2.5 rounded-xl border cursor-pointer transition-all ${
-                    opt.disabled
-                      ? "opacity-40 cursor-not-allowed border-slate-200 bg-slate-50"
+                    isDisabled
+                      ? "opacity-50 cursor-not-allowed border-slate-200 bg-slate-50"
                       : format === opt.value
                       ? "border-blue-400 bg-blue-50"
                       : "border-slate-200 bg-white hover:border-slate-300"
                   }`}
-                  title={opt.disabled ? opt.disabledReason : undefined}
+                  title={opt.disabled ? opt.disabledReason : opt.proOnly && !isPro ? "Pro plan required" : undefined}
                 >
                   <input
                     type="radio"
                     name="export-format"
                     value={opt.value}
                     checked={format === opt.value}
-                    disabled={opt.disabled}
-                    onChange={() => setFormat(opt.value)}
+                    disabled={isDisabled}
+                    onChange={() => !isDisabled && setFormat(opt.value)}
                     className="sr-only"
                   />
-                  <span className={`mt-0.5 shrink-0 ${format === opt.value && !opt.disabled ? "text-blue-600" : "text-slate-400"}`}>
+                  <span className={`mt-0.5 shrink-0 ${format === opt.value && !isDisabled ? "text-blue-600" : "text-slate-400"}`}>
                     {opt.icon}
                   </span>
                   <span className="flex-1 min-w-0">
-                    <span className="block text-xs font-semibold text-slate-800">{opt.label}</span>
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-slate-800">
+                      {opt.label}
+                      {opt.proOnly && !isPro && (
+                        <span className="inline-flex items-center rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">Pro</span>
+                      )}
+                    </span>
                     <span className="block text-xs text-slate-500 mt-0.5">
                       {opt.disabled ? opt.disabledReason : opt.description}
                     </span>
                   </span>
-                  {format === opt.value && !opt.disabled && (
+                  {format === opt.value && !isDisabled && (
                     <svg className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
                     </svg>
                   )}
                 </label>
-              ))}
+                );
+              })}
             </div>
           </div>
 
