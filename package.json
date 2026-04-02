@@ -11,7 +11,7 @@
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
-    "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts",
+    "db:seed": "ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed.ts && ts-node --compiler-options '{\"module\":\"CommonJS\"}' prisma/seed-field-cache.ts",
     "test": "jest",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed",

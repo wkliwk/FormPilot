@@ -1,0 +1,898 @@
+[
+  {
+    "cacheKey": "first_name:text:en",
+    "explanation": "Your legal first name as it appears on your government-issued ID or passport.",
+    "example": "Maria",
+    "commonMistakes": "Using a nickname instead of your legal name. Do not use middle names here.",
+    "whereToFind": "Your driver's license, passport, or birth certificate.",
+    "profileKey": "firstName"
+  },
+  {
+    "cacheKey": "last_name:text:en",
+    "explanation": "Your legal family name (surname) as it appears on your government-issued ID.",
+    "example": "Rodriguez",
+    "commonMistakes": "Hyphenated names — include both parts if your legal name is hyphenated.",
+    "whereToFind": "Your driver's license or passport.",
+    "profileKey": "lastName"
+  },
+  {
+    "cacheKey": "middle_name:text:en",
+    "explanation": "Your legal middle name. Leave blank if you do not have a middle name.",
+    "example": "Anne",
+    "commonMistakes": "Entering your middle initial instead of the full name when the field asks for the full name.",
+    "whereToFind": "Your birth certificate or passport.",
+    "profileKey": "middleName"
+  },
+  {
+    "cacheKey": "middle_initial:text:en",
+    "explanation": "The first letter of your middle name only.",
+    "example": "A",
+    "commonMistakes": "Writing the full middle name — this field wants only the first letter.",
+    "whereToFind": "Your middle name on your birth certificate.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "date_of_birth:date:en",
+    "explanation": "The date you were born, in MM/DD/YYYY format unless instructed otherwise.",
+    "example": "03/15/1985",
+    "commonMistakes": "Using the wrong format (DD/MM/YYYY instead of MM/DD/YYYY).",
+    "whereToFind": "Your birth certificate, passport, or driver's license.",
+    "profileKey": "dateOfBirth"
+  },
+  {
+    "cacheKey": "social_security_number:text:en",
+    "explanation": "Your 9-digit Social Security Number issued by the U.S. Social Security Administration. Format: XXX-XX-XXXX.",
+    "example": "123-45-6789",
+    "commonMistakes": "Transposing digits or omitting the dashes. Never share your SSN unless the form is official.",
+    "whereToFind": "Your Social Security card or prior tax returns.",
+    "profileKey": "ssn"
+  },
+  {
+    "cacheKey": "ssn:text:en",
+    "explanation": "Your 9-digit Social Security Number. Format: XXX-XX-XXXX.",
+    "example": "123-45-6789",
+    "commonMistakes": "Omitting dashes or transposing digits.",
+    "whereToFind": "Your Social Security card.",
+    "profileKey": "ssn"
+  },
+  {
+    "cacheKey": "home_address:text:en",
+    "explanation": "Your full residential street address including apartment or unit number if applicable.",
+    "example": "456 Oak Street, Apt 2B",
+    "commonMistakes": "Using a PO Box when a physical address is required.",
+    "whereToFind": "Your driver's license, utility bills, or lease agreement.",
+    "profileKey": "address.street"
+  },
+  {
+    "cacheKey": "street_address:text:en",
+    "explanation": "Your street number and name, including any apartment or suite number.",
+    "example": "1234 Maple Avenue, Unit 5",
+    "commonMistakes": "Forgetting apartment or unit numbers.",
+    "whereToFind": "Your driver's license or utility bill.",
+    "profileKey": "address.street"
+  },
+  {
+    "cacheKey": "city:text:en",
+    "explanation": "The city or town where you live or where the address is located.",
+    "example": "Los Angeles",
+    "commonMistakes": "Entering the county instead of the city.",
+    "whereToFind": "Your driver's license or utility bill.",
+    "profileKey": "address.city"
+  },
+  {
+    "cacheKey": "state:text:en",
+    "explanation": "The U.S. state, using the standard two-letter abbreviation (e.g., CA for California).",
+    "example": "CA",
+    "commonMistakes": "Spelling out the full state name when abbreviation is expected, or vice versa.",
+    "whereToFind": "Your driver's license.",
+    "profileKey": "address.state"
+  },
+  {
+    "cacheKey": "zip_code:text:en",
+    "explanation": "Your 5-digit U.S. ZIP code. Some forms also accept ZIP+4 (e.g., 90210-1234).",
+    "example": "90210",
+    "commonMistakes": "Using a foreign postal code or leaving off leading zeros for Northeast ZIP codes.",
+    "whereToFind": "Your mailing address or driver's license.",
+    "profileKey": "address.zip"
+  },
+  {
+    "cacheKey": "email_address:email:en",
+    "explanation": "Your personal email address where you can receive correspondence.",
+    "example": "john.doe@email.com",
+    "commonMistakes": "Typos in the domain (e.g., gmail.con instead of gmail.com).",
+    "whereToFind": "Your email inbox or account settings.",
+    "profileKey": "email"
+  },
+  {
+    "cacheKey": "phone_number:tel:en",
+    "explanation": "Your primary phone number including area code. Format: (XXX) XXX-XXXX or XXX-XXX-XXXX.",
+    "example": "(310) 555-0123",
+    "commonMistakes": "Omitting the area code or including country code when not required.",
+    "whereToFind": "Your phone or phone plan documents.",
+    "profileKey": "phone"
+  },
+  {
+    "cacheKey": "signature:signature:en",
+    "explanation": "Your handwritten or typed legal signature, certifying the information on the form is true and correct.",
+    "example": "Maria Rodriguez",
+    "commonMistakes": "Using a nickname or initials when a full signature is required.",
+    "whereToFind": "Sign as you normally sign official documents.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "date:date:en",
+    "explanation": "Today's date in MM/DD/YYYY format, or the date you are signing the document.",
+    "example": "04/02/2026",
+    "commonMistakes": "Using the wrong format or a past date.",
+    "whereToFind": "Today's date.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "employer_name:text:en",
+    "explanation": "The legal name of your employer or the company where you work.",
+    "example": "Acme Corporation",
+    "commonMistakes": "Using a trade name instead of the legal business name.",
+    "whereToFind": "Your offer letter, pay stub, or W-2.",
+    "profileKey": "employer"
+  },
+  {
+    "cacheKey": "employer_address:text:en",
+    "explanation": "The full mailing address of your employer's business location.",
+    "example": "100 Business Blvd, Suite 200, New York, NY 10001",
+    "commonMistakes": "Using your work location address instead of the company's official mailing address.",
+    "whereToFind": "Your W-2 or company's official letterhead.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "employer_ein:text:en",
+    "explanation": "Your employer's Employer Identification Number (EIN) — a 9-digit number assigned by the IRS. Format: XX-XXXXXXX.",
+    "example": "12-3456789",
+    "commonMistakes": "Confusing EIN with your own SSN.",
+    "whereToFind": "Your W-2 box b, or ask your HR department.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "wages_salaries_tips:number:en",
+    "explanation": "The total wages, salaries, and tips you received from all employers during the tax year. This is Box 1 on your W-2.",
+    "example": "52000",
+    "commonMistakes": "Entering gross pay instead of the W-2 Box 1 amount, which may differ due to pre-tax deductions.",
+    "whereToFind": "Box 1 of your W-2 form.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "federal_income_tax_withheld:number:en",
+    "explanation": "The total federal income tax withheld from your paychecks during the year. This is Box 2 on your W-2.",
+    "example": "6800",
+    "commonMistakes": "Entering state tax withheld instead of federal.",
+    "whereToFind": "Box 2 of your W-2 form.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "filing_status:select:en",
+    "explanation": "Your tax filing status, which determines your tax rate and standard deduction. Options: Single, Married Filing Jointly, Married Filing Separately, Head of Household, Qualifying Widow(er).",
+    "example": "Single",
+    "commonMistakes": "Married taxpayers defaulting to 'Single' — filing jointly usually results in a lower tax bill.",
+    "whereToFind": "Your marital status and living situation as of December 31 of the tax year.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "adjusted_gross_income:number:en",
+    "explanation": "Your total income minus specific deductions (like student loan interest, IRA contributions). This is your income before the standard or itemized deduction.",
+    "example": "48500",
+    "commonMistakes": "Confusing AGI with taxable income (which is lower) or gross income (which is higher).",
+    "whereToFind": "Line 11 of your prior year's Form 1040, or calculate by subtracting above-the-line deductions from gross income.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "standard_deduction:number:en",
+    "explanation": "A fixed dollar amount that reduces your taxable income. For 2024: $14,600 (single), $29,200 (married filing jointly), $21,900 (head of household).",
+    "example": "14600",
+    "commonMistakes": "Entering the itemized deduction total when you are taking the standard deduction.",
+    "whereToFind": "IRS tax tables for the current tax year based on your filing status.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "taxable_income:number:en",
+    "explanation": "Your income after subtracting the standard or itemized deduction and any QBI deduction from your AGI. Your tax is calculated on this amount.",
+    "example": "33900",
+    "commonMistakes": "Using AGI instead of taxable income.",
+    "whereToFind": "Line 15 of Form 1040.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "total_tax:number:en",
+    "explanation": "The total federal income tax you owe before credits are applied.",
+    "example": "3800",
+    "commonMistakes": "Confusing tax owed with tax due (amount owed minus payments already made).",
+    "whereToFind": "Line 24 of Form 1040.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "refund_amount:number:en",
+    "explanation": "The amount the IRS owes you back, if your withholding exceeded your total tax liability.",
+    "example": "1250",
+    "commonMistakes": "Confusing this with the amount owed.",
+    "whereToFind": "Line 35a of Form 1040.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "routing_number:text:en",
+    "explanation": "Your bank's 9-digit ABA routing number for direct deposit of your refund.",
+    "example": "021000021",
+    "commonMistakes": "Using your account number instead of the routing number. The routing number is usually on the bottom left of a check.",
+    "whereToFind": "Bottom left of a personal check, or your bank's website.",
+    "profileKey": "bankRouting"
+  },
+  {
+    "cacheKey": "account_number:text:en",
+    "explanation": "Your bank account number for direct deposit of your refund.",
+    "example": "123456789012",
+    "commonMistakes": "Using the routing number instead of the account number.",
+    "whereToFind": "Bottom center of a personal check, or your bank's website.",
+    "profileKey": "bankAccount"
+  },
+  {
+    "cacheKey": "account_type:select:en",
+    "explanation": "Whether the bank account for direct deposit is a checking or savings account.",
+    "example": "Checking",
+    "commonMistakes": "Selecting the wrong account type — confirm with your bank if unsure.",
+    "whereToFind": "Your bank statement or account type shown in online banking.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "total_additional_withholding:number:en",
+    "explanation": "On Form W-4, the additional dollar amount (beyond the standard withholding) you want withheld from each paycheck.",
+    "example": "50",
+    "commonMistakes": "Entering a percentage instead of a dollar amount.",
+    "whereToFind": "Step 4(c) of Form W-4. Use the IRS Tax Withholding Estimator to calculate.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "number_of_dependents:number:en",
+    "explanation": "The number of qualifying children or dependents you claim, used to calculate your withholding or credits.",
+    "example": "2",
+    "commonMistakes": "Counting yourself as a dependent. You are not your own dependent.",
+    "whereToFind": "Count your qualifying children under 17 and other dependents.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "child_tax_credit_amount:number:en",
+    "explanation": "The total credit amount for qualifying children under 17. Multiply the number of qualifying children by $2,000.",
+    "example": "4000",
+    "commonMistakes": "Including children age 17 or older — the credit is for children under 17 only.",
+    "whereToFind": "Number of qualifying children under 17 × $2,000 (as of 2024).",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "multiple_jobs_checkbox:checkbox:en",
+    "explanation": "On Form W-4, check this box only if you have two or more jobs at the same time, or if you are married filing jointly and your spouse also works.",
+    "example": "Checked (if applicable)",
+    "commonMistakes": "Leaving this unchecked when you have multiple jobs — leads to underwithholding and a tax bill.",
+    "whereToFind": "Step 2 of Form W-4.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "deductions_other_than_standard_deduction:number:en",
+    "explanation": "On Form W-4, the amount of itemized deductions that exceed the standard deduction, used to reduce your withholding.",
+    "example": "5000",
+    "commonMistakes": "Entering the full itemized deduction total instead of only the excess above the standard deduction.",
+    "whereToFind": "Step 4(b) of Form W-4. Use Schedule A to estimate itemized deductions.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "citizenship_status:select:en",
+    "explanation": "Your immigration or citizenship status. Options typically include: U.S. Citizen, Noncitizen National, Lawful Permanent Resident (Green Card holder), or Alien authorized to work.",
+    "example": "U.S. Citizen",
+    "commonMistakes": "Selecting 'U.S. Citizen' when you are a green card holder — select 'Lawful Permanent Resident' instead.",
+    "whereToFind": "Your passport, green card, or immigration documents.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "alien_registration_number:text:en",
+    "explanation": "Your USCIS Alien Registration Number (A-Number), a 7–9 digit number on your green card or immigration document. Format: A-XXXXXXXXX.",
+    "example": "A-012345678",
+    "commonMistakes": "Confusing the A-Number with your I-94 Admission Number or visa number.",
+    "whereToFind": "The front of your green card (Form I-551), your EAD card, or your immigration court documents.",
+    "profileKey": "alienRegistrationNumber"
+  },
+  {
+    "cacheKey": "uscis_number:text:en",
+    "explanation": "Same as your Alien Registration Number (A-Number). A unique identifier assigned by USCIS.",
+    "example": "A012345678",
+    "commonMistakes": "Confusing with the I-94 number or receipt number.",
+    "whereToFind": "Your green card (Form I-551) or EAD card.",
+    "profileKey": "alienRegistrationNumber"
+  },
+  {
+    "cacheKey": "passport_number:text:en",
+    "explanation": "The unique identification number on your passport document.",
+    "example": "A12345678",
+    "commonMistakes": "Using an expired passport number. Always use your current, valid passport.",
+    "whereToFind": "The data page of your passport, top right area.",
+    "profileKey": "passportNumber"
+  },
+  {
+    "cacheKey": "passport_expiration_date:date:en",
+    "explanation": "The date your passport expires. Format: MM/DD/YYYY.",
+    "example": "06/30/2030",
+    "commonMistakes": "Confusing the issue date with the expiration date.",
+    "whereToFind": "The data page of your passport, labeled 'Date of Expiry' or 'Expiry Date'.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "country_of_birth:text:en",
+    "explanation": "The country where you were born, as it appears on your birth certificate or passport.",
+    "example": "Mexico",
+    "commonMistakes": "Using the country's current name when the country had a different name at the time of birth.",
+    "whereToFind": "Your birth certificate or passport.",
+    "profileKey": "countryOfBirth"
+  },
+  {
+    "cacheKey": "country_of_citizenship:text:en",
+    "explanation": "The country of which you are a citizen.",
+    "example": "Canada",
+    "commonMistakes": "Entering country of birth instead of citizenship if you have changed citizenship.",
+    "whereToFind": "Your passport.",
+    "profileKey": "countryOfCitizenship"
+  },
+  {
+    "cacheKey": "i94_admission_number:text:en",
+    "explanation": "Your 11-digit I-94 Arrival/Departure Record number assigned when you entered the U.S.",
+    "example": "12345678901",
+    "commonMistakes": "Confusing with the A-Number or visa number.",
+    "whereToFind": "Your printed I-94 form from CBP, or retrieve at i94.cbp.dhs.gov using your passport.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "visa_number:text:en",
+    "explanation": "The 8-character red number (visa foil number) printed on your U.S. visa stamp.",
+    "example": "MX1234567",
+    "commonMistakes": "Using the visa classification (e.g., H-1B) or the control number instead.",
+    "whereToFind": "Your U.S. visa stamp in your passport, labeled 'Visa No.'",
+    "profileKey": "visaNumber"
+  },
+  {
+    "cacheKey": "visa_type:select:en",
+    "explanation": "The category of your U.S. visa (e.g., F-1 student, H-1B worker, B-1/B-2 visitor, green card holder).",
+    "example": "H-1B",
+    "commonMistakes": "Confusing visa type with visa status — if your visa has expired but your authorized stay hasn't, you are still in valid status.",
+    "whereToFind": "Your visa stamp in your passport.",
+    "profileKey": "visaType"
+  },
+  {
+    "cacheKey": "marital_status:select:en",
+    "explanation": "Your current legal marital status: Single, Married, Divorced, Widowed, or Legally Separated.",
+    "example": "Married",
+    "commonMistakes": "Using 'Separated' when legally separated — some forms treat this differently from divorced.",
+    "whereToFind": "Your personal knowledge; check your marriage or divorce certificate if needed.",
+    "profileKey": "maritalStatus"
+  },
+  {
+    "cacheKey": "spouse_name:text:en",
+    "explanation": "Your spouse's full legal name.",
+    "example": "James William Smith",
+    "commonMistakes": "Using a nickname instead of the legal name.",
+    "whereToFind": "Your marriage certificate or your spouse's government ID.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "spouse_ssn:text:en",
+    "explanation": "Your spouse's Social Security Number (if filing jointly or completing dependent information).",
+    "example": "987-65-4321",
+    "commonMistakes": "Entering your own SSN in both fields.",
+    "whereToFind": "Your spouse's Social Security card or prior joint tax returns.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "gender:select:en",
+    "explanation": "Your gender as it appears on your legal documents.",
+    "example": "Female",
+    "commonMistakes": "Some forms require the gender on your passport specifically — check which document the form references.",
+    "whereToFind": "Your passport or birth certificate.",
+    "profileKey": "gender"
+  },
+  {
+    "cacheKey": "occupation:text:en",
+    "explanation": "Your current job title or occupation.",
+    "example": "Software Engineer",
+    "commonMistakes": "Using an overly general description — be specific (e.g., 'Registered Nurse' not just 'Nurse').",
+    "whereToFind": "Your employment contract, business card, or HR records.",
+    "profileKey": "occupation"
+  },
+  {
+    "cacheKey": "job_title:text:en",
+    "explanation": "Your official job title at your current employer.",
+    "example": "Senior Marketing Manager",
+    "commonMistakes": "Using an informal title instead of your official HR title.",
+    "whereToFind": "Your offer letter, employee ID card, or HR system.",
+    "profileKey": "occupation"
+  },
+  {
+    "cacheKey": "annual_income:number:en",
+    "explanation": "Your total annual gross income from all sources before taxes and deductions.",
+    "example": "75000",
+    "commonMistakes": "Reporting net (take-home) income instead of gross income.",
+    "whereToFind": "Your W-2 Box 1, offer letter, or most recent pay stubs.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "tin:text:en",
+    "explanation": "Taxpayer Identification Number — for individuals this is usually your SSN. For businesses it is the EIN. Format: XXX-XX-XXXX (SSN) or XX-XXXXXXX (EIN).",
+    "example": "123-45-6789",
+    "commonMistakes": "Confusing personal TIN (SSN) with business TIN (EIN).",
+    "whereToFind": "Your Social Security card (if SSN) or IRS EIN confirmation letter (if EIN).",
+    "profileKey": "ssn"
+  },
+  {
+    "cacheKey": "business_name:text:en",
+    "explanation": "The legal name of your business or employer, as registered with the IRS or state.",
+    "example": "Smith Consulting LLC",
+    "commonMistakes": "Using a trade name (DBA) instead of the legal business name.",
+    "whereToFind": "Your business registration documents, IRS EIN confirmation letter, or Articles of Incorporation.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "business_address:text:en",
+    "explanation": "The official address of the business, as registered with the IRS.",
+    "example": "100 Main Street, Suite 400, Chicago, IL 60601",
+    "commonMistakes": "Using a P.O. Box when a physical address is required.",
+    "whereToFind": "Your IRS EIN confirmation letter or business registration documents.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "requester_name:text:en",
+    "explanation": "The name of the person or business requesting the information (e.g., a bank or employer requesting your W-9).",
+    "example": "First National Bank",
+    "commonMistakes": "Entering your own name — this is the name of the party asking for the form, not who is completing it.",
+    "whereToFind": "The organization that sent you the form.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "backup_withholding:checkbox:en",
+    "explanation": "On Form W-9, certify that you are NOT subject to backup withholding (unless you have been notified by the IRS otherwise).",
+    "example": "Checked (most filers check this)",
+    "commonMistakes": "Leaving unchecked when you are not subject to backup withholding — most individuals should check this.",
+    "whereToFind": "IRS notices you may have received. If you have not been notified, you are typically not subject to backup withholding.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "tax_classification:select:en",
+    "explanation": "Your federal tax classification: Individual/Sole Proprietor, C Corporation, S Corporation, Partnership, Trust/Estate, LLC, or Other.",
+    "example": "Individual/sole proprietor or single-member LLC",
+    "commonMistakes": "Choosing LLC without specifying the tax treatment (C corp, S corp, or disregarded entity).",
+    "whereToFind": "Your business structure documents or consult your accountant.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "exempt_payee_code:text:en",
+    "explanation": "On Form W-9, a code (1–13) indicating why you are exempt from backup withholding. Most individuals leave this blank.",
+    "example": "5 (for corporations generally)",
+    "commonMistakes": "Filling this in when you are not exempt — most individuals and sole proprietors leave it blank.",
+    "whereToFind": "W-9 instructions, Table 1. Consult your accountant if unsure.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "start_date:date:en",
+    "explanation": "The date you started or will start in a role, program, or employment.",
+    "example": "01/15/2026",
+    "commonMistakes": "Using the date of an offer letter instead of the actual start date.",
+    "whereToFind": "Your offer letter, enrollment documents, or contract.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "end_date:date:en",
+    "explanation": "The date you ended or will end employment, enrollment, or a period.",
+    "example": "12/31/2025",
+    "commonMistakes": "Leaving blank when the field is required — use 'present' or 'current' only if specifically allowed.",
+    "whereToFind": "Your termination letter, contract end date, or resignation date.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "hours_per_week:number:en",
+    "explanation": "The average number of hours you work per week.",
+    "example": "40",
+    "commonMistakes": "Entering total monthly hours instead of weekly average.",
+    "whereToFind": "Your employment contract or ask your employer.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "supervisor_name:text:en",
+    "explanation": "The full name of your direct supervisor or manager.",
+    "example": "Jennifer Adams",
+    "commonMistakes": "Using a job title instead of a person's name.",
+    "whereToFind": "Your offer letter, org chart, or ask HR.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "position_applied_for:text:en",
+    "explanation": "The specific job title or position you are applying for.",
+    "example": "Data Analyst",
+    "commonMistakes": "Leaving blank or writing 'any position' — be specific about the role.",
+    "whereToFind": "The job posting or job description.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "desired_salary:text:en",
+    "explanation": "The salary you expect or are requesting for the position.",
+    "example": "$75,000/year",
+    "commonMistakes": "Lowballing — research market rates before completing this field. 'Negotiable' is acceptable if allowed.",
+    "whereToFind": "Industry salary data, your prior salary, or negotiations with the employer.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "education_level:select:en",
+    "explanation": "Your highest completed level of education.",
+    "example": "Bachelor's Degree",
+    "commonMistakes": "Selecting the degree you are currently pursuing rather than the one you have completed.",
+    "whereToFind": "Your diplomas or transcripts.",
+    "profileKey": "educationLevel"
+  },
+  {
+    "cacheKey": "school_name:text:en",
+    "explanation": "The full name of the educational institution you attended.",
+    "example": "University of California, Los Angeles",
+    "commonMistakes": "Using abbreviations (UCLA) when the full name is requested.",
+    "whereToFind": "Your diploma, transcripts, or school records.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "degree:text:en",
+    "explanation": "The degree or certificate you earned at this institution.",
+    "example": "Bachelor of Science in Computer Science",
+    "commonMistakes": "Omitting the field of study when it is relevant.",
+    "whereToFind": "Your diploma.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "graduation_date:date:en",
+    "explanation": "The date you graduated or received your degree.",
+    "example": "05/2022",
+    "commonMistakes": "Using the month you finished courses rather than the official conferral date.",
+    "whereToFind": "Your diploma or official transcripts.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "gpa:text:en",
+    "explanation": "Your Grade Point Average on a 4.0 scale. Leave blank if not applicable or if below threshold that benefits you.",
+    "example": "3.7",
+    "commonMistakes": "Including GPA on a different scale without clarifying (e.g., 7.8/10).",
+    "whereToFind": "Your official transcripts.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "references_available:checkbox:en",
+    "explanation": "Indicates that professional references are available upon request.",
+    "example": "Checked",
+    "commonMistakes": "Leaving unchecked — most employers expect this to be checked.",
+    "whereToFind": "Check if you have professional contacts who can serve as references.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "emergency_contact_name:text:en",
+    "explanation": "The full name of a person to contact in case of an emergency.",
+    "example": "Robert Johnson",
+    "commonMistakes": "Using yourself as your own emergency contact.",
+    "whereToFind": "A trusted family member or close friend who knows your location.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "emergency_contact_phone:tel:en",
+    "explanation": "The phone number of your emergency contact person.",
+    "example": "(212) 555-0199",
+    "commonMistakes": "Using an outdated phone number — verify before submitting.",
+    "whereToFind": "Ask your emergency contact for their current number.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "emergency_contact_relationship:text:en",
+    "explanation": "Your relationship to the emergency contact (e.g., Spouse, Parent, Sibling, Friend).",
+    "example": "Spouse",
+    "commonMistakes": "Leaving blank — most employers require this field.",
+    "whereToFind": "Your relationship to the person.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "health_insurance_plan:text:en",
+    "explanation": "The name of your health insurance plan or carrier.",
+    "example": "Blue Cross Blue Shield PPO",
+    "commonMistakes": "Listing the insurance broker instead of the plan name.",
+    "whereToFind": "Your insurance card or benefits documents.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "insurance_id_number:text:en",
+    "explanation": "Your member ID number on your health insurance card.",
+    "example": "XYZ123456789",
+    "commonMistakes": "Using the group number instead of the member ID.",
+    "whereToFind": "Front of your insurance card, usually labeled 'Member ID' or 'ID'.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "group_number:text:en",
+    "explanation": "Your employer's health insurance group number, found on your insurance card.",
+    "example": "98765",
+    "commonMistakes": "Confusing the group number with your member ID.",
+    "whereToFind": "Front of your insurance card, labeled 'Group' or 'Group No.'",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "prior_address:text:en",
+    "explanation": "Your previous residential address before your current one.",
+    "example": "789 Pine Street, Houston, TX 77001",
+    "commonMistakes": "Leaving blank if you have lived at your current address for less than the requested number of years.",
+    "whereToFind": "Your memory or prior driver's license, utility bills, or lease agreements.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "years_at_address:text:en",
+    "explanation": "How many years you have lived at the address provided.",
+    "example": "3",
+    "commonMistakes": "Rounding down — estimate to the nearest year and be consistent with the dates.",
+    "whereToFind": "The dates on your lease, mortgage, or utility bills.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "criminal_record:select:en",
+    "explanation": "Whether you have ever been convicted of a crime. Answer honestly — background checks may verify your answer.",
+    "example": "No",
+    "commonMistakes": "Confusing arrest with conviction — if you were arrested but not convicted, you typically answer 'No' unless asked about arrests specifically.",
+    "whereToFind": "Your legal history. If unsure, consult an attorney.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "authorized_to_work_in_us:select:en",
+    "explanation": "Whether you are legally authorized to work in the United States.",
+    "example": "Yes",
+    "commonMistakes": "Selecting 'Yes' if your work authorization has expired — verify the current status of your visa or EAD.",
+    "whereToFind": "Your visa, green card, EAD card, or citizenship certificate.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "work_authorization_expiration:date:en",
+    "explanation": "The date your work authorization (EAD, visa, etc.) expires. Leave blank if it does not expire (e.g., U.S. citizens or lawful permanent residents).",
+    "example": "09/15/2027",
+    "commonMistakes": "Entering your visa expiration instead of your EAD expiration — these may differ.",
+    "whereToFind": "Your EAD card front, labeled 'Card Expires'.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "drivers_license_number:text:en",
+    "explanation": "Your state-issued driver's license or ID number.",
+    "example": "D1234567",
+    "commonMistakes": "Using an expired license number — use your current license.",
+    "whereToFind": "Front of your driver's license or state ID.",
+    "profileKey": "driversLicenseNumber"
+  },
+  {
+    "cacheKey": "drivers_license_state:text:en",
+    "explanation": "The U.S. state that issued your driver's license.",
+    "example": "CA",
+    "commonMistakes": "Using the abbreviation for the wrong state.",
+    "whereToFind": "Front of your driver's license.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "expiration_date:date:en",
+    "explanation": "The expiration date of the document being referenced (license, visa, ID, etc.).",
+    "example": "12/31/2027",
+    "commonMistakes": "Using the issue date instead of the expiration date.",
+    "whereToFind": "The document itself, labeled 'Expires' or 'Expiry Date'.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "list_a_document_title:select:en",
+    "explanation": "On Form I-9, the type of document presented from List A (documents that establish both identity and work authorization), such as a U.S. Passport or Permanent Resident Card.",
+    "example": "U.S. Passport",
+    "commonMistakes": "Mixing up List A, B, and C documents — List A documents satisfy both identity and employment authorization by themselves.",
+    "whereToFind": "The I-9 instructions or M-274 Handbook for Employers.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "list_b_document_title:select:en",
+    "explanation": "On Form I-9, the type of identity document from List B (establishes identity only), such as a driver's license or state ID.",
+    "example": "Driver's License",
+    "commonMistakes": "Providing only a List B document without a List C document — B and C must be used together.",
+    "whereToFind": "The I-9 instructions.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "list_c_document_title:select:en",
+    "explanation": "On Form I-9, the type of employment authorization document from List C (establishes work authorization only), such as a Social Security Card or birth certificate.",
+    "example": "Social Security Card",
+    "commonMistakes": "Using a List C document alone without a List B document.",
+    "whereToFind": "The I-9 instructions.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "document_number:text:en",
+    "explanation": "The identification number printed on the document presented for verification.",
+    "example": "A12345678 (passport) or 123456789 (SSN card has none)",
+    "commonMistakes": "Social Security cards do not have a document number — leave blank for SSN cards.",
+    "whereToFind": "The document itself.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "issuing_authority:text:en",
+    "explanation": "The government agency or authority that issued the document.",
+    "example": "U.S. Department of State",
+    "commonMistakes": "Writing the country name instead of the issuing authority.",
+    "whereToFind": "The document itself or the I-9 instructions list.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "place_of_birth:text:en",
+    "explanation": "The city and country where you were born.",
+    "example": "Guadalajara, Mexico",
+    "commonMistakes": "Entering only the country without the city when both are requested.",
+    "whereToFind": "Your birth certificate or passport.",
+    "profileKey": "placeOfBirth"
+  },
+  {
+    "cacheKey": "national_id_number:text:en",
+    "explanation": "Your national identification number from your country of origin (e.g., CURP in Mexico, SIN in Canada, NHS number in UK).",
+    "example": "GOML850315MDFNRN02 (Mexico CURP)",
+    "commonMistakes": "Using a U.S. identification number when a foreign national ID is requested.",
+    "whereToFind": "Your national ID card or government records from your home country.",
+    "profileKey": "nationalIdNumber"
+  },
+  {
+    "cacheKey": "intended_address_in_us:text:en",
+    "explanation": "On DS-160 and immigration forms, the address where you plan to stay in the United States.",
+    "example": "123 Main Street, New York, NY 10001",
+    "commonMistakes": "Using your home country address instead of your U.S. destination address.",
+    "whereToFind": "Hotel reservation, invitation letter, or the address of your U.S. contact.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "us_contact_name:text:en",
+    "explanation": "The name of a person or organization you will be visiting or staying with in the U.S.",
+    "example": "John Smith",
+    "commonMistakes": "Leaving blank — required on DS-160. Use hotel name if no personal contact.",
+    "whereToFind": "Your invitation letter or hotel reservation.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "us_contact_phone:tel:en",
+    "explanation": "The phone number of your U.S. contact person or organization.",
+    "example": "(212) 555-0150",
+    "commonMistakes": "Using an international format when a U.S. number is expected.",
+    "whereToFind": "Your invitation letter or hotel contact information.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "purpose_of_trip:select:en",
+    "explanation": "The primary reason for your trip to the United States (e.g., Tourism, Business, Education, Employment, Medical).",
+    "example": "Tourism/Holiday",
+    "commonMistakes": "Selecting 'Business' for activities that are actually tourism — attending a conference may be classified as business.",
+    "whereToFind": "Your travel plans and the DS-160 purpose categories.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "length_of_stay:text:en",
+    "explanation": "How long you intend to remain in the United States for this visit.",
+    "example": "14 days",
+    "commonMistakes": "Overstating your intended stay — immigration officers verify this against your I-94.",
+    "whereToFind": "Your travel itinerary and return ticket.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "previous_us_visa:select:en",
+    "explanation": "Whether you have previously been issued a U.S. visa.",
+    "example": "Yes",
+    "commonMistakes": "Saying 'No' when you previously had a visa that has since expired.",
+    "whereToFind": "Your passport history or prior U.S. visa stamps.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "previous_visa_number:text:en",
+    "explanation": "The visa number from a previously issued U.S. visa.",
+    "example": "MX9876543",
+    "commonMistakes": "Entering a control number from the visa instead of the visa foil number.",
+    "whereToFind": "The red 8-character number on your old U.S. visa stamp.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "us_visa_refused:select:en",
+    "explanation": "Whether you have ever been refused a U.S. visa or entry to the United States.",
+    "example": "No",
+    "commonMistakes": "Answering 'No' when you were refused — consular officers have records and inconsistencies cause problems.",
+    "whereToFind": "Your prior visa application history.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "traveled_to_us_before:select:en",
+    "explanation": "Whether you have traveled to the United States previously.",
+    "example": "Yes",
+    "commonMistakes": "Forgetting past visits when the question covers all prior travel.",
+    "whereToFind": "Your passport stamps and I-94 history at i94.cbp.dhs.gov.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "last_us_entry_date:date:en",
+    "explanation": "The most recent date you entered the United States.",
+    "example": "07/20/2023",
+    "commonMistakes": "Confusing travel dates with admission dates — use the stamp date on your I-94.",
+    "whereToFind": "i94.cbp.dhs.gov or your passport entry stamps.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "mother_maiden_name:text:en",
+    "explanation": "Your mother's last name before she was married (her maiden name).",
+    "example": "Hernandez",
+    "commonMistakes": "Entering your mother's married name instead of her original family name.",
+    "whereToFind": "Your birth certificate or ask your mother.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "father_name:text:en",
+    "explanation": "Your father's full legal name.",
+    "example": "Miguel Angel Rodriguez",
+    "commonMistakes": "Using a nickname. Enter the name as it appears on his birth certificate or ID.",
+    "whereToFind": "Your birth certificate or ask your father.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "checkbox_yes_no:checkbox:en",
+    "explanation": "A yes/no question requiring you to indicate whether a statement applies to you.",
+    "example": "Check 'Yes' if the statement is true, 'No' if it is not.",
+    "commonMistakes": "Leaving both unchecked — you must select one option.",
+    "whereToFind": "Read the statement carefully and answer based on your situation.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "interpreter_name:text:en",
+    "explanation": "The full name of the interpreter assisting you with this form, if you used one.",
+    "example": "Ana Gomez",
+    "commonMistakes": "Leaving blank when an interpreter was used — the interpreter must also certify the form.",
+    "whereToFind": "Ask the interpreter for their full legal name.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "preparer_name:text:en",
+    "explanation": "The full name of the person who helped prepare or complete this form on your behalf.",
+    "example": "Carlos Torres",
+    "commonMistakes": "Leaving blank when someone else helped complete the form — this is required for accurate representation.",
+    "whereToFind": "Ask the preparer for their full legal name.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "preparer_signature:signature:en",
+    "explanation": "The signature of the person who prepared the form on behalf of the applicant.",
+    "example": "Carlos Torres",
+    "commonMistakes": "The applicant signing in the preparer field — only the preparer signs here.",
+    "whereToFind": "The preparer must sign personally.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "daytime_phone:tel:en",
+    "explanation": "A phone number where you can be reached during business hours.",
+    "example": "(415) 555-0100",
+    "commonMistakes": "Providing a number where you can't be reached or that goes straight to voicemail.",
+    "whereToFind": "Your work phone, cell phone, or any number where you can be reached during the day.",
+    "profileKey": "phone"
+  },
+  {
+    "cacheKey": "previous_employer:text:en",
+    "explanation": "The name of your previous employer or most recent employer.",
+    "example": "Global Tech Solutions Inc.",
+    "commonMistakes": "Omitting past employers if the form asks for complete history.",
+    "whereToFind": "Your resume, W-2 from prior years, or employment records.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "reason_for_leaving:text:en",
+    "explanation": "Why you left your previous position.",
+    "example": "Seeking career growth opportunities",
+    "commonMistakes": "Negative descriptions of former employer — keep responses professional and positive.",
+    "whereToFind": "Your own assessment of why you left.",
+    "profileKey": null
+  },
+  {
+    "cacheKey": "may_we_contact:select:en",
+    "explanation": "Whether the employer may contact this previous employer for a reference.",
+    "example": "Yes",
+    "commonMistakes": "Saying 'No' for current employer when permitted — this may raise concerns.",
+    "whereToFind": "Your preference, but 'Yes' is generally preferred unless there is a specific reason.",
+    "profileKey": null
+  }
+]
