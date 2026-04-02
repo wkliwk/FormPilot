@@ -120,6 +120,9 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [helpDrawerFieldId, setHelpDrawerFieldId] = useState<string | null>(null);
   type ExplainResult = { explanation: string; example: string; commonMistakes: string | null; whereToFind: string | null; isPro: boolean; remaining: number };
   const [helpCache, setHelpCache] = useState<Record<string, ExplainResult | "loading" | "error">>({});
+  const helpDrawerRef = useRef<HTMLDivElement>(null);
+  // Track which button triggered the help drawer so focus can return on close
+  const helpTriggerRef = useRef<HTMLButtonElement | null>(null);
   // original autofilled values keyed by fieldId — set once on mount, never updated
   const originalAutofillValues = useRef<Record<string, string>>(
     Object.fromEntries(
@@ -306,7 +309,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
   // -- help drawer --
 
-  async function openHelp(fieldId: string) {
+  async function openHelp(fieldId: string, triggerEl?: HTMLButtonElement | null) {
+    helpTriggerRef.current = triggerEl ?? null;
     setHelpDrawerFieldId(fieldId);
     if (helpCache[fieldId]) return; // already cached or loading
 
@@ -323,16 +327,43 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
   function closeHelp() {
     setHelpDrawerFieldId(null);
+    helpTriggerRef.current?.focus();
+    helpTriggerRef.current = null;
   }
 
-  // Close help drawer on Escape
+  // Help drawer: Escape to close, focus trap, move focus in on open
   useEffect(() => {
     if (!helpDrawerFieldId) return;
+    const firstFocusable = helpDrawerRef.current?.querySelector<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    firstFocusable?.focus();
+
     function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") closeHelp();
+      if (e.key === "Escape") {
+        closeHelp();
+        return;
+      }
+      if (e.key !== "Tab" || !helpDrawerRef.current) return;
+      const all = Array.from(
+        helpDrawerRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute("disabled"));
+      if (all.length === 0) return;
+      const first = all[0];
+      const last = all[all.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [helpDrawerFieldId]);
 
   function handleAcceptAllHigh() {
@@ -737,6 +768,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           />
           {/* Drawer — right side on sm+, bottom sheet on mobile */}
           <div
+            ref={helpDrawerRef}
             role="dialog"
             aria-modal="true"
             aria-label={`Help for ${helpField?.label ?? "field"}`}
@@ -1347,7 +1379,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                       {/* Help icon */}
                       <button
                         type="button"
-                        onClick={() => openHelp(field.id)}
+                        onClick={(e) => openHelp(field.id, e.currentTarget)}
                         className="inline-flex items-center justify-center w-5 h-5 rounded-full text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors shrink-0"
                         aria-label={`Help for ${field.label}`}
                         title="What should I enter here?"
@@ -1464,11 +1496,12 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                         {state !== "accepted" && (
                           <button
                             type="button"
+                            aria-label={`Fill ${field.label} with sample data`}
                             title="Fill with sample data"
                             onClick={() => handleValueChange(field.id, generateSampleValue(field))}
                             className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-blue-500 hover:bg-blue-50 transition-colors border border-slate-200 mt-2"
                           >
-                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                               <path d="M15 4V2" /><path d="M15 16v-2" /><path d="M8 9h2" /><path d="M20 9h2" />
                               <path d="M17.8 11.8 19 13" /><path d="M15 9h.01" /><path d="M17.8 6.2 19 5" />
                               <path d="m3 21 9-9" /><path d="M12.2 6.2 11 5" />
@@ -1638,7 +1671,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                       {isError ? (
                         <>
                           <p className="text-xs text-slate-400 italic">Suggestion unavailable</p>
-                          <button onClick={() => dismissSuggestion(field.id)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                          <button onClick={() => dismissSuggestion(field.id)} aria-label={`Dismiss suggestion for ${field.label}`} className="text-xs text-slate-400 hover:text-slate-600"><span aria-hidden="true">✕</span></button>
                         </>
                       ) : isFound ? (
                         <>
@@ -1673,7 +1706,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                       ) : (
                         <>
                           <p className="text-xs text-slate-500">No suggestion found from your history.</p>
-                          <button onClick={() => dismissSuggestion(field.id)} className="text-xs text-slate-400 hover:text-slate-600">✕</button>
+                          <button onClick={() => dismissSuggestion(field.id)} aria-label={`Dismiss suggestion for ${field.label}`} className="text-xs text-slate-400 hover:text-slate-600"><span aria-hidden="true">✕</span></button>
                         </>
                       )}
                     </div>

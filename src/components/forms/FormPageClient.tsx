@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -87,6 +87,10 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     []
   );
 
+  // Refs for share modal accessibility: focus trap and return focus to trigger
+  const shareModalRef = useRef<HTMLDivElement>(null);
+  const shareButtonRef = useRef<HTMLButtonElement>(null);
+
   // Check if this form has already been celebrated (prevents re-show on reload)
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -128,6 +132,41 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
   const [shareSlug, setShareSlug] = useState<string | null>(null);
   const [shareError, setShareError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+
+  // Share modal: focus trap + Escape to close + return focus to trigger
+  useEffect(() => {
+    if (!shareSlug) return;
+    const focusable = shareModalRef.current?.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    focusable?.[0]?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setShareSlug(null);
+        shareButtonRef.current?.focus();
+        return;
+      }
+      if (e.key !== "Tab" || !shareModalRef.current) return;
+      const all = Array.from(
+        shareModalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute("disabled"));
+      if (all.length === 0) return;
+      const first = all[0];
+      const last = all[all.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [shareSlug]);
 
   const fields = formData.fields as FormField[];
   const initialValues = Object.fromEntries(
@@ -214,16 +253,36 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     }
   }
 
+  function closeShareModal() {
+    setShareSlug(null);
+    shareButtonRef.current?.focus();
+  }
+
   const shareModal = shareSlug ? (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setShareSlug(null)}>
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={closeShareModal}
+      aria-hidden="true"
+    >
+      <div
+        ref={shareModalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="share-modal-title"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="font-semibold text-slate-900">Template link created</h2>
+            <h2 id="share-modal-title" className="font-semibold text-slate-900">Template link created</h2>
             <p className="text-sm text-slate-500 mt-0.5">Share this link. Your personal data is not included.</p>
           </div>
-          <button onClick={() => setShareSlug(null)} className="text-slate-400 hover:text-slate-600 shrink-0">
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <button
+            onClick={closeShareModal}
+            className="text-slate-400 hover:text-slate-600 shrink-0"
+            aria-label="Close share modal"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
@@ -367,9 +426,11 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
 
           {/* Share as Template */}
           <button
+            ref={shareButtonRef}
             onClick={handleShare}
             disabled={sharing}
             className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[48px] md:min-h-0 text-sm font-medium rounded-lg transition-colors text-violet-700 hover:bg-violet-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Share as template"
             title="Share as Template"
           >
             {sharing ? (
@@ -413,7 +474,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
               }`}
               title={sideBySide ? "Hide document" : "Show document side-by-side"}
             >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                 <line x1="12" y1="3" x2="12" y2="21" />
               </svg>

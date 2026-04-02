@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import type { FormField } from "@/lib/ai/analyze-form";
 import dynamic from "next/dynamic";
 
@@ -34,6 +34,7 @@ export default function ExportPreviewModal({
 }: Props) {
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
   const canFillPDF = hasFile && sourceType === "PDF";
   const defaultFormat: ExportFormat = canFillPDF ? "pdf" : "json";
   const [format, setFormat] = useState<ExportFormat>(defaultFormat);
@@ -81,6 +82,40 @@ export default function ExportPreviewModal({
     },
   ];
 
+  // Focus trap + focus on open + Escape to close
+  useEffect(() => {
+    const firstFocusable = modalRef.current?.querySelector<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    firstFocusable?.focus();
+
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !modalRef.current) return;
+      const all = Array.from(
+        modalRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute("disabled"));
+      if (all.length === 0) return;
+      const first = all[0];
+      const last = all[all.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function handleConfirm() {
     onConfirmExport(format);
     if (format === "clipboard") {
@@ -99,6 +134,7 @@ export default function ExportPreviewModal({
 
   return (
     <div
+      ref={modalRef}
       className="fixed inset-0 z-50 bg-black/60 flex flex-col"
       role="dialog"
       aria-modal="true"

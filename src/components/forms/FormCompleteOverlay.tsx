@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 interface Props {
@@ -17,11 +17,36 @@ export default function FormCompleteOverlay({ formId, formTitle, filledCount, on
   const shareText = `Just completed my "${formTitle}" with FormPilot — AI explained every confusing field in plain English. ${APP_URL}${UTM}`;
   const [tweetText, setTweetText] = useState(shareText);
   const [copied, setCopied] = useState(false);
+  const overlayRef = useRef<HTMLDivElement>(null);
 
-  // Dismiss on Escape
+  // Focus trap, Escape to close, move focus into overlay on mount
   useEffect(() => {
+    const firstFocusable = overlayRef.current?.querySelector<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    firstFocusable?.focus();
+
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      if (e.key !== "Tab" || !overlayRef.current) return;
+      const all = Array.from(
+        overlayRef.current.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        )
+      ).filter((el) => !el.hasAttribute("disabled"));
+      if (all.length === 0) return;
+      const first = all[0];
+      const last = all[all.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     }
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
@@ -64,6 +89,10 @@ export default function FormCompleteOverlay({ formId, formTitle, filledCount, on
       onClick={handleClose}
     >
       <div
+        ref={overlayRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="complete-overlay-title"
         className="relative bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 sm:p-8 animate-slide-down"
         onClick={(e) => e.stopPropagation()}
       >
@@ -89,7 +118,7 @@ export default function FormCompleteOverlay({ formId, formTitle, filledCount, on
 
         {/* Headline */}
         <div className="text-center mb-6">
-          <h2 className="text-2xl font-bold text-slate-900">Form complete!</h2>
+          <h2 id="complete-overlay-title" className="text-2xl font-bold text-slate-900">Form complete!</h2>
           <p className="text-sm text-slate-500 mt-1.5">
             <span className="font-medium text-slate-700">{formTitle}</span>{" "}
             &middot; {filledCount} field{filledCount !== 1 ? "s" : ""} filled
