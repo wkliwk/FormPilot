@@ -10,6 +10,7 @@ import { CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/constants";
 import ExportPreviewModal, { type ExportFormat } from "./ExportPreviewModal";
 import ConfidenceReviewPanel from "./ConfidenceReviewPanel";
 import FieldQA from "./FieldQA";
+import ProGateModal from "@/components/ProGateModal";
 
 interface FormRecord {
   id: string;
@@ -43,6 +44,54 @@ interface Props {
   onSaveStatusChange?: (status: "idle" | "saving" | "saved" | "error", savedAt: Date | null) => void;
   /** Whether the user has a Pro plan (enables Pro-only export formats). */
   isPro?: boolean;
+}
+
+// -- Certificate download button (Pro-gated) --
+
+function CertificateButton({ formId, isPro }: { formId: string; isPro?: boolean }) {
+  const [downloading, setDownloading] = useState(false);
+
+  async function handleDownload() {
+    if (!isPro) return; // ProGateModal handles the gate
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/forms/${formId}/certificate`);
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download =
+        res.headers.get("Content-Disposition")?.split("filename=")[1]?.replace(/"/g, "") ??
+        "certificate.pdf";
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <ProGateModal
+      feature="Completion Certificate"
+      benefit="Download a professional PDF certificate listing all filled fields — perfect for attaching to immigration, HR, or legal submissions."
+      isPro={!!isPro}
+    >
+      <button
+        onClick={handleDownload}
+        disabled={downloading}
+        className="inline-flex items-center gap-1.5 px-4 py-2 border border-emerald-200 text-emerald-700 bg-emerald-50 text-sm rounded-lg font-medium hover:bg-emerald-100 transition-colors disabled:opacity-40 active:scale-[0.98]"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+          <polyline points="9 15 12 18 15 15" />
+          <line x1="12" y1="12" x2="12" y2="18" />
+        </svg>
+        {downloading ? "Downloading..." : "Certificate"}
+      </button>
+    </ProGateModal>
+  );
 }
 
 // -- helpers --
@@ -1042,6 +1091,9 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                 </svg>
                 {exporting ? "Exporting..." : "Export"}
               </button>
+            )}
+            {form.status === "COMPLETED" && (
+              <CertificateButton formId={form.id} isPro={isPro} />
             )}
             {filledCount > 0 && onComplete && (
               <button
