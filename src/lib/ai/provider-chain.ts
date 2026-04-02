@@ -187,9 +187,9 @@ const PROVIDERS: Array<{
   fn: (prompt: string, maxTokens: number) => Promise<string>;
 }> = [
   { name: "groq", fn: callGroq },
+  { name: "claude", fn: callClaude },
   { name: "openrouter", fn: callOpenRouter },
   { name: "gemini", fn: callGemini },
-  { name: "claude", fn: callClaude },
 ];
 
 /**
