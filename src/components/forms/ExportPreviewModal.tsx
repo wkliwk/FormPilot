@@ -230,12 +230,18 @@ export default function ExportPreviewModal({
         {/* Right: document preview */}
         <div className="hidden lg:flex flex-col flex-1 overflow-hidden bg-white">
           {canPreviewDoc ? (
-            <DocumentImageViewer
-              formId={formId}
-              sourceType={sourceType ?? "PDF"}
-              fields={fields}
-              activeFieldId={activeFieldId}
-            />
+            <>
+              <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 text-xs text-slate-400 shrink-0">
+                Preview shows your answers overlaid on the original document
+              </div>
+              <DocumentImageViewer
+                formId={formId}
+                sourceType={sourceType ?? "PDF"}
+                fields={fields}
+                activeFieldId={activeFieldId}
+                liveValues={values}
+              />
+            </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-slate-400 gap-3 p-8">
               <svg className="w-12 h-12 opacity-30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
