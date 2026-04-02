@@ -134,15 +134,56 @@ autofillBtn.addEventListener("click", () => {
     return;
   }
 
+  autofillBtn.disabled = true;
+  autofillBtn.textContent = "Filling...";
+
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-    if (tabs[0]) {
-      chrome.tabs.sendMessage(tabs[0].id, {
-        type: "FILL_FIELDS",
-        data: fieldsWithValues,
-      });
+    if (!tabs[0]) {
+      autofillBtn.disabled = false;
+      autofillBtn.textContent = "Autofill";
+      return;
     }
+    chrome.tabs.sendMessage(
+      tabs[0].id,
+      { type: "FILL_FIELDS", data: fieldsWithValues },
+      (result) => {
+        autofillBtn.disabled = false;
+        autofillBtn.textContent = "Autofill";
+        if (result?.stats) {
+          showFillSummary(result.stats);
+        }
+      }
+    );
   });
 });
+
+function showFillSummary(stats) {
+  const { filled, updatedAfterReaction, skipped, skippedFields } = stats;
+  const parts = [`${filled} field${filled !== 1 ? "s" : ""} filled`];
+  if (updatedAfterReaction > 0) {
+    parts.push(`${updatedAfterReaction} updated after page reaction`);
+  }
+  if (skipped > 0) {
+    parts.push(`${skipped} skipped`);
+  }
+
+  let detailHtml = "";
+  if (skippedFields && skippedFields.length > 0) {
+    const items = skippedFields
+      .map((f) => `<li><strong>${f.label}</strong>: ${f.reason}</li>`)
+      .join("");
+    detailHtml = `<ul class="fill-skipped-list">${items}</ul>`;
+  }
+
+  const existing = document.getElementById("fill-summary");
+  if (existing) existing.remove();
+
+  const summary = document.createElement("div");
+  summary.id = "fill-summary";
+  summary.className = "fill-summary";
+  summary.innerHTML = `<div class="fill-summary-line">${parts.join(" · ")}</div>${detailHtml}`;
+  fieldList.insertAdjacentElement("beforebegin", summary);
+}
 
 // Clear highlights
 clearBtn.addEventListener("click", () => {
@@ -152,6 +193,8 @@ clearBtn.addEventListener("click", () => {
     }
   });
   fieldList.innerHTML = "";
+  const summary = document.getElementById("fill-summary");
+  if (summary) summary.remove();
   autofillBtn.style.display = "none";
   clearBtn.style.display = "none";
   scanBtn.textContent = "Scan Form Fields";
