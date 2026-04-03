@@ -174,6 +174,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showConfidenceReview, setShowConfidenceReview] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
+  const [priorFormOffer, setPriorFormOffer] = useState<{ id: string; title: string } | null>(null);
+  const [applyingPriorFill, setApplyingPriorFill] = useState(false);
   const [sampleFilling, setSampleFilling] = useState(false);
   const [sampleFillMessage, setSampleFillMessage] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -807,6 +809,63 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [currentUnansweredIndex, unansweredCount, navigateToUnansweredField]);
 
+  // -- prior form offer --
+
+  useEffect(() => {
+    const dismissKey = `preFillDismissed:${form.id}`;
+    if (typeof window !== "undefined" && localStorage.getItem(dismissKey)) return;
+    // Only show if there are no values yet (fresh form)
+    const hasAnyValue = fields.some((f) => values[f.id]);
+    if (hasAnyValue) return;
+
+    fetch(`/api/forms/${form.id}/prior-form`)
+      .then((r) => r.ok ? r.json() : null)
+      .then((data) => {
+        if (data?.priorForm) setPriorFormOffer(data.priorForm);
+      })
+      .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.id]);
+
+  async function handleApplyPriorFill() {
+    if (!priorFormOffer) return;
+    setApplyingPriorFill(true);
+    try {
+      const res = await fetch(`/api/forms/${form.id}/re-fill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sourceFormId: priorFormOffer.id }),
+      });
+      if (!res.ok) throw new Error("Re-fill failed");
+      const data = await res.json();
+      const newFields: FormField[] = data.fields;
+      const newValues = Object.fromEntries(
+        newFields.filter((f) => f.value).map((f) => [f.id, f.value!])
+      );
+      const newStates: Record<string, FieldState> = { ...fieldStates };
+      for (const f of newFields) {
+        if (f.value && !newStates[f.id]) {
+          newStates[f.id] = "pending";
+        }
+      }
+      setValues(newValues);
+      setFieldStates(newStates);
+      scheduleSave(newValues, newStates);
+      setPriorFormOffer(null);
+    } catch {
+      // Silent — leave offer visible so user can retry
+    } finally {
+      setApplyingPriorFill(false);
+    }
+  }
+
+  function handleDismissPriorFill() {
+    if (typeof window !== "undefined") {
+      localStorage.setItem(`preFillDismissed:${form.id}`, "1");
+    }
+    setPriorFormOffer(null);
+  }
+
   // -- derived --
 
   const filledCount = fields.filter((f) => values[f.id]).length;
@@ -1434,6 +1493,39 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
+        </div>
+      )}
+
+      {/* Prior form offer — shown on fresh forms when a completed same-category form exists */}
+      {priorFormOffer && (
+        <div className="flex items-center gap-3 bg-violet-50 border border-violet-100 rounded-xl px-4 py-3" role="status">
+          <svg className="w-4 h-4 text-violet-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <polyline points="9 15 12 12 15 15" />
+            <line x1="12" y1="12" x2="12" y2="18" />
+          </svg>
+          <p className="flex-1 text-sm text-violet-700 min-w-0">
+            Re-use answers from <span className="font-medium">{priorFormOffer.title}</span>?
+          </p>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={handleApplyPriorFill}
+              disabled={applyingPriorFill}
+              className="px-3 py-1 text-xs font-semibold bg-violet-600 text-white rounded-lg hover:bg-violet-700 transition-colors disabled:opacity-50"
+            >
+              {applyingPriorFill ? "Applying…" : "Apply"}
+            </button>
+            <button
+              onClick={handleDismissPriorFill}
+              className="text-violet-300 hover:text-violet-500 transition-colors"
+              aria-label="Dismiss"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
         </div>
       )}
 
