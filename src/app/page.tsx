@@ -214,7 +214,7 @@ export default async function HomePage() {
               <span className="w-1.5 h-1.5 rounded-full bg-blue-500" aria-hidden="true" />
               AI-powered form assistant
             </div>
-            {formsProcessed > 0 && (
+            {formsProcessed >= 50 && (
               <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-full text-sm text-slate-600 font-medium">
                 <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
