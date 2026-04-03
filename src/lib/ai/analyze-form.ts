@@ -261,8 +261,6 @@ async function parseAndCacheAnalysis(
     const parsed = JSON.parse(jsonMatch[0]);
     analysis = formAnalysisSchema.parse(parsed) as FormAnalysis;
   } catch (e) {
-    console.error("[parseAndCacheAnalysis] Parse error:", e instanceof Error ? e.message : e);
-    console.error("[parseAndCacheAnalysis] First 300 chars:", jsonMatch[0].substring(0, 300));
     throw new Error(`Failed to parse AI response: ${e instanceof Error ? e.message : "invalid JSON"}`);
   }
 
@@ -336,18 +334,18 @@ export async function analyzeFormFields(
     const analysis = await parseAndCacheAnalysis(text, language);
     analysis.category = category;
     return analysis;
-  } catch (firstErr) {
-    console.warn("[analyzeFormFields] First parse failed, retrying with simplified prompt:", firstErr instanceof Error ? firstErr.message : firstErr);
+  } catch (firstError) {
+    // Only retry on parse failures, not on AI provider failures
+    if (!(firstError instanceof Error) || !firstError.message.includes("Failed to parse")) {
+      throw firstError;
+    }
 
-    // Retry with a simplified prompt: shorter field explanations, no examples/mistakes
-    const simplifiedPrompt = `${categoryPrompt}\n\n${BASE_ANALYSIS_PROMPT}${langInstruction}${countryInstruction}
+    console.warn("[analyzeFormFields] First attempt failed, retrying with simplified prompt");
 
-IMPORTANT: Keep explanation under 20 words per field. Omit example and commonMistakes if needed to fit within the JSON limit. Return valid JSON only — no markdown, no commentary.
+    const simplePrompt = `${categoryPrompt}\n\nAnalyze this form. Extract all fillable fields. Return ONLY valid JSON:\n{"title":"string","description":"string","fields":[{"id":"snake_id","label":"Field label","type":"text","required":true,"explanation":"One sentence explanation","example":"Example","commonMistakes":"One common mistake"}],"estimatedMinutes":5}\n\nKeep explanations SHORT (1 sentence each). This is critical.${langInstruction}${countryInstruction}\n\nFORM CONTENT:\n${truncatedText}`;
 
-FORM CONTENT:\n${truncatedText}`;
-
-    const retryText = await callTextAI(simplifiedPrompt, "analyzeFormFields");
-    const analysis = await parseAndCacheAnalysis(retryText, language);
+    const text2 = await callTextAI(simplePrompt, "analyzeFormFields-retry");
+    const analysis = await parseAndCacheAnalysis(text2, language);
     analysis.category = category;
     return analysis;
   }
