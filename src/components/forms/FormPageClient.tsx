@@ -42,6 +42,7 @@ interface FormRecord {
   title: string;
   status: string;
   fields: unknown;
+  filledData?: unknown;
 }
 
 interface PriorFormInfo {
@@ -274,6 +275,32 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     fields.filter((f) => f.fieldState).map((f) => [f.id, f.fieldState!])
   );
 
+  // Extract per-field notes from filledData.fieldNotes (initial load only)
+  const initialFieldNotes: Record<string, string> = (() => {
+    const fd = form.filledData;
+    if (!fd || typeof fd !== "object" || Array.isArray(fd)) return {};
+    const notes = (fd as Record<string, unknown>).fieldNotes;
+    if (!notes || typeof notes !== "object" || Array.isArray(notes)) return {};
+    const result: Record<string, string> = {};
+    for (const [k, v] of Object.entries(notes as Record<string, unknown>)) {
+      if (typeof v === "string") result[k] = v;
+    }
+    return result;
+  })();
+  const [fieldNotes, setFieldNotes] = useState<Record<string, string>>(initialFieldNotes);
+
+  function handleNoteChange(fieldId: string, note: string | null) {
+    setFieldNotes((prev) => {
+      const next = { ...prev };
+      if (note === null) {
+        delete next[fieldId];
+      } else {
+        next[fieldId] = note;
+      }
+      return next;
+    });
+  }
+
   function handleValuesChange(newValues: Record<string, string>, newStates: Record<string, FieldState>) {
     const updatedFields = fields.map((f) => ({
       ...f,
@@ -450,6 +477,8 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
           onExit={() => setMode("full")}
           onFinish={handleGuidedFinish}
           onValuesChange={handleValuesChange}
+          fieldNotes={fieldNotes}
+          onNoteChange={handleNoteChange}
         />
       </>
     );
@@ -766,6 +795,8 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
               }}
               language={activeLanguage}
               onSaveStatusChange={handleSaveStatusChange}
+              fieldNotes={fieldNotes}
+              onNoteChange={handleNoteChange}
             />
           </div>
           {/* Right: Document panel — sticky, desktop only */}
@@ -826,6 +857,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
             }}
             language={activeLanguage}
             onSaveStatusChange={handleSaveStatusChange}
+            fieldNotes={fieldNotes}
           />
         </div>
       )}
