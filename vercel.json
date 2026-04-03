@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/nudge-abandoned",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/digest-stale",
+      "schedule": "0 9 * * *"
     }
   ]
 }
