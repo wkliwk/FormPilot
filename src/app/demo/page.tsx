@@ -1,91 +1,21 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
+import { useSearchParams, useRouter } from "next/navigation";
 import { generateSampleValue } from "@/lib/sample-data";
+import { DEMO_FORMS } from "@/lib/demo-forms";
+import type { DemoField } from "@/lib/demo-forms";
 import DemoNudgeBanner from "@/components/forms/DemoNudgeBanner";
 
-interface DemoField {
-  id: string;
-  label: string;
-  type: "text" | "date" | "checkbox" | "email" | "tel";
-  explanation: string;
-  tip: string;
+function buildInitialValues(fields: DemoField[]): Record<string, string> {
+  return Object.fromEntries(
+    fields.map((f) => [
+      f.id,
+      f.type === "checkbox" ? "checked" : generateSampleValue({ label: f.label, type: f.type }),
+    ])
+  );
 }
-
-const DEMO_FIELDS: DemoField[] = [
-  {
-    id: "first_name",
-    label: "First Name",
-    type: "text",
-    explanation:
-      "Your legal first name as it appears on your government-issued ID. Use the name on your Social Security card — not a nickname.",
-    tip: "Use your full legal name, not a preferred name or nickname.",
-  },
-  {
-    id: "last_name",
-    label: "Last Name",
-    type: "text",
-    explanation:
-      "Your family name or surname. If you recently changed your name, use your current legal last name that matches your SSN records.",
-    tip: "Hyphenated names are fine — write them exactly as they appear on your ID.",
-  },
-  {
-    id: "date_of_birth",
-    label: "Date of Birth",
-    type: "date",
-    explanation:
-      "Your birthday in MM/DD/YYYY format. This is used to verify your identity and cannot be left blank on this form.",
-    tip: "Double-check the year — a common mistake is typing the current year instead of your birth year.",
-  },
-  {
-    id: "email",
-    label: "Email Address",
-    type: "email",
-    explanation:
-      "A valid email address where your employer can send pay stubs, tax documents, and HR communications. Use a personal email you check regularly.",
-    tip: "Avoid work email addresses that you might lose access to if you change jobs.",
-  },
-  {
-    id: "phone",
-    label: "Phone Number",
-    type: "tel",
-    explanation:
-      "Your primary contact number, including area code. Format: (555) 867-5309. Used for urgent HR or payroll matters only.",
-    tip: "Enter digits only — parentheses and dashes are added automatically.",
-  },
-  {
-    id: "job_title",
-    label: "Job Title / Position",
-    type: "text",
-    explanation:
-      "Your official title as it appears in your offer letter. This is recorded for HR records and determines which pay scale and benefits tier you fall under.",
-    tip: "Use the exact title from your offer letter, even if your day-to-day role is described differently.",
-  },
-  {
-    id: "start_date",
-    label: "Employment Start Date",
-    type: "date",
-    explanation:
-      "The first official day of your employment. This is the date used to calculate benefits eligibility, probationary period, and seniority.",
-    tip: "If your start date changed, use the revised date from your updated offer letter.",
-  },
-  {
-    id: "full_time",
-    label: "Full-Time Employee",
-    type: "checkbox",
-    explanation:
-      "Check this box if you are hired as a full-time employee (typically 35+ hours/week). Part-time employees should leave this unchecked and fill out a separate form.",
-    tip: "Your classification affects which benefits package you are eligible for.",
-  },
-];
-
-const INITIAL_VALUES: Record<string, string> = Object.fromEntries(
-  DEMO_FIELDS.map((f) => [
-    f.id,
-    f.type === "checkbox" ? "checked" : generateSampleValue({ label: f.label, type: f.type }),
-  ])
-);
 
 function SparkleIcon() {
   return (
@@ -139,12 +69,40 @@ function CheckIcon() {
   );
 }
 
-export default function DemoPage() {
-  const [values, setValues] = useState<Record<string, string>>(INITIAL_VALUES);
+export default function DemoPageWrapper() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-slate-50" />}>
+      <DemoPage />
+    </Suspense>
+  );
+}
+
+function DemoPage() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const formSlug = searchParams.get("form") ?? "job-application";
+  const selectedForm = DEMO_FORMS.find((f) => f.slug === formSlug) ?? DEMO_FORMS[0];
+  const currentFields = selectedForm.fields;
+
+  const [values, setValues] = useState<Record<string, string>>(() => buildInitialValues(currentFields));
   const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
   const [interactionCount, setInteractionCount] = useState(0);
   const interactedFields = useRef(new Set<string>());
   const explainRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const prevSlugRef = useRef(formSlug);
+
+  // Reset values when form type changes
+  if (prevSlugRef.current !== formSlug) {
+    prevSlugRef.current = formSlug;
+    setValues(buildInitialValues(currentFields));
+    setActiveFieldId(null);
+    setInteractionCount(0);
+    interactedFields.current = new Set();
+  }
+
+  const switchForm = useCallback((slug: string) => {
+    router.push(`/demo?form=${slug}`, { scroll: false });
+  }, [router]);
 
   function handleFieldFocus(fieldId: string) {
     setActiveFieldId(fieldId);
@@ -163,11 +121,11 @@ export default function DemoPage() {
   }
 
   function clearAll() {
-    setValues(Object.fromEntries(DEMO_FIELDS.map((f) => [f.id, ""])));
+    setValues(Object.fromEntries(currentFields.map((f) => [f.id, ""])));
   }
 
   function resetSample() {
-    setValues(INITIAL_VALUES);
+    setValues(buildInitialValues(currentFields));
   }
 
   const filledCount = Object.values(values).filter((v) => v && v.trim()).length;
@@ -194,6 +152,26 @@ export default function DemoPage() {
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
         <DemoNudgeBanner />
 
+        {/* Form type selector */}
+        <div className="mb-6 flex flex-wrap gap-2">
+          {DEMO_FORMS.map((df) => (
+            <button
+              key={df.slug}
+              onClick={() => switchForm(df.slug)}
+              className={`px-4 py-2 text-sm font-medium rounded-xl border transition-all ${
+                df.slug === selectedForm.slug
+                  ? "bg-blue-600 text-white border-blue-600 shadow-sm"
+                  : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700"
+              }`}
+            >
+              {df.title.length > 25 ? df.title.slice(0, 22) + "..." : df.title}
+              <span className={`ml-1.5 text-xs ${df.slug === selectedForm.slug ? "text-blue-200" : "text-slate-400"}`}>
+                {df.category}
+              </span>
+            </button>
+          ))}
+        </div>
+
         {/* Form header */}
         <div className="mb-6">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-violet-50 border border-violet-100 rounded-full text-xs font-medium text-violet-700 mb-3">
@@ -201,11 +179,10 @@ export default function DemoPage() {
             Interactive demo
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
-            Simple Job Application Form
+            {selectedForm.title}
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            Try editing any field below. Click a field to see its AI explanation.
-            FormPilot pre-fills from your profile and explains every field in plain English.
+            {selectedForm.description} Try editing any field — click to see its AI explanation.
           </p>
         </div>
 
@@ -216,7 +193,7 @@ export default function DemoPage() {
               <CheckIcon />
             </div>
             <span className="text-sm font-semibold text-emerald-800">
-              {filledCount}/{DEMO_FIELDS.length} fields filled
+              {filledCount}/{currentFields.length} fields filled
             </span>
           </div>
           <button onClick={clearAll} className="px-3 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
@@ -241,7 +218,7 @@ export default function DemoPage() {
 
         {/* Fields */}
         <div className="space-y-4">
-          {DEMO_FIELDS.map((field) => {
+          {currentFields.map((field) => {
             const isCheckbox = field.type === "checkbox";
             const isActive = activeFieldId === field.id;
             const value = values[field.id] ?? "";
