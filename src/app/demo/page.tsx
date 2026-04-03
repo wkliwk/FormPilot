@@ -12,7 +12,7 @@ function buildInitialValues(fields: DemoField[]): Record<string, string> {
   return Object.fromEntries(
     fields.map((f) => [
       f.id,
-      f.type === "checkbox" ? "checked" : generateSampleValue({ label: f.label, type: f.type }),
+      f.type === "checkbox" ? "checked" : f.type === "select" ? (f.options?.[0] ?? "") : generateSampleValue({ label: f.label, type: f.type }),
     ])
   );
 }
@@ -164,10 +164,7 @@ function DemoPage() {
                   : "bg-white text-slate-600 border-slate-200 hover:border-blue-300 hover:text-blue-700"
               }`}
             >
-              {df.title.length > 25 ? df.title.slice(0, 22) + "..." : df.title}
-              <span className={`ml-1.5 text-xs ${df.slug === selectedForm.slug ? "text-blue-200" : "text-slate-400"}`}>
-                {df.category}
-              </span>
+              {df.badge} {df.label}
             </button>
           ))}
         </div>
@@ -182,7 +179,7 @@ function DemoPage() {
             {selectedForm.title}
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            {selectedForm.description} Try editing any field — click to see its AI explanation.
+            {selectedForm.subtitle}
           </p>
         </div>
 
@@ -258,6 +255,18 @@ function DemoPage() {
                       />
                       <span className="text-sm text-slate-700">Yes</span>
                     </label>
+                  ) : field.type === "select" ? (
+                    <select
+                      id={`demo-${field.id}`}
+                      value={value}
+                      onChange={(e) => handleChange(field.id, e.target.value)}
+                      onFocus={() => handleFieldFocus(field.id)}
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-800 font-medium mb-3 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                    >
+                      {field.options?.map((opt) => (
+                        <option key={opt} value={opt}>{opt}</option>
+                      ))}
+                    </select>
                   ) : (
                     <input
                       id={`demo-${field.id}`}

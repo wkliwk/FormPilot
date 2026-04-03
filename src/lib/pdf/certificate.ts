@@ -13,6 +13,7 @@ export async function generateCertificate({
   category,
   completedAt,
   fields,
+  userName,
 }: {
   formId: string;
   userId: string;
@@ -20,6 +21,7 @@ export async function generateCertificate({
   category: string | null;
   completedAt: Date;
   fields: FormField[];
+  userName?: string | null;
 }): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
 
@@ -119,9 +121,16 @@ export async function generateCertificate({
 
   page.drawText("COMPLETED ON", { x: 40, y, size: 8, font: helveticaBold, color: midGray });
   page.drawText("FIELDS FILLED", { x: 220, y, size: 8, font: helveticaBold, color: midGray });
+  if (userName) {
+    page.drawText("COMPLETED BY", { x: 380, y, size: 8, font: helveticaBold, color: midGray });
+  }
   y -= 18;
   page.drawText(completionDateStr, { x: 40, y, size: 14, font: helveticaBold, color: darkGray });
   page.drawText(`${filledCount} / ${totalCount}`, { x: 220, y, size: 14, font: helveticaBold, color: darkGray });
+  if (userName) {
+    const truncatedName = truncateText(userName, helveticaBold, 14, A4_WIDTH - 380 - 40);
+    page.drawText(truncatedName, { x: 380, y, size: 14, font: helveticaBold, color: darkGray });
+  }
 
   y -= 36;
 
@@ -166,11 +175,15 @@ export async function generateCertificate({
   }
 
   // -- Footer --
+  const verificationId = formId.slice(-8).toUpperCase();
   const certId = buildCertId(formId, userId, completedAt);
   const footerY = 36;
 
-  page.drawLine({ start: { x: 40, y: footerY + 24 }, end: { x: A4_WIDTH - 40, y: footerY + 24 }, thickness: 1, color: lightGray });
-  page.drawText(`Certificate ID: ${certId}`, {
+  page.drawLine({ start: { x: 40, y: footerY + 36 }, end: { x: A4_WIDTH - 40, y: footerY + 36 }, thickness: 1, color: lightGray });
+  page.drawText("Filled with confidence using FormPilot", {
+    x: 40, y: footerY + 22, size: 8, font: helvetica, color: midGray,
+  });
+  page.drawText(`Verification ID: ${verificationId}  ·  Certificate: ${certId}`, {
     x: 40, y: footerY + 8, size: 8, font: helvetica, color: midGray,
   });
   page.drawText("getformpilot.com", {
