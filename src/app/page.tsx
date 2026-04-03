@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import ReferralTracker from "@/components/ReferralTracker";
-import FAQSection, { FAQ_ITEMS } from "@/components/FAQSection";
+import FAQSection from "@/components/FAQSection";
+import { FAQ_ITEMS } from "@/lib/faq-items";
 
 // Set NEXT_PUBLIC_PH_URL in env once the Product Hunt post is live
 const PRODUCT_HUNT_URL: string | null = process.env.NEXT_PUBLIC_PH_URL ?? null;
