@@ -1,0 +1,44 @@
+[
+  {
+    "id": "2026-04-01-demo-forms",
+    "date": "2026-04-01",
+    "badge": "New",
+    "title": "Interactive demo — W-4, I-9, DS-160",
+    "description": "The demo page now includes W-4, I-9, and DS-160 sample forms so you can try FormPilot before signing up. Switch between forms with one click."
+  },
+  {
+    "id": "2026-03-28-seo-pages",
+    "date": "2026-03-28",
+    "badge": "New",
+    "title": "Form guide pages",
+    "description": "Dedicated pages for common form types (W-4, I-9, 1040, DS-160, N-400) explain what each form is and what to expect. Share with anyone who needs help."
+  },
+  {
+    "id": "2026-03-25-completion-certificate",
+    "date": "2026-03-25",
+    "badge": "New",
+    "title": "Completion certificate",
+    "description": "When you finish filling a form, FormPilot generates a signed completion certificate PDF. Useful for your records or to show proof of completion."
+  },
+  {
+    "id": "2026-03-20-field-notes",
+    "date": "2026-03-20",
+    "badge": "New",
+    "title": "Field notes",
+    "description": "Annotate any form field with a private note — reminders like 'check W-2 box 1 before submitting' that persist across sessions."
+  },
+  {
+    "id": "2026-03-15-form-memory",
+    "date": "2026-03-15",
+    "badge": "Improved",
+    "title": "Editable form memory",
+    "description": "Form memory entries are now editable inline. Click any saved value to correct it — no need to re-upload the form."
+  },
+  {
+    "id": "2026-03-10-chrome-extension",
+    "date": "2026-03-10",
+    "badge": "New",
+    "title": "Chrome extension",
+    "description": "The FormPilot Chrome extension detects web form fields on any page and shows AI explanations in a side panel. Install it from the Extension page."
+  }
+]

@@ -16,7 +16,8 @@ model User {
   updatedAt     DateTime  @updatedAt
   referralCode          String?   @unique // Short code for referral links (generated on first use)
   referredBy            String?           // userId of the user who referred this user
-  reminderEmailsEnabled Boolean   @default(true) // Set false via unsubscribe link to opt out of nudge emails
+  reminderEmailsEnabled    Boolean   @default(true) // Set false via unsubscribe link to opt out of nudge emails
+  lastSeenChangelogAt      DateTime? // Last time user opened the What's New drawer
 
   accounts     Account[]
   sessions     Session[]

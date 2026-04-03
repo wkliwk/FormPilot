@@ -3,10 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import ChangelogDrawer from "@/components/ChangelogDrawer";
 
 interface DashboardNavProps {
   email?: string;
   signOutAction: () => Promise<void>;
+  lastSeenChangelogAt?: string | null;
 }
 
 const NAV_ITEMS = [
@@ -97,7 +99,7 @@ const NAV_ITEMS = [
   },
 ];
 
-export default function DashboardNav({ email, signOutAction }: DashboardNavProps) {
+export default function DashboardNav({ email, signOutAction, lastSeenChangelogAt = null }: DashboardNavProps) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -137,9 +139,7 @@ export default function DashboardNav({ email, signOutAction }: DashboardNavProps
               {email}
             </span>
           )}
-          <Link href="/changelog" className="text-sm text-slate-400 hover:text-slate-700 transition-colors px-2 py-1">
-            What&apos;s new
-          </Link>
+          <ChangelogDrawer lastSeenChangelogAt={lastSeenChangelogAt} />
           <form action={signOutAction}>
             <button type="submit" className="text-sm text-slate-400 hover:text-red-600 transition-colors px-2 py-1">
               Sign Out
