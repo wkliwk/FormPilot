@@ -13,6 +13,7 @@ import FieldQA from "./FieldQA";
 import ProGateModal from "@/components/ProGateModal";
 import FieldNote from "./FieldNote";
 import GapReportPanel, { type ProfileGap } from "./GapReportPanel";
+import ProgressRing from "./ProgressRing";
 
 interface FormRecord {
   id: string;
@@ -153,6 +154,12 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [autofillError, setAutofillError] = useState<string | null>(null);
   const [profileGaps, setProfileGaps] = useState<ProfileGap[]>([]);
   const [gapReportVisible, setGapReportVisible] = useState(false);
+
+  // Live completion score — recomputed whenever values change
+  const completionScore = fields.length > 0
+    ? Math.round(Object.values(values).filter((v) => v && String(v).trim()).length / fields.length * 100)
+    : -1; // -1 = unknown field count, hide ring
+
   const [saveError, setSaveError] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [activeField, setActiveField] = useState<string | null>(null);
@@ -979,7 +986,12 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       {/* Header Card */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-5 sm:p-6 space-y-5">
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
+          {completionScore >= 0 && (
+            <div className="shrink-0 self-start">
+              <ProgressRing score={completionScore} size={48} strokeWidth={4} />
+            </div>
+          )}
+          <div className="flex-1 min-w-0">
             {editingTitle ? (
               <input
                 ref={titleInputRef}

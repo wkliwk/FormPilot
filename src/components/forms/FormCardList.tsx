@@ -3,6 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import ProgressRing from "./ProgressRing";
 
 const statusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
   COMPLETED: { label: "Completed", bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
@@ -286,7 +287,7 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
               <div key={form.id} className="relative group">
                 <Link
                   href={`/dashboard/forms/${form.id}`}
-                  className={`flex items-center gap-4 bg-white rounded-xl border border-slate-200 p-4 sm:p-5 hover:border-blue-200 hover:shadow-card transition-all ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}
+                  className={`relative flex items-center gap-4 bg-white rounded-xl border border-slate-200 p-4 sm:p-5 hover:border-blue-200 hover:shadow-card transition-all ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}
                 >
                   {getFileIcon(form.sourceType)}
 
@@ -302,19 +303,12 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
                       )}
                     </div>
 
-                    {/* Completion bar */}
-                    <div className="mt-1.5 flex items-center gap-2">
-                      <div className="flex-1 h-1 bg-slate-100 rounded-full overflow-hidden max-w-[120px]">
-                        <div
-                          className="h-full rounded-full transition-all duration-300"
-                          style={{
-                            width: `${form.completionPercent}%`,
-                            background: form.completionPercent === 100 ? "#10b981" : "#3b82f6",
-                          }}
-                        />
+                    {/* Completion ring */}
+                    {form.fieldCount > 0 && (
+                      <div className="mt-1.5 shrink-0 absolute top-3 right-3">
+                        <ProgressRing score={form.completionPercent} size={32} />
                       </div>
-                      <span className="text-xs text-slate-400 tabular-nums shrink-0">{form.completionPercent}%</span>
-                    </div>
+                    )}
 
                     <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
                       <span>{form.sourceType}</span>
