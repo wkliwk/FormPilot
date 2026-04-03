@@ -194,6 +194,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [blurErrors, setBlurErrors] = useState<Record<string, string>>({});
   // export pre-flight: required-fields-empty banner
   const [showRequiredEmptyBanner, setShowRequiredEmptyBanner] = useState(false);
+  // autofill confidence summary banner
+  const [autofillSummary, setAutofillSummary] = useState<{ high: number; medium: number; low: number; unfilled: number } | null>(null);
   // help drawer
   const [helpDrawerFieldId, setHelpDrawerFieldId] = useState<string | null>(null);
   type ExplainResult = { explanation: string; example: string; commonMistakes: string | null; whereToFind: string | null; isPro: boolean; remaining: number };
@@ -581,6 +583,19 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       setFieldStates(newStates);
       scheduleSave(newValues, newStates);
 
+      // Compute confidence summary for the post-autofill banner
+      const filledFields = newFields.filter((f) => f.value);
+      if (filledFields.length > 0) {
+        const highCount = filledFields.filter((f) => f.confidence !== undefined && f.confidence >= 0.8).length;
+        const mediumCount = filledFields.filter((f) => f.confidence !== undefined && f.confidence >= 0.5 && f.confidence < 0.8).length;
+        const lowCount = filledFields.filter((f) => f.confidence !== undefined && f.confidence < 0.5).length;
+        const unfilledCount = newFields.filter((f) => !f.value).length;
+        // Only show banner if there are medium or low confidence fills (all-high is fine, no banner needed)
+        if (mediumCount > 0 || lowCount > 0) {
+          setAutofillSummary({ high: highCount, medium: mediumCount, low: lowCount, unfilled: unfilledCount });
+        }
+      }
+
       // Show gap report if there are unmatched profile fields and user hasn't dismissed it
       const gaps: ProfileGap[] = data.profileGaps ?? [];
       const dismissKey = `gapReportDismissed:${form.id}`;
@@ -606,6 +621,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
     setValues(clearValues);
     setFieldStates(clearStates);
+    setAutofillSummary(null);
     onValuesSnapshotChange?.(clearValues);
 
     setSaveStatus("saving");
@@ -1702,6 +1718,58 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
               </svg>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Autofill confidence summary banner */}
+      {autofillSummary && (
+        <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-blue-500 mt-0.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-blue-900">Autofill complete</p>
+            <p className="text-xs text-blue-700 mt-0.5">
+              {autofillSummary.high > 0 && (
+                <span className="text-emerald-700 font-medium">{autofillSummary.high} high</span>
+              )}
+              {autofillSummary.high > 0 && (autofillSummary.medium > 0 || autofillSummary.low > 0) && <span>, </span>}
+              {autofillSummary.medium > 0 && (
+                <span className="text-amber-700 font-medium">{autofillSummary.medium} medium</span>
+              )}
+              {autofillSummary.medium > 0 && autofillSummary.low > 0 && <span>, </span>}
+              {autofillSummary.low > 0 && (
+                <span className="text-red-600 font-medium">{autofillSummary.low} low</span>
+              )}
+              {" "}confidence
+              {autofillSummary.unfilled > 0 && ` · ${autofillSummary.unfilled} field${autofillSummary.unfilled !== 1 ? "s" : ""} left blank`}
+            </p>
+            {autofillSummary.low > 0 && (() => {
+              const firstLowField = fields.find((f) => f.confidence !== undefined && f.confidence < 0.5 && values[f.id]);
+              return firstLowField ? (
+                <button
+                  type="button"
+                  className="text-xs text-blue-600 underline underline-offset-2 mt-1 hover:text-blue-800 transition-colors"
+                  onClick={() => {
+                    const el = document.getElementById(`field-${firstLowField.id}`);
+                    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+                  }}
+                >
+                  Review low-confidence fields
+                </button>
+              ) : null;
+            })()}
+          </div>
+          <button
+            type="button"
+            onClick={() => setAutofillSummary(null)}
+            className="p-1 text-blue-400 hover:text-blue-700 transition-colors shrink-0"
+            aria-label="Dismiss"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
       )}
 
