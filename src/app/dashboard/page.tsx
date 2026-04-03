@@ -13,6 +13,7 @@ import ProGateModal from "@/components/ProGateModal";
 import ReferralCard from "@/components/ReferralCard";
 import { getUserPlan, getOrCreateUsage, FREE_FORM_LIMIT } from "@/lib/subscription";
 import { getUserByReferralCode, getOrCreateReferralCode, getReferralStats } from "@/lib/referral";
+import ProfileCompletenessCard from "@/components/ProfileCompletenessCard";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -83,17 +84,36 @@ export default async function DashboardPage() {
   // Show checklist until dismissed or all steps done
   const showChecklist = !onboardingDismissed && !allStepsDone;
 
-  // Profile completeness for nudge (10 core fields)
+  // Profile completeness — weighted category score
+  // See ProfileCompletenessCard.tsx for the full weighting rationale.
   const pd = profileData;
   const addr = (pd?.address ?? {}) as Record<string, unknown>;
-  const coreFields = [
-    pd?.firstName, pd?.lastName, pd?.email, pd?.phone, pd?.dateOfBirth,
-    addr?.street, addr?.city, addr?.state, addr?.zip, addr?.country,
+
+  const PROFILE_CATEGORIES = [
+    { key: "identity",   name: "Name",              weight: 3, filled: !!(pd?.firstName && pd?.lastName) },
+    { key: "contact",    name: "Contact info",       weight: 3, filled: !!(pd?.email && pd?.phone) },
+    { key: "address",    name: "Address",            weight: 3, filled: !!(addr?.street && addr?.city && addr?.state) },
+    { key: "dob",        name: "Date of birth",      weight: 2, filled: !!pd?.dateOfBirth },
+    { key: "employment", name: "Employment",         weight: 2, filled: !!pd?.employerName },
+    { key: "documents",  name: "Identity documents", weight: 1, filled: !!(pd?.ssn || pd?.passportNumber || pd?.driverLicense || pd?.taxId) },
   ];
-  const profileCompleteness = Math.round(
-    (coreFields.filter((v) => v && String(v).trim()).length / coreFields.length) * 100
-  );
-  const showProfileNudge = hasProfileData && profileCompleteness < 60 && !showChecklist;
+  const TOTAL_WEIGHT = 14; // 3+3+3+2+2+1
+  const filledWeight = PROFILE_CATEGORIES.filter((c) => c.filled).reduce((s, c) => s + c.weight, 0);
+  const profileScore = Math.round((filledWeight / TOTAL_WEIGHT) * 100);
+
+  // Top 3 missing categories by weight (highest priority first)
+  const missingCategories = PROFILE_CATEGORIES
+    .filter((c) => !c.filled)
+    .sort((a, b) => b.weight - a.weight)
+    .slice(0, 3)
+    .map((c) => c.name);
+
+  // Show the completeness card after the onboarding checklist is done (or dismissed) and score < 100
+  const showCompletenessCard = hasProfile && profileScore < 100 && !showChecklist;
+
+  // Keep the simpler amber nudge for non-profile users (first-time hint)
+  const profileCompleteness = profileScore;
+  const showProfileNudge = !hasProfile && !showChecklist;
 
   const stats = {
     total: pagedForms.length,
@@ -139,14 +159,14 @@ export default async function DashboardPage() {
                 <line x1="12" y1="16" x2="12.01" y2="16" />
               </svg>
               <p className="text-sm text-amber-800">
-                Your profile is <strong>{profileCompleteness}% complete</strong> — add more details to improve autofill accuracy.
+                Set up your profile — it lets FormPilot autofill forms with your saved details.
               </p>
             </div>
             <Link
               href="/dashboard/profile"
               className="shrink-0 text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2 transition-colors"
             >
-              Complete profile
+              Set up profile
             </Link>
           </div>
         </div>
@@ -165,6 +185,11 @@ export default async function DashboardPage() {
         />
       )}
       <main className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 space-y-8">
+        {/* Profile completeness card — shown when profile exists but score < 100% */}
+        {showCompletenessCard && (
+          <ProfileCompletenessCard score={profileScore} missingCategories={missingCategories} />
+        )}
+
         {/* Stats widget — only shown after first form is used */}
         {allForms.length > 0 && <DashboardStats {...dashboardStats} />}
 
