@@ -42,7 +42,7 @@ export default async function DashboardPage() {
   }
 
   const PAGE_SIZE = 20;
-  const [forms, allForms, profile, plan, usage, referralCode, referralStats] = await Promise.all([
+  const [forms, allForms, profile, plan, usage, referralCode, referralStats, userRecord] = await Promise.all([
     prisma.form.findMany({
       where: { userId: session.user.id! },
       orderBy: { createdAt: "desc" },
@@ -50,13 +50,14 @@ export default async function DashboardPage() {
     }),
     prisma.form.findMany({
       where: { userId: session.user.id! },
-      select: { fields: true, status: true },
+      select: { fields: true, status: true, shareToken: true },
     }),
     prisma.profile.findUnique({ where: { userId: session.user.id! } }),
     getUserPlan(session.user.id!),
     getOrCreateUsage(session.user.id!),
     getOrCreateReferralCode(session.user.id!),
     getReferralStats(session.user.id!),
+    prisma.user.findUnique({ where: { id: session.user.id! }, select: { onboardingDismissedAt: true } }),
   ]);
   const hasMore = forms.length > PAGE_SIZE;
   const pagedForms = hasMore ? forms.slice(0, PAGE_SIZE) : forms;
@@ -73,8 +74,14 @@ export default async function DashboardPage() {
   // Step 3 done: any form has been through analysis/autofill
   const hasUsedAutofill = pagedForms.some((f) => f.status !== "PENDING");
 
-  // Show checklist until all 3 steps done + dismissed
-  const showChecklist = !hasProfileData || pagedForms.length === 0 || !hasUsedAutofill;
+  // Step 4 done: any form exported (COMPLETED) or shared (shareToken set)
+  const hasExportedOrShared = allForms.some((f) => f.status === "COMPLETED" || !!f.shareToken);
+
+  const onboardingDismissed = !!userRecord?.onboardingDismissedAt;
+  const allStepsDone = hasProfileData && pagedForms.length > 0 && hasUsedAutofill && hasExportedOrShared;
+
+  // Show checklist until dismissed or all steps done
+  const showChecklist = !onboardingDismissed && !allStepsDone;
 
   // Profile completeness for nudge (10 core fields)
   const pd = profileData;
@@ -119,6 +126,7 @@ export default async function DashboardPage() {
           hasProfileData={hasProfileData}
           formsCount={pagedForms.length}
           hasUsedAutofill={hasUsedAutofill}
+          hasExportedOrShared={hasExportedOrShared}
         />
       )}
       {showProfileNudge && (

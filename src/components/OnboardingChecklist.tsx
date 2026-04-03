@@ -4,9 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 
 interface OnboardingChecklistProps {
-  hasProfileData: boolean; // profile exists AND has firstName + lastName + email
+  hasProfileData: boolean;
   formsCount: number;
-  hasUsedAutofill: boolean; // any form with status !== 'PENDING'
+  hasUsedAutofill: boolean;
+  hasExportedOrShared: boolean;
 }
 
 interface Step {
@@ -18,33 +19,17 @@ interface Step {
   done: boolean;
 }
 
-const DISMISSED_KEY = "fp_onboarding_dismissed";
-
 export default function OnboardingChecklist({
   hasProfileData,
   formsCount,
   hasUsedAutofill,
+  hasExportedOrShared,
 }: OnboardingChecklistProps) {
   const [dismissed, setDismissed] = useState(false);
   const [allDoneMessage, setAllDoneMessage] = useState(false);
   const allDoneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Check localStorage on mount
-  useEffect(() => {
-    if (typeof window !== "undefined" && localStorage.getItem(DISMISSED_KEY)) {
-      setDismissed(true);
-    }
-  }, []);
-
   const steps: Step[] = [
-    {
-      id: "profile",
-      label: "Complete your profile",
-      description: "Add your name, email, and address so FormPilot can autofill your forms.",
-      cta: "Go to Profile",
-      href: "/dashboard/profile",
-      done: hasProfileData,
-    },
     {
       id: "upload",
       label: "Upload your first form",
@@ -54,12 +39,28 @@ export default function OnboardingChecklist({
       done: formsCount >= 1,
     },
     {
+      id: "profile",
+      label: "Complete your profile",
+      description: "Add your name, email, and address so FormPilot can autofill your forms.",
+      cta: "Go to Profile",
+      href: "/dashboard/profile",
+      done: hasProfileData,
+    },
+    {
       id: "autofill",
-      label: "Use autofill on a form",
-      description: "Open a form and click Autofill to see your profile data suggested for each field.",
+      label: "Run autofill on a form",
+      description: "Open a form and click Autofill to see your profile data fill the fields instantly.",
       cta: "Open a Form",
       href: "/dashboard",
       done: hasUsedAutofill,
+    },
+    {
+      id: "export",
+      label: "Export or share your form",
+      description: "Download the filled PDF or share a public link with whoever needs it.",
+      cta: "Export a Form",
+      href: "/dashboard",
+      done: hasExportedOrShared,
     },
   ];
 
@@ -80,11 +81,10 @@ export default function OnboardingChecklist({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allDone, dismissed]);
 
-  function dismiss() {
-    if (typeof window !== "undefined") {
-      localStorage.setItem(DISMISSED_KEY, "1");
-    }
+  async function dismiss() {
     setDismissed(true);
+    // Persist to DB (best-effort — UI update is immediate)
+    fetch("/api/onboarding/dismiss", { method: "POST" }).catch(() => {});
   }
 
   if (dismissed) return null;
@@ -108,11 +108,12 @@ export default function OnboardingChecklist({
                 <p className="text-sm font-semibold text-slate-900">
                   Get started — {completedCount}/{steps.length} steps complete
                 </p>
+                {/* Desktop progress dots */}
                 <div className="hidden sm:flex gap-1">
                   {steps.map((step) => (
                     <div
                       key={step.id}
-                      className={`h-1.5 w-8 rounded-full ${step.done ? "bg-blue-500" : "bg-slate-200"}`}
+                      className={`h-1.5 w-8 rounded-full transition-colors ${step.done ? "bg-blue-500" : "bg-slate-200"}`}
                     />
                   ))}
                 </div>
@@ -125,7 +126,21 @@ export default function OnboardingChecklist({
               </button>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {/* Mobile: compact progress bar + next step hint */}
+            <div className="sm:hidden">
+              <div className="w-full bg-slate-100 rounded-full h-2">
+                <div
+                  className="bg-blue-500 h-2 rounded-full transition-all"
+                  style={{ width: `${(completedCount / steps.length) * 100}%` }}
+                />
+              </div>
+              <p className="text-xs text-slate-500 mt-1.5">
+                Next: <span className="font-medium text-slate-700">{steps.find((s) => !s.done)?.label ?? "All done!"}</span>
+              </p>
+            </div>
+
+            {/* Desktop: full step cards */}
+            <div className="hidden sm:grid sm:grid-cols-4 gap-3">
               {steps.map((step, index) => (
                 <div
                   key={step.id}

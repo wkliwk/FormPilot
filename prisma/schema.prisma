@@ -20,6 +20,7 @@ model User {
   lastSeenChangelogAt      DateTime? // Last time user opened the What's New drawer
   lastDigestSentAt         DateTime? // Last time a stale-form digest was sent to this user
   digestUnsubscribed       Boolean   @default(false) // Set true via digest unsubscribe link
+  onboardingDismissedAt    DateTime? // Set when user dismisses the onboarding checklist
 
   accounts     Account[]
   sessions     Session[]
