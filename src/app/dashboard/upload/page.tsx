@@ -275,12 +275,17 @@ export default function UploadPage() {
       });
     }, 300);
 
+    const uploadController = new AbortController();
+    const uploadTimeout = setTimeout(() => uploadController.abort(), 75_000);
+
     try {
       const res = await fetch("/api/forms/upload", {
         method: "POST",
         body: formData,
+        signal: uploadController.signal,
       });
 
+      clearTimeout(uploadTimeout);
       clearInterval(progressInterval);
       clearStepTimers();
 
@@ -333,9 +338,15 @@ export default function UploadPage() {
       await new Promise((resolve) => setTimeout(resolve, 300));
       router.push(`/dashboard/forms/${formId}`);
     } catch (err) {
+      clearTimeout(uploadTimeout);
       clearInterval(progressInterval);
       clearStepTimers();
-      setError(err instanceof Error ? err.message : "Something went wrong");
+      const isTimeout = err instanceof Error && (err.name === "AbortError" || err.message.includes("abort"));
+      setError(
+        isTimeout
+          ? "Analysis is taking longer than expected. Please try again."
+          : err instanceof Error ? err.message : "Something went wrong"
+      );
       setLoading(false);
       setLoadingStep(0);
       setUploadProgress(0);
