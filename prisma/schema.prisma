@@ -21,6 +21,8 @@ model User {
   lastDigestSentAt         DateTime? // Last time a stale-form digest was sent to this user
   digestUnsubscribed       Boolean   @default(false) // Set true via digest unsubscribe link
   onboardingDismissedAt    DateTime? // Set when user dismisses the onboarding checklist
+  drip2SentAt              DateTime? // Welcome drip email 2 (T+48h profile nudge) sent at
+  drip3SentAt              DateTime? // Welcome drip email 3 (T+7d re-engage) sent at
 
   accounts     Account[]
   sessions     Session[]
