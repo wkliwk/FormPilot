@@ -287,7 +287,7 @@ export default function UploadPage() {
     }, 300);
 
     const uploadController = new AbortController();
-    const uploadTimeout = setTimeout(() => uploadController.abort(), 75_000);
+    const uploadTimeout = setTimeout(() => uploadController.abort(), 90_000);
 
     try {
       const res = await fetch("/api/forms/upload", {
@@ -387,12 +387,16 @@ export default function UploadPage() {
       return;
     }
     setUrlLoading(true);
+    const urlController = new AbortController();
+    const urlTimeout = setTimeout(() => urlController.abort(), 90_000);
     try {
       const res = await fetch("/api/forms/analyze-url", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: trimmed }),
+        signal: urlController.signal,
       });
+      clearTimeout(urlTimeout);
       const data = await res.json().catch(() => ({} as Record<string, unknown>));
       if (!res.ok) {
         if (res.status === 402) {
@@ -409,8 +413,14 @@ export default function UploadPage() {
       }
       const { formId } = data as { formId: string };
       router.push(`/dashboard/forms/${formId}`);
-    } catch {
-      setUrlError("Something went wrong. Please try again.");
+    } catch (err) {
+      clearTimeout(urlTimeout);
+      const isTimeout = err instanceof Error && (err.name === "AbortError" || err.message.includes("abort"));
+      setUrlError(
+        isTimeout
+          ? "Analysis is taking longer than expected. Please try again."
+          : "Something went wrong. Please try again."
+      );
     } finally {
       setUrlLoading(false);
     }
