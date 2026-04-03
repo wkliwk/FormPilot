@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import ReferralTracker from "@/components/ReferralTracker";
+import FAQSection, { FAQ_ITEMS } from "@/components/FAQSection";
 
 // Set NEXT_PUBLIC_PH_URL in env once the Product Hunt post is live
 const PRODUCT_HUNT_URL: string | null = process.env.NEXT_PUBLIC_PH_URL ?? null;
@@ -158,11 +159,30 @@ const steps = [
   },
 ];
 
+const faqJsonLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: FAQ_ITEMS.map((item) => ({
+    "@type": "Question",
+    name: item.question,
+    acceptedAnswer: {
+      "@type": "Answer",
+      text: item.answer,
+    },
+  })),
+};
+
 export default async function HomePage() {
   const formsProcessed = await getFormsProcessed();
 
   return (
     <main className="min-h-screen">
+      {/* FAQPage structured data for Google rich snippets */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(faqJsonLd) }}
+      />
+
       {/* Invisible referral tracker — sets fp_ref cookie when ?ref=CODE is in the URL */}
       <Suspense fallback={null}>
         <ReferralTracker />
@@ -319,7 +339,7 @@ export default async function HomePage() {
           </div>
 
           <div className="space-y-6">
-            {steps.map((step, index) => (
+            {steps.map((step) => (
               <div
                 key={step.step}
                 className="flex items-start gap-5 bg-white rounded-2xl p-6 border border-slate-100 shadow-soft"
@@ -473,6 +493,9 @@ export default async function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* FAQ */}
+      <FAQSection />
 
       {/* CTA */}
       <section className="bg-slate-900">

@@ -1,3 +1,6 @@
+"use client";
+
+import { useState, useRef } from "react";
 import Link from "next/link";
 import { generateSampleValue } from "@/lib/sample-data";
 import DemoNudgeBanner from "@/components/forms/DemoNudgeBanner";
@@ -77,6 +80,13 @@ const DEMO_FIELDS: DemoField[] = [
   },
 ];
 
+const INITIAL_VALUES: Record<string, string> = Object.fromEntries(
+  DEMO_FIELDS.map((f) => [
+    f.id,
+    f.type === "checkbox" ? "checked" : generateSampleValue({ label: f.label, type: f.type }),
+  ])
+);
+
 function SparkleIcon() {
   return (
     <svg
@@ -130,6 +140,38 @@ function CheckIcon() {
 }
 
 export default function DemoPage() {
+  const [values, setValues] = useState<Record<string, string>>(INITIAL_VALUES);
+  const [activeFieldId, setActiveFieldId] = useState<string | null>(null);
+  const [interactionCount, setInteractionCount] = useState(0);
+  const interactedFields = useRef(new Set<string>());
+  const explainRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  function handleFieldFocus(fieldId: string) {
+    setActiveFieldId(fieldId);
+    if (!interactedFields.current.has(fieldId)) {
+      interactedFields.current.add(fieldId);
+      setInteractionCount((c) => c + 1);
+    }
+    const el = explainRefs.current[fieldId];
+    if (el && window.innerWidth < 640) {
+      setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "nearest" }), 100);
+    }
+  }
+
+  function handleChange(fieldId: string, value: string) {
+    setValues((prev) => ({ ...prev, [fieldId]: value }));
+  }
+
+  function clearAll() {
+    setValues(Object.fromEntries(DEMO_FIELDS.map((f) => [f.id, ""])));
+  }
+
+  function resetSample() {
+    setValues(INITIAL_VALUES);
+  }
+
+  const filledCount = Object.values(values).filter((v) => v && v.trim()).length;
+
   return (
     <div className="min-h-screen bg-slate-50">
       {/* Nav */}
@@ -139,16 +181,10 @@ export default function DemoPage() {
             Form<span className="text-blue-600">Pilot</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link
-              href="/login"
-              className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
-            >
+            <Link href="/login" className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors">
               Sign In
             </Link>
-            <Link
-              href="/login?from=demo"
-              className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm"
-            >
+            <Link href="/login?from=demo" className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
               Get Started
             </Link>
           </div>
@@ -156,122 +192,122 @@ export default function DemoPage() {
       </nav>
 
       <div className="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14">
-        {/* Signup nudge banner — dynamic copy after user scrolls into the demo */}
         <DemoNudgeBanner />
 
         {/* Form header */}
         <div className="mb-6">
           <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-violet-50 border border-violet-100 rounded-full text-xs font-medium text-violet-700 mb-3">
             <SparkleIcon />
-            AI-powered demo
+            Interactive demo
           </div>
           <h1 className="text-2xl sm:text-3xl font-bold text-slate-900">
             Simple Job Application Form
           </h1>
           <p className="mt-2 text-sm text-slate-500">
-            FormPilot has read this form and pre-filled each field using a
-            sample profile. Each field includes a plain-English explanation of
-            what to enter and why.
+            Try editing any field below. Click a field to see its AI explanation.
+            FormPilot pre-fills from your profile and explains every field in plain English.
           </p>
         </div>
 
-        {/* Autofill summary badge */}
-        <div className="mb-6 flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3">
-          <div className="flex items-center justify-center w-7 h-7 rounded-full bg-emerald-500 text-white shrink-0">
-            <CheckIcon />
+        {/* Action bar */}
+        <div className="mb-6 flex flex-wrap items-center gap-3">
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-2.5">
+            <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white shrink-0">
+              <CheckIcon />
+            </div>
+            <span className="text-sm font-semibold text-emerald-800">
+              {filledCount}/{DEMO_FIELDS.length} fields filled
+            </span>
           </div>
-          <div>
-            <p className="text-sm font-semibold text-emerald-800">
-              {DEMO_FIELDS.length} fields autofilled from sample profile
-            </p>
-            <p className="text-xs text-emerald-600 mt-0.5">
-              In your account, these values come from your saved personal
-              profile.
-            </p>
-          </div>
+          <button onClick={clearAll} className="px-3 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+            Clear all &amp; try yourself
+          </button>
+          <button onClick={resetSample} className="px-3 py-2 text-xs font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+            Reset sample data
+          </button>
         </div>
+
+        {/* Interaction CTA */}
+        {interactionCount >= 3 && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
+            <p className="text-sm text-blue-800">
+              <strong>Like this?</strong> Upload your own form — FormPilot reads any PDF, Word doc, or image.
+            </p>
+            <Link href="/login?from=demo" className="shrink-0 px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+              Try free
+            </Link>
+          </div>
+        )}
 
         {/* Fields */}
         <div className="space-y-4">
           {DEMO_FIELDS.map((field) => {
-            const filledValue = generateSampleValue({
-              label: field.label,
-              type: field.type,
-            });
             const isCheckbox = field.type === "checkbox";
+            const isActive = activeFieldId === field.id;
+            const value = values[field.id] ?? "";
+            const isFilled = !!value.trim();
 
             return (
               <div
                 key={field.id}
-                className="bg-white rounded-2xl border border-emerald-200 shadow-sm overflow-hidden"
+                className={`bg-white rounded-2xl border shadow-sm overflow-hidden transition-colors ${
+                  isActive ? "border-blue-300 ring-2 ring-blue-100" : isFilled ? "border-emerald-200" : "border-slate-200"
+                }`}
               >
-                {/* Confidence bar */}
-                <div className="h-1 bg-emerald-500 w-full" aria-hidden="true" />
+                <div className={`h-1 w-full ${isFilled ? "bg-emerald-500" : "bg-slate-200"}`} aria-hidden="true" />
 
                 <div className="px-5 py-4">
-                  {/* Label row */}
                   <div className="flex items-start justify-between gap-3 mb-3">
-                    <span className="text-sm font-semibold text-slate-900">
+                    <label htmlFor={`demo-${field.id}`} className="text-sm font-semibold text-slate-900">
                       {field.label}
-                    </span>
-                    <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-medium">
-                      <CheckIcon />
-                      Autofilled
-                    </span>
+                    </label>
+                    {isFilled && (
+                      <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full text-xs font-medium">
+                        <CheckIcon />
+                        Filled
+                      </span>
+                    )}
                   </div>
 
-                  {/* Value display (read-only) */}
                   {isCheckbox ? (
-                    <div
-                      className="flex items-center gap-2.5 mb-3"
-                      role="group"
-                      aria-label={`${field.label} — autofilled: checked`}
-                    >
-                      <div
-                        role="checkbox"
-                        aria-checked="true"
-                        aria-label={field.label}
-                        tabIndex={0}
-                        className="w-5 h-5 rounded border-2 border-emerald-500 bg-emerald-500 flex items-center justify-center shrink-0"
-                      >
-                        <svg
-                          className="w-3 h-3 text-white"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="3"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          aria-hidden="true"
-                        >
-                          <polyline points="20 6 9 17 4 12" />
-                        </svg>
-                      </div>
+                    <label className="flex items-center gap-2.5 mb-3 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        id={`demo-${field.id}`}
+                        checked={value === "checked"}
+                        onChange={(e) => handleChange(field.id, e.target.checked ? "checked" : "")}
+                        onFocus={() => handleFieldFocus(field.id)}
+                        className="w-5 h-5 rounded border-2 border-slate-300 text-emerald-500 focus:ring-blue-500"
+                      />
                       <span className="text-sm text-slate-700">Yes</span>
-                    </div>
+                    </label>
                   ) : (
-                    <div
-                      aria-label={`${field.label} — autofilled value: ${filledValue}`}
-                      className="w-full px-3 py-2.5 rounded-lg border border-emerald-200 bg-emerald-50/50 text-sm text-slate-800 font-medium mb-3 select-none"
-                    >
-                      {filledValue}
-                    </div>
+                    <input
+                      id={`demo-${field.id}`}
+                      type={field.type === "date" ? "date" : "text"}
+                      value={value}
+                      onChange={(e) => handleChange(field.id, e.target.value)}
+                      onFocus={() => handleFieldFocus(field.id)}
+                      placeholder={`Enter ${field.label.toLowerCase()}...`}
+                      className="w-full px-3 py-2.5 rounded-lg border border-slate-200 bg-white text-sm text-slate-800 font-medium mb-3 focus:border-blue-400 focus:ring-2 focus:ring-blue-100 outline-none transition-all"
+                    />
                   )}
 
-                  {/* AI explanation */}
-                  <div className="bg-slate-50 rounded-xl px-4 py-3 border border-slate-100">
+                  <div
+                    ref={(el) => { explainRefs.current[field.id] = el; }}
+                    className={`rounded-xl px-4 py-3 border transition-colors ${
+                      isActive ? "bg-blue-50 border-blue-200" : "bg-slate-50 border-slate-100"
+                    }`}
+                  >
                     <div className="flex items-center gap-1.5 mb-1.5">
                       <SparkleIcon />
                       <span className="text-xs font-semibold text-slate-600 uppercase tracking-wide">
                         AI Explanation
                       </span>
                     </div>
-                    <p className="text-sm text-slate-600 leading-relaxed">
-                      {field.explanation}
-                    </p>
+                    <p className="text-sm text-slate-600 leading-relaxed">{field.explanation}</p>
                     <p className="mt-2 text-xs text-slate-500 border-t border-slate-200 pt-2">
-                      <span className="font-medium text-slate-600">Tip:</span>{" "}
-                      {field.tip}
+                      <span className="font-medium text-slate-600">Tip:</span> {field.tip}
                     </p>
                   </div>
                 </div>
