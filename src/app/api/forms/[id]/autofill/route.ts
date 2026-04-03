@@ -82,7 +82,33 @@ export async function POST(
       totalFields: filledFields.length,
     });
 
-    return NextResponse.json({ fields: filledFields });
+    const PROFILE_KEY_LABELS: Record<string, string> = {
+      firstName: "First name",
+      lastName: "Last name",
+      email: "Email address",
+      phone: "Phone number",
+      dateOfBirth: "Date of birth",
+      "address.street": "Street address",
+      "address.city": "City",
+      "address.state": "State",
+      "address.zip": "ZIP code",
+      "address.country": "Country",
+      ssn: "Social Security number",
+      passportNumber: "Passport number",
+      employerName: "Employer name",
+      jobTitle: "Job title",
+      annualIncome: "Annual income",
+    };
+
+    const profileGaps = filledFields
+      .filter((f) => !f.value && f.profileKey)
+      .map((f) => ({
+        formField: f.label,
+        profileKey: f.profileKey!,
+        profileLabel: PROFILE_KEY_LABELS[f.profileKey!] ?? f.profileKey!,
+      }));
+
+    return NextResponse.json({ fields: filledFields, profileGaps });
   } catch (err) {
     return handleApiError(err, "POST /api/forms/[id]/autofill");
   }

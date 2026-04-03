@@ -12,6 +12,7 @@ import ConfidenceReviewPanel from "./ConfidenceReviewPanel";
 import FieldQA from "./FieldQA";
 import ProGateModal from "@/components/ProGateModal";
 import FieldNote from "./FieldNote";
+import GapReportPanel, { type ProfileGap } from "./GapReportPanel";
 
 interface FormRecord {
   id: string;
@@ -150,6 +151,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
   const [autofilling, setAutofilling] = useState(false);
   const [autofillError, setAutofillError] = useState<string | null>(null);
+  const [profileGaps, setProfileGaps] = useState<ProfileGap[]>([]);
+  const [gapReportVisible, setGapReportVisible] = useState(false);
   const [saveError, setSaveError] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [activeField, setActiveField] = useState<string | null>(null);
@@ -552,6 +555,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       setValues(newValues);
       setFieldStates(newStates);
       scheduleSave(newValues, newStates);
+
+      // Show gap report if there are unmatched profile fields and user hasn't dismissed it
+      const gaps: ProfileGap[] = data.profileGaps ?? [];
+      const dismissKey = `gapReportDismissed:${form.id}`;
+      const dismissed = typeof window !== "undefined" && localStorage.getItem(dismissKey);
+      if (gaps.length > 0 && !dismissed) {
+        setProfileGaps(gaps);
+        setGapReportVisible(true);
+      }
     } catch (err) {
       setAutofillError(err instanceof Error ? err.message : "Autofill is temporarily unavailable — please try again in a moment.");
     } finally {
@@ -1395,6 +1407,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
             </svg>
           </button>
         </div>
+      )}
+
+      {/* Profile gap report — shown after autofill if some fields had no profile match */}
+      {gapReportVisible && (
+        <GapReportPanel
+          gaps={profileGaps}
+          formId={form.id}
+          onDismiss={() => setGapReportVisible(false)}
+        />
       )}
 
       {/* Prior fill banner — shown when form was pre-filled from a previous submission */}
