@@ -212,11 +212,11 @@ For each field, provide:
 2. A realistic example answer
 3. Common mistakes people make
 4. The profile data key that could auto-fill it (if applicable)
-5. The bounding box of the fillable input area (NOT the label) as fractions of the image dimensions
+5. **MANDATORY**: The bounding box of the fillable input area (NOT the label) as fractions of the image dimensions. Every field MUST include a "coordinates" object. If you cannot determine the exact position, provide your best estimate based on the field's visual location in the image. Do NOT omit coordinates.
 
 Profile keys available: firstName, lastName, email, phone, dateOfBirth, address.street, address.city, address.state, address.zip, address.country, ssn (last 4 only), passportNumber, employerName, jobTitle, annualIncome
 
-IMPORTANT for coordinates: measure the blank input area where the user writes, not the label text.
+CRITICAL — coordinates are required for every field. Measure the blank input area where the user writes, not the label text.
 - x: left edge of input / image width (0.0 to 1.0)
 - y: top edge of input / image height (0.0 to 1.0)
 - w: input width / image width (0.0 to 1.0)
@@ -492,6 +492,46 @@ async function analyzeImageWithGroq(
   return text;
 }
 
+/**
+ * Assign estimated coordinates to fields that are missing them.
+ * Fields are evenly distributed vertically down the page with a standard
+ * input width, simulating a typical top-to-bottom form layout.
+ */
+export function estimateMissingCoordinates(fields: FormField[]): FormField[] {
+  const fieldsWithoutCoords = fields.filter((f) => !f.coordinates);
+  if (fieldsWithoutCoords.length === 0) return fields;
+
+  const totalFields = fields.length;
+  if (totalFields === 0) return fields;
+
+  const INPUT_X = 0.08;
+  const INPUT_W = 0.84;
+  const INPUT_H = 0.03;
+  const TOP_MARGIN = 0.06;
+  const BOTTOM_MARGIN = 0.06;
+  const USABLE_HEIGHT = 1 - TOP_MARGIN - BOTTOM_MARGIN;
+
+  const hasCoords = new Set(fields.filter((f) => f.coordinates).map((f) => f.id));
+  const spacing = totalFields > 1 ? USABLE_HEIGHT / totalFields : USABLE_HEIGHT;
+
+  return fields.map((field, i) => {
+    if (hasCoords.has(field.id)) return field;
+
+    const y = TOP_MARGIN + spacing * i + spacing * 0.5 - INPUT_H / 2;
+
+    return {
+      ...field,
+      coordinates: {
+        x: INPUT_X,
+        y: Math.min(Math.max(y, TOP_MARGIN), 1 - BOTTOM_MARGIN - INPUT_H),
+        w: INPUT_W,
+        h: INPUT_H,
+        page: 1,
+      },
+    };
+  });
+}
+
 export async function analyzeFormFieldsFromImage(
   base64: string,
   mimeType: string,
@@ -517,7 +557,16 @@ export async function analyzeFormFieldsFromImage(
     }
   }
 
-  return parseAndCacheAnalysis(responseText, language);
+  const analysis = await parseAndCacheAnalysis(responseText, language);
+
+  // Fallback: estimate positions for any fields missing coordinates
+  const missingCount = analysis.fields.filter((f) => !f.coordinates).length;
+  if (missingCount > 0) {
+    console.log(`[image-analysis] ${missingCount}/${analysis.fields.length} fields missing coordinates — estimating positions`);
+    analysis.fields = estimateMissingCoordinates(analysis.fields);
+  }
+
+  return analysis;
 }
 
 export interface HistorySuggestion {

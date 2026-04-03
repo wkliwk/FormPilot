@@ -81,6 +81,33 @@ export default function DocumentImageViewer({
     return annotCoords[field.id] ?? null;
   }
 
+  /**
+   * For image forms: estimate evenly-spaced coordinates for fields missing them.
+   * This mirrors the backend fallback so older cached analyses still get highlights.
+   */
+  function getCoordsWithEstimate(field: FormField, fieldIndex: number): FieldCoord | null {
+    const existing = getCoords(field);
+    if (existing) return existing;
+    if (sourceType !== "IMAGE") return null;
+
+    const totalFields = fields.length;
+    if (totalFields === 0) return null;
+
+    const TOP_MARGIN = 0.06;
+    const BOTTOM_MARGIN = 0.06;
+    const USABLE = 1 - TOP_MARGIN - BOTTOM_MARGIN;
+    const spacing = totalFields > 1 ? USABLE / totalFields : USABLE;
+    const y = TOP_MARGIN + spacing * fieldIndex + spacing * 0.5 - 0.015;
+
+    return {
+      x: 0.08,
+      y: Math.min(Math.max(y, TOP_MARGIN), 1 - BOTTOM_MARGIN - 0.03),
+      w: 0.84,
+      h: 0.03,
+      page: 1,
+    };
+  }
+
   const activeField = activeFieldId ? fields.find((f) => f.id === activeFieldId) : null;
   const activeCoords = activeField ? getCoords(activeField) : null;
 
@@ -235,18 +262,21 @@ export default function DocumentImageViewer({
                     setRenderedSize({ w: img.clientWidth, h: img.clientHeight });
                   }}
                 />
-                {renderedSize && fields.map((field) => {
-                  const c = getCoords(field);
+                {renderedSize && fields.map((field, fieldIndex) => {
+                  const c = getCoordsWithEstimate(field, fieldIndex);
                   if (!c || c.page !== 1) return null;
                   const isActive = field.id === activeFieldId;
+                  const isEstimated = !getCoords(field);
                   const value = liveValues[field.id];
                   return (
                     <FieldOverlay
                       key={field.id}
                       c={c}
                       isActive={isActive}
+                      isEstimated={isEstimated}
                       value={value}
                       fieldType={field.type}
+                      fieldLabel={isEstimated ? field.label : undefined}
                       onClick={() => onFieldSelect?.(field.id)}
                     />
                   );
@@ -289,18 +319,21 @@ export default function DocumentImageViewer({
                 setRenderedSize({ w: img.clientWidth, h: img.clientHeight });
               }}
             />
-            {renderedSize && fields.map((field) => {
-              const c = getCoords(field);
+            {renderedSize && fields.map((field, fieldIndex) => {
+              const c = getCoordsWithEstimate(field, fieldIndex);
               if (!c || c.page !== 1) return null;
               const isActive = field.id === activeFieldId;
+              const isEstimated = !getCoords(field);
               const value = liveValues[field.id];
               return (
                 <FieldOverlay
                   key={field.id}
                   c={c}
                   isActive={isActive}
+                  isEstimated={isEstimated}
                   value={value}
                   fieldType={field.type}
+                  fieldLabel={isEstimated ? field.label : undefined}
                   onClick={() => onFieldSelect?.(field.id)}
                 />
               );
@@ -312,7 +345,7 @@ export default function DocumentImageViewer({
             <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <span><strong>{activeField.label}</strong> — location not found in image</span>
+            <span><strong>{activeField.label}</strong> — approximate location shown (position may not be exact)</span>
           </div>
         )}
       </div>
@@ -549,42 +582,79 @@ export default function DocumentImageViewer({
 function FieldOverlay({
   c,
   isActive,
+  isEstimated = false,
   value,
   fieldType,
+  fieldLabel,
   onClick,
 }: {
   c: FieldCoord;
   isActive: boolean;
+  isEstimated?: boolean;
   value: string | undefined;
   fieldType?: string;
+  fieldLabel?: string;
   onClick?: () => void;
 }) {
   const isCheckbox = fieldType === "checkbox";
   const isChecked = isCheckbox && value === "Checked";
 
+  // Estimated fields use a dashed border to distinguish from precisely located fields
+  const borderStyle = isEstimated
+    ? isActive
+      ? "2px dashed rgba(217, 119, 6, 0.7)"
+      : "1px dashed rgba(148, 163, 184, 0.5)"
+    : isActive
+      ? "2px solid rgba(217, 119, 6, 0.9)"
+      : "none";
+
+  const bgStyle = isEstimated
+    ? isActive
+      ? "rgba(251, 191, 36, 0.12)"
+      : "rgba(148, 163, 184, 0.06)"
+    : isActive
+      ? "rgba(251, 191, 36, 0.18)"
+      : "transparent";
+
   return (
     <button
       type="button"
       className={`absolute overflow-hidden cursor-pointer ${isCheckbox ? "flex items-center justify-center" : "flex items-center"}`}
-      aria-label="Jump to matching form field"
+      aria-label={isEstimated ? `${fieldLabel ?? "Field"} (approximate location)` : "Jump to matching form field"}
       onClick={onClick}
       style={{
         left: `${c.x * 100}%`,
         top: `${c.y * 100}%`,
         width: `${c.w * 100}%`,
         height: `${c.h * 100}%`,
-        border: isActive ? "2px solid rgba(217, 119, 6, 0.9)" : "none",
-        backgroundColor: isActive ? "rgba(251, 191, 36, 0.18)" : "transparent",
+        border: borderStyle,
+        backgroundColor: bgStyle,
         borderRadius: "2px",
-        boxShadow: isActive ? "0 0 0 3px rgba(251, 191, 36, 0.2)" : "none",
+        boxShadow: isActive && !isEstimated ? "0 0 0 3px rgba(251, 191, 36, 0.2)" : isActive && isEstimated ? "0 0 0 2px rgba(251, 191, 36, 0.15)" : "none",
         paddingLeft: "3px",
         paddingRight: "3px",
         transition: "background-color 0.15s, border-color 0.15s",
         zIndex: isActive ? 2 : 1,
-        background: isActive ? "rgba(251, 191, 36, 0.18)" : "transparent",
       }}
     >
-      {isChecked ? (
+      {isEstimated && fieldLabel ? (
+        <span
+          style={{
+            fontSize: "clamp(6px, 1.2cqw, 10px)",
+            color: isActive ? "#92400e" : "#94a3b8",
+            fontFamily: "Arial, sans-serif",
+            fontStyle: "italic",
+            lineHeight: 1,
+            whiteSpace: "nowrap",
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            width: "100%",
+            display: "block",
+          }}
+        >
+          {fieldLabel}
+        </span>
+      ) : isChecked ? (
         <svg
           viewBox="0 0 20 20"
           fill="none"
