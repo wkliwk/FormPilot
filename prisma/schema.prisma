@@ -18,6 +18,8 @@ model User {
   referredBy            String?           // userId of the user who referred this user
   reminderEmailsEnabled    Boolean   @default(true) // Set false via unsubscribe link to opt out of nudge emails
   lastSeenChangelogAt      DateTime? // Last time user opened the What's New drawer
+  lastDigestSentAt         DateTime? // Last time a stale-form digest was sent to this user
+  digestUnsubscribed       Boolean   @default(false) // Set true via digest unsubscribe link
 
   accounts     Account[]
   sessions     Session[]
