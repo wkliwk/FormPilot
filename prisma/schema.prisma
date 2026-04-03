@@ -86,7 +86,8 @@ model Form {
   language    String     @default("en") // Active explanation language (ISO 639 code)
   status      FormStatus @default(PENDING)
   category     String?    // Detected form category (TAX, IMMIGRATION, LEGAL, HR_EMPLOYMENT, HEALTHCARE, GENERAL)
-  lastNudgedAt DateTime? // Set after sending re-engagement email — suppresses nudges for 7 days
+  lastNudgedAt      DateTime? // Set after sending re-engagement email — suppresses nudges for 7 days
+  stalledEmailSentAt DateTime? // Set after sending the 48h stalled-form nudge — prevents duplicate sends
   shareToken   String?   @unique // nanoid(16) — public share link token; null = not shared
   version      Int       @default(0) // Optimistic lock counter — incremented on every field-values write
   createdAt    DateTime  @default(now())
