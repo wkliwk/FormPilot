@@ -1,6 +1,7 @@
 import { auth, signOut } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import DashboardNav from "@/components/DashboardNav";
+import EmailVerificationBanner from "@/components/EmailVerificationBanner";
 
 export default async function DashboardLayout({
   children,
@@ -21,6 +22,9 @@ export default async function DashboardLayout({
         email={session.user.email ?? undefined}
         signOutAction={handleSignOut}
       />
+      <div className="max-w-4xl mx-auto px-4 pt-4">
+        <EmailVerificationBanner />
+      </div>
       {children}
     </div>
   );
