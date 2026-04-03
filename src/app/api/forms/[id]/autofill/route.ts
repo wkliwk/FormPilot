@@ -10,7 +10,7 @@ import { handleApiError } from "@/lib/api-error";
 import { log } from "@/lib/logger";
 
 export async function POST(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth();
@@ -30,10 +30,20 @@ export async function POST(
   }
 
   const { id } = await params;
+  const body = await req.json().catch(() => ({})) as { expectedVersion?: number };
+  const expectedVersion = typeof body.expectedVersion === "number" ? body.expectedVersion : null;
 
   const form = await prisma.form.findUnique({ where: { id } });
   if (!form || form.userId !== session.user.id) {
     return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  // Optimistic lock check — if client sent a version, enforce it
+  if (expectedVersion !== null && form.version !== expectedVersion) {
+    return NextResponse.json(
+      { error: "conflict", currentVersion: form.version },
+      { status: 409 }
+    );
   }
 
   const profile = await prisma.profile.findUnique({
@@ -71,6 +81,7 @@ export async function POST(
           return acc;
         }, {} as Record<string, string>),
         status: "FILLING",
+        version: { increment: 1 },
       },
     });
 

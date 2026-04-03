@@ -88,6 +88,7 @@ model Form {
   category     String?    // Detected form category (TAX, IMMIGRATION, LEGAL, HR_EMPLOYMENT, HEALTHCARE, GENERAL)
   lastNudgedAt DateTime? // Set after sending re-engagement email — suppresses nudges for 7 days
   shareToken   String?   @unique // nanoid(16) — public share link token; null = not shared
+  version      Int       @default(0) // Optimistic lock counter — incremented on every field-values write
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

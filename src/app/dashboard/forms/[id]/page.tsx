@@ -22,6 +22,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
       status: true,
       category: true,
       language: true,
+      version: true,
       createdAt: true,
       updatedAt: true,
     },

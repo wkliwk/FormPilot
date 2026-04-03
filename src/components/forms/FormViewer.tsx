@@ -21,6 +21,7 @@ interface FormRecord {
   title: string;
   status: string;
   fields: unknown;
+  version?: number;
 }
 
 interface Props {
@@ -153,6 +154,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [expandedExplanations, setExpandedExplanations] = useState<Set<string>>(new Set());
   const [autofilling, setAutofilling] = useState(false);
   const [autofillError, setAutofillError] = useState<string | null>(null);
+  const [autofillConflict, setAutofillConflict] = useState(false);
   const [profileGaps, setProfileGaps] = useState<ProfileGap[]>([]);
   const [gapReportVisible, setGapReportVisible] = useState(false);
 
@@ -536,10 +538,19 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   async function handleAutofill() {
     setAutofilling(true);
     setAutofillError(null);
+    setAutofillConflict(false);
     try {
-      const res = await fetch(`/api/forms/${form.id}/autofill`, { method: "POST" });
+      const res = await fetch(`/api/forms/${form.id}/autofill`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ expectedVersion: form.version ?? 0 }),
+      });
       if (!res.ok) {
         const data = await res.json().catch(() => ({})) as { error?: string; retryAfter?: number; message?: string };
+        if (data.error === "conflict") {
+          setAutofillConflict(true);
+          return;
+        }
         if (data.error === "rate_limited") {
           const seconds = typeof data.retryAfter === "number" ? data.retryAfter : 60;
           throw new Error(`Our AI is busy right now. Please try again in ${seconds} seconds.`);
@@ -1488,6 +1499,33 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
             onClick={() => setAutofillError(null)}
             className="text-amber-400 hover:text-amber-600 shrink-0"
             aria-label="Dismiss error"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {/* Autofill conflict toast — shown when another tab wrote to this form */}
+      {autofillConflict && (
+        <div className="flex items-start gap-3 bg-orange-50 border border-orange-200 rounded-xl px-4 py-3" role="alert">
+          <svg className="w-4 h-4 text-orange-500 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-orange-800">Your form was updated in another tab. Reload to see the latest values.</p>
+            <button
+              onClick={() => window.location.reload()}
+              className="mt-1.5 text-sm font-medium text-orange-800 underline underline-offset-2 hover:text-orange-900"
+            >
+              Reload
+            </button>
+          </div>
+          <button
+            onClick={() => setAutofillConflict(false)}
+            className="text-orange-300 hover:text-orange-500 shrink-0"
+            aria-label="Dismiss"
           >
             <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
