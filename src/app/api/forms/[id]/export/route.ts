@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { fillPDF } from "@/lib/pdf/fill";
+import { generateSummaryPDF } from "@/lib/pdf/generate-summary";
 import { validateForm } from "@/lib/validation/validate-form";
 import { generateStructuredDocx } from "@/lib/docx/generate";
 import { isProUser } from "@/lib/subscription";
@@ -90,6 +91,23 @@ export async function GET(
     } catch (err) {
       console.error("[export] PDF fill failed, falling back to JSON:", err);
       // Fall through to JSON export on error
+    }
+  }
+
+  // IMAGE export: generate a text-summary PDF since we have no coordinate data
+  if (form.sourceType === "IMAGE") {
+    try {
+      const summaryBuffer = await generateSummaryPDF(form.title, fields, new Date());
+      const safeTitle = form.title.replace(/[^a-z0-9]/gi, "_");
+      return new NextResponse(new Uint8Array(summaryBuffer), {
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition": `attachment; filename="${safeTitle}_summary.pdf"`,
+        },
+      });
+    } catch (err) {
+      console.error("[export] Summary PDF generation failed:", err);
+      // Fall through to JSON fallback
     }
   }
 
