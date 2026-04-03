@@ -34,10 +34,36 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
   const [profile, isPro] = await Promise.all([
     prisma.profile.findUnique({
       where: { userId: session.user.id! },
-      select: { id: true, preferredLanguage: true, country: true },
+      select: { id: true, preferredLanguage: true, country: true, data: true },
     }),
     isProUser(session.user.id!),
   ]);
+
+  // Compute profile completeness (16 target fields)
+  const PROFILE_FIELDS = [
+    "firstName", "lastName", "email", "phone", "dateOfBirth",
+    "address.street", "address.city", "address.state", "address.zip", "address.country",
+    "employerName", "jobTitle", "annualIncome", "ssn", "passportNumber", "driverLicense",
+  ];
+  let profileCompleteness = 0;
+  if (profile?.data && typeof profile.data === "object") {
+    const pd = profile.data as Record<string, unknown>;
+    const addr = (pd.address ?? {}) as Record<string, unknown>;
+    const filled = PROFILE_FIELDS.filter((key) => {
+      if (key.startsWith("address.")) {
+        const sub = key.split(".")[1];
+        return addr[sub] && String(addr[sub]).trim();
+      }
+      return pd[key] && String(pd[key]).trim();
+    });
+    profileCompleteness = Math.round((filled.length / PROFILE_FIELDS.length) * 100);
+  }
+
+  // Compute autofill match rate
+  const formFields = form.fields as Array<{ value?: string }>;
+  const totalFields = formFields.length;
+  const autofilledFields = formFields.filter((f) => f.value && String(f.value).trim()).length;
+  const autofillMatchRate = totalFields > 0 ? Math.round((autofilledFields / totalFields) * 100) : 100;
 
   // Find a prior completed/in-progress form of the same category within 90 days
   // with ≥3 filled fields (to avoid suggesting near-empty forms)
@@ -82,6 +108,8 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
           hasFile={!!fileBytes}
           sourceType={form.sourceType}
           isPro={isPro}
+          profileCompleteness={profileCompleteness}
+          autofillMatchRate={autofillMatchRate}
           priorForm={priorForm ? { id: priorForm.id, title: priorForm.title, createdAt: priorForm.createdAt.toISOString() } : null}
         />
       </main>

@@ -58,10 +58,12 @@ interface Props {
   hasFile?: boolean;
   sourceType?: string;
   isPro?: boolean;
+  profileCompleteness?: number;
+  autofillMatchRate?: number;
   priorForm?: PriorFormInfo | null;
 }
 
-export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, priorForm }: Props) {
+export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, profileCompleteness = 100, autofillMatchRate = 100, priorForm }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [deleting, setDeleting] = useState(false);
@@ -537,6 +539,36 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
           </p>
         </div>
       )}
+
+      {/* Profile completeness nudge — shown when profile is sparse and autofill underperformed */}
+      {profileCompleteness < 50 && autofillMatchRate < 40 && (() => {
+        const key = `completeness_nudge_dismissed_${form.id}`;
+        const isDismissed = typeof window !== "undefined" && localStorage.getItem(key);
+        if (isDismissed) return null;
+        return (
+          <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+            <svg className="w-4 h-4 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+              <circle cx="12" cy="7" r="4" />
+            </svg>
+            <p className="flex-1 text-sm text-amber-800">
+              Your profile is <strong>{profileCompleteness}% complete</strong> — fill in more details to autofill more fields on this form.
+            </p>
+            <Link
+              href="/dashboard/profile"
+              className="shrink-0 text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Complete Profile
+            </Link>
+            <button
+              onClick={() => { localStorage.setItem(key, "1"); }}
+              className="shrink-0 text-xs text-amber-400 hover:text-amber-600 transition-colors"
+            >
+              Dismiss
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Resume toast — shown briefly when saved draft values exist on load */}
       {showResumeToast && (
