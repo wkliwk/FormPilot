@@ -196,6 +196,16 @@ model RateLimit {
   @@index([key])
 }
 
+// Tracks which referrals have already been rewarded — prevents double-granting
+model ReferralReward {
+  id         String   @id @default(cuid())
+  referrerId String
+  refereeId  String   @unique // one reward per referee
+  createdAt  DateTime @default(now())
+
+  @@index([referrerId])
+}
+
 model FormTemplate {
   id           String    @id @default(cuid())
   userId       String

@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { handleApiError } from "@/lib/api-error";
 import { extractMemoryFromForm } from "@/lib/ai/extract-memory";
+import { awardReferralBonus } from "@/lib/referral";
 import { sendEmail } from "@/lib/email";
 import FormCompletedEmail from "@/emails/FormCompletedEmail";
 import type { FormField } from "@/lib/ai/analyze-form";
@@ -159,8 +160,9 @@ export async function PATCH(
       data: updateData,
     });
 
-    // When a form reaches COMPLETED — extract memory and send email (both non-blocking)
+    // When a form reaches COMPLETED — extract memory, send email, award referral (all non-blocking)
     if (parsed.data.status === "COMPLETED") {
+      awardReferralBonus(session.user.id).catch(() => { /* best-effort */ });
       const currentFields = (updated.fields ?? form.fields) as unknown as FormField[];
       extractMemoryFromForm(session.user.id, id, updated.title, currentFields).catch(
         () => { /* best-effort */ }

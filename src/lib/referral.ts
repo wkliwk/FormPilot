@@ -73,6 +73,42 @@ export async function grantReferralBonus(referredUserId: string): Promise<void> 
   }
 }
 
+const COMPLETION_BONUS = 2;
+
+/**
+ * Grants +2 bonus forms to the referrer when a referred user completes their first form.
+ * Idempotent: uses ReferralReward table — one reward per referee, regardless of form count.
+ */
+export async function awardReferralBonus(referredUserId: string): Promise<void> {
+  const user = await prisma.user.findUnique({
+    where: { id: referredUserId },
+    select: { referredBy: true },
+  });
+  if (!user?.referredBy) return;
+
+  const referrerId = user.referredBy;
+
+  // Idempotency: skip if already rewarded for this referee
+  const existing = await prisma.referralReward.findUnique({ where: { refereeId: referredUserId } });
+  if (existing) return;
+
+  // Record reward first (prevents races on concurrent completions)
+  await prisma.referralReward.create({ data: { referrerId, refereeId: referredUserId } });
+
+  // Apply bonus, capped at REFERRAL_MAX_BONUS
+  await prisma.usageCount.upsert({
+    where: { userId: referrerId },
+    create: { userId: referrerId, formsThisMonth: 0, bonusForms: Math.min(COMPLETION_BONUS, REFERRAL_MAX_BONUS) },
+    update: { bonusForms: { increment: COMPLETION_BONUS } },
+  });
+
+  // Enforce cap
+  const usage = await prisma.usageCount.findUnique({ where: { userId: referrerId }, select: { bonusForms: true } });
+  if (usage && usage.bonusForms > REFERRAL_MAX_BONUS) {
+    await prisma.usageCount.update({ where: { userId: referrerId }, data: { bonusForms: REFERRAL_MAX_BONUS } });
+  }
+}
+
 /** Returns the number of successful referrals for a user (users who signed up and uploaded ≥1 form). */
 export async function getReferralStats(userId: string): Promise<{ count: number; bonusForms: number }> {
   const [count, usage] = await Promise.all([

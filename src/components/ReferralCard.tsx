@@ -41,7 +41,10 @@ export default function ReferralCard({ referralCode, referralCount, bonusForms }
       {referralCount > 0 && (
         <p className="text-xs text-slate-600">
           <span className="font-semibold text-slate-800">{referralCount}</span>{" "}
-          {referralCount === 1 ? "friend" : "friends"} referred so far
+          {referralCount === 1 ? "friend" : "friends"} joined
+          {bonusForms > 0 && (
+            <> — you&apos;ve earned <span className="font-semibold text-blue-700">{bonusForms} bonus {bonusForms === 1 ? "form" : "forms"}</span></>
+          )}
         </p>
       )}
 
