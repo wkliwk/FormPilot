@@ -196,6 +196,11 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [showRequiredEmptyBanner, setShowRequiredEmptyBanner] = useState(false);
   // autofill confidence summary banner
   const [autofillSummary, setAutofillSummary] = useState<{ high: number; medium: number; low: number; unfilled: number } | null>(null);
+  // undo autofill — snapshot taken before each autofill, cleared on field edit or after 8s
+  const preAutofillSnapshot = useRef<{ values: Record<string, string>; fieldStates: Record<string, FieldState> } | null>(null);
+  const [showUndoToast, setShowUndoToast] = useState(false);
+  const [undoConfirmFlash, setUndoConfirmFlash] = useState(false);
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // help drawer
   const [helpDrawerFieldId, setHelpDrawerFieldId] = useState<string | null>(null);
   type ExplainResult = { explanation: string; example: string; commonMistakes: string | null; whereToFind: string | null; isPro: boolean; remaining: number };
@@ -277,6 +282,26 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     if (blurErrors[fieldId]) {
       setBlurErrors((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
     }
+    // Manual edit after autofill = implicit acceptance; invalidate undo snapshot
+    if (showUndoToast) {
+      setShowUndoToast(false);
+      if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+      preAutofillSnapshot.current = null;
+    }
+  }
+
+  function handleUndoAutofill() {
+    const snapshot = preAutofillSnapshot.current;
+    if (!snapshot) return;
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setShowUndoToast(false);
+    preAutofillSnapshot.current = null;
+    setValues(snapshot.values);
+    setFieldStates(snapshot.fieldStates);
+    setAutofillSummary(null);
+    scheduleSave(snapshot.values, snapshot.fieldStates);
+    setUndoConfirmFlash(true);
+    setTimeout(() => setUndoConfirmFlash(false), 2000);
   }
 
   function handleAccept(fieldId: string) {
@@ -544,6 +569,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     setAutofilling(true);
     setAutofillError(null);
     setAutofillConflict(false);
+    // Snapshot current state for undo — overwrite any previous snapshot
+    preAutofillSnapshot.current = { values: { ...values }, fieldStates: { ...fieldStates } };
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
+    setShowUndoToast(false);
     try {
       const res = await fetch(`/api/forms/${form.id}/autofill`, {
         method: "POST",
@@ -595,6 +624,13 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           setAutofillSummary({ high: highCount, medium: mediumCount, low: lowCount, unfilled: unfilledCount });
         }
       }
+
+      // Show undo toast for 8 seconds
+      setShowUndoToast(true);
+      undoTimerRef.current = setTimeout(() => {
+        setShowUndoToast(false);
+        preAutofillSnapshot.current = null;
+      }, 8000);
 
       // Show gap report if there are unmatched profile fields and user hasn't dismissed it
       const gaps: ProfileGap[] = data.profileGaps ?? [];
@@ -2290,6 +2326,36 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     </div>
     {showShareModal && (
       <ShareModal formId={form.id} onClose={() => setShowShareModal(false)} />
+    )}
+
+    {/* Undo autofill toast */}
+    {(showUndoToast || undoConfirmFlash) && (
+      <div className="fixed bottom-6 right-4 sm:right-6 z-50 flex items-center gap-3 bg-slate-900 text-white text-sm font-medium rounded-xl shadow-lg px-4 py-3 animate-fade-in">
+        {undoConfirmFlash ? (
+          <span>Autofill undone</span>
+        ) : (
+          <>
+            <span>Autofill applied</span>
+            <button
+              type="button"
+              onClick={handleUndoAutofill}
+              className="text-blue-300 hover:text-white underline underline-offset-2 transition-colors"
+            >
+              Undo
+            </button>
+            <button
+              type="button"
+              onClick={() => { setShowUndoToast(false); if (undoTimerRef.current) clearTimeout(undoTimerRef.current); preAutofillSnapshot.current = null; }}
+              className="text-slate-400 hover:text-white transition-colors ml-1"
+              aria-label="Dismiss"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </>
+        )}
+      </div>
     )}
     </>
   );
