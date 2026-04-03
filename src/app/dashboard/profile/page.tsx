@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import ProfileForm from "@/components/forms/ProfileForm";
 import SavedCorrections from "@/components/forms/SavedCorrections";
 import ImportedBanner from "@/components/forms/ImportedBanner";
+import ProfileQuickFillModal from "@/components/forms/ProfileQuickFillModal";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -41,11 +42,14 @@ export default async function ProfilePage() {
         </Suspense>
 
         <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-6 sm:p-8 space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900">Profile Vault</h1>
-            <p className="text-slate-500 mt-1 text-sm">
-              Store your personal data once. FormPilot uses it to autofill forms -- never shared with third parties.
-            </p>
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900">Profile Vault</h1>
+              <p className="text-slate-500 mt-1 text-sm">
+                Store your personal data once. FormPilot uses it to autofill forms -- never shared with third parties.
+              </p>
+            </div>
+            <ProfileQuickFillModal />
           </div>
 
           <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3.5">
