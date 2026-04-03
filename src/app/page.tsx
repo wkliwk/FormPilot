@@ -293,6 +293,20 @@ export default async function HomePage() {
         </div>
       </section>
 
+      {/* Trust bar */}
+      <div className="border-y border-slate-100 bg-slate-50/60 py-5">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-6">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-widest shrink-0">Works with the forms that matter</p>
+          <div className="flex flex-wrap justify-center gap-2">
+            {["W-4", "I-9", "DS-160", "1040"].map((form) => (
+              <span key={form} className="px-3 py-1 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-slate-700 shadow-sm">
+                {form}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+
       {/* Features */}
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-20 sm:py-28">
         <div className="text-center mb-14">
@@ -461,6 +475,13 @@ export default async function HomePage() {
                 <svg className="w-6 h-6 text-blue-300" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M14.017 21v-7.391c0-5.704 3.748-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h4v10h-9.983zm-14.017 0v-7.391c0-5.704 3.748-9.57 8.983-10.609l.995 2.151c-2.432.917-3.995 3.638-3.995 5.849h3.983v10h-9.966z" />
                 </svg>
+                <div className="flex gap-0.5" aria-label="5 out of 5 stars">
+                  {[0,1,2,3,4].map((s) => (
+                    <svg key={s} className="w-4 h-4 text-amber-400" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                      <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+                    </svg>
+                  ))}
+                </div>
                 <p className="text-sm text-slate-600 leading-relaxed flex-1">{t.quote}</p>
                 <div>
                   <p className="text-sm font-semibold text-slate-900">{t.name}</p>
