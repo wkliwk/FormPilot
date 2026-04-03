@@ -332,9 +332,25 @@ export async function analyzeFormFields(
   const fullPrompt = `${categoryPrompt}\n\n${BASE_ANALYSIS_PROMPT}${langInstruction}${countryInstruction}\n\nFORM CONTENT:\n${truncatedText}`;
 
   const text = await callTextAI(fullPrompt, "analyzeFormFields");
-  const analysis = await parseAndCacheAnalysis(text, language);
-  analysis.category = category;
-  return analysis;
+  try {
+    const analysis = await parseAndCacheAnalysis(text, language);
+    analysis.category = category;
+    return analysis;
+  } catch (firstErr) {
+    console.warn("[analyzeFormFields] First parse failed, retrying with simplified prompt:", firstErr instanceof Error ? firstErr.message : firstErr);
+
+    // Retry with a simplified prompt: shorter field explanations, no examples/mistakes
+    const simplifiedPrompt = `${categoryPrompt}\n\n${BASE_ANALYSIS_PROMPT}${langInstruction}${countryInstruction}
+
+IMPORTANT: Keep explanation under 20 words per field. Omit example and commonMistakes if needed to fit within the JSON limit. Return valid JSON only — no markdown, no commentary.
+
+FORM CONTENT:\n${truncatedText}`;
+
+    const retryText = await callTextAI(simplifiedPrompt, "analyzeFormFields");
+    const analysis = await parseAndCacheAnalysis(retryText, language);
+    analysis.category = category;
+    return analysis;
+  }
 }
 
 const translatedFieldSchema = z.array(z.object({
