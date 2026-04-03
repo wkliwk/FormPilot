@@ -90,6 +90,7 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
   const router = useRouter();
   const [forms, setForms] = useState(initialForms);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -119,6 +120,23 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
       // silently ignore — button stays visible so user can retry
     } finally {
       setLoadingMore(false);
+    }
+  }
+
+  async function handleDuplicate(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setDuplicatingId(id);
+    try {
+      const res = await fetch(`/api/forms/${id}/duplicate`, { method: "POST" });
+      if (!res.ok) throw new Error("Duplicate failed");
+      const data = await res.json() as { id: string };
+      router.push(`/dashboard/forms/${data.id}`);
+    } catch {
+      setToast("Could not duplicate form. Please try again.");
+      setTimeout(() => setToast(null), 3000);
+    } finally {
+      setDuplicatingId(null);
     }
   }
 
@@ -409,7 +427,7 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
                 <button
                   onClick={(e) => startRename(e, form)}
                   disabled={isDeleting || isEditing}
-                  className="absolute right-24 top-1/2 -translate-y-1/2 hidden sm:flex items-center justify-center w-8 h-8 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                  className="absolute right-32 top-1/2 -translate-y-1/2 hidden sm:flex items-center justify-center w-8 h-8 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed z-10"
                   aria-label={`Rename ${form.title}`}
                   title="Rename form"
                 >
@@ -417,6 +435,26 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
                     <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                   </svg>
+                </button>
+                {/* Duplicate button */}
+                <button
+                  onClick={(e) => handleDuplicate(e, form.id)}
+                  disabled={isDeleting || !!duplicatingId}
+                  className="absolute right-24 top-1/2 -translate-y-1/2 hidden sm:flex items-center justify-center w-8 h-8 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                  aria-label={`Duplicate ${form.title}`}
+                  title="Duplicate form"
+                >
+                  {duplicatingId === form.id ? (
+                    <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                      <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                      <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+                    </svg>
+                  )}
                 </button>
                 <button
                   onClick={(e) => handleDelete(e, form.id, form.title)}
