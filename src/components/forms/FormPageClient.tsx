@@ -59,12 +59,13 @@ interface Props {
   hasFile?: boolean;
   sourceType?: string;
   isPro?: boolean;
+  isAtFreeLimit?: boolean;
   profileCompleteness?: number;
   autofillMatchRate?: number;
   priorForm?: PriorFormInfo | null;
 }
 
-export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, profileCompleteness = 100, autofillMatchRate = 100, priorForm }: Props) {
+export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, isAtFreeLimit, profileCompleteness = 100, autofillMatchRate = 100, priorForm }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [deleting, setDeleting] = useState(false);
@@ -782,6 +783,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
               hasFile={hasFile}
               sourceType={sourceType}
               isPro={isPro}
+              isAtFreeLimit={isAtFreeLimit}
               onFieldFocus={setActiveFieldId}
               onValueChange={(fieldId, value) =>
                 setLiveValues((prev) => ({ ...prev, [fieldId]: value }))

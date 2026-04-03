@@ -49,6 +49,8 @@ interface Props {
   onSaveStatusChange?: (status: "idle" | "saving" | "saved" | "error", savedAt: Date | null) => void;
   /** Whether the user has a Pro plan (enables Pro-only export formats). */
   isPro?: boolean;
+  /** True when free-tier user has reached their monthly upload limit — triggers upgrade nudge at export. */
+  isAtFreeLimit?: boolean;
   /** Per-field private notes — keyed by fieldId. */
   fieldNotes?: Record<string, string>;
   /** Called after a note is saved or deleted — used to keep parent notepad indicators in sync. */
@@ -137,7 +139,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange, isPro, fieldNotes, onNoteChange }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange, isPro, isAtFreeLimit, fieldNotes, onNoteChange }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -174,6 +176,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showForceExportDialog, setShowForceExportDialog] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [showExportUpgradeModal, setShowExportUpgradeModal] = useState(false);
   const [showConfidenceReview, setShowConfidenceReview] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [priorFormOffer, setPriorFormOffer] = useState<{ id: string; title: string } | null>(null);
@@ -697,6 +700,12 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   }
 
   async function handleExport() {
+    // Intercept for free-tier users who've hit their upload limit — show upgrade nudge
+    if (!isPro && isAtFreeLimit) {
+      setShowExportUpgradeModal(true);
+      return;
+    }
+
     // Run client-side validation first for instant feedback
     const result = validateForm(fields, values, fieldStates as Record<string, string>);
     setValidation(result);
@@ -910,6 +919,68 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
   return (
     <>
+    {/* Export upgrade nudge — shown to free-tier users at their limit */}
+    {showExportUpgradeModal && (
+      <div
+        className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+        onClick={(e) => { if (e.target === e.currentTarget) setShowExportUpgradeModal(false); }}
+      >
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="export-upgrade-title"
+          className="bg-white rounded-2xl shadow-xl w-full max-w-md p-8"
+        >
+          <div className="flex flex-col items-center text-center gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center">
+              <svg className="w-7 h-7 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+            </div>
+            <div>
+              <h2 id="export-upgrade-title" className="text-lg font-semibold text-slate-900">
+                Your form is ready to export
+              </h2>
+              <p className="text-slate-500 mt-2 text-sm">
+                You&apos;ve used all your free form slots this month. Upgrade to Pro to export this form and upload as many as you need.
+              </p>
+            </div>
+
+            <div className="w-full bg-slate-50 rounded-xl p-4 text-left space-y-2">
+              {[
+                "Unlimited form uploads & exports",
+                "Priority AI processing",
+                "Pro-only export formats (Word, clipboard)",
+                "Completion certificates",
+              ].map((benefit) => (
+                <div key={benefit} className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                  <span className="text-sm text-slate-700">{benefit}</span>
+                </div>
+              ))}
+            </div>
+
+            <a
+              href="/dashboard/billing"
+              className="w-full py-3 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 transition-all text-center active:scale-[0.98]"
+            >
+              Upgrade to Pro
+            </a>
+
+            <button
+              onClick={() => setShowExportUpgradeModal(false)}
+              className="text-sm text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              Save my progress and come back later
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     {showPreviewModal && (
       <ExportPreviewModal
         formId={form.id}

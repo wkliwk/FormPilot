@@ -1,7 +1,7 @@
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { isProUser } from "@/lib/subscription";
+import { isProUser, getOrCreateUsage, FREE_FORM_LIMIT } from "@/lib/subscription";
 import FormPageClient from "@/components/forms/FormPageClient";
 
 export default async function FormPage({ params }: { params: Promise<{ id: string }> }) {
@@ -32,13 +32,16 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
     notFound();
   }
 
-  const [profile, isPro] = await Promise.all([
+  const [profile, isPro, usage] = await Promise.all([
     prisma.profile.findUnique({
       where: { userId: session.user.id! },
       select: { id: true, preferredLanguage: true, country: true, data: true },
     }),
     isProUser(session.user.id!),
+    getOrCreateUsage(session.user.id!),
   ]);
+
+  const isAtFreeLimit = !isPro && (usage.formsThisMonth >= FREE_FORM_LIMIT + usage.bonusForms);
 
   // Compute profile completeness (16 target fields)
   const PROFILE_FIELDS = [
@@ -109,6 +112,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
           hasFile={!!fileBytes}
           sourceType={form.sourceType}
           isPro={isPro}
+          isAtFreeLimit={isAtFreeLimit}
           profileCompleteness={profileCompleteness}
           autofillMatchRate={autofillMatchRate}
           priorForm={priorForm ? { id: priorForm.id, title: priorForm.title, createdAt: priorForm.createdAt.toISOString() } : null}
