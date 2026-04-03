@@ -11,6 +11,7 @@ import ExportPreviewModal, { type ExportFormat } from "./ExportPreviewModal";
 import ConfidenceReviewPanel from "./ConfidenceReviewPanel";
 import FieldQA from "./FieldQA";
 import ProGateModal from "@/components/ProGateModal";
+import FieldNote from "./FieldNote";
 
 interface FormRecord {
   id: string;
@@ -44,6 +45,10 @@ interface Props {
   onSaveStatusChange?: (status: "idle" | "saving" | "saved" | "error", savedAt: Date | null) => void;
   /** Whether the user has a Pro plan (enables Pro-only export formats). */
   isPro?: boolean;
+  /** Per-field private notes — keyed by fieldId. */
+  fieldNotes?: Record<string, string>;
+  /** Called after a note is saved or deleted — used to keep parent notepad indicators in sync. */
+  onNoteChange?: (fieldId: string, note: string | null) => void;
 }
 
 // -- Certificate download button (Pro-gated) --
@@ -128,7 +133,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange, isPro }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange, isPro, fieldNotes, onNoteChange }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -1568,6 +1573,21 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                           Verify this
                         </span>
                       )}
+                      {/* Notepad icon — shown when a note exists for this field */}
+                      {fieldNotes?.[field.id] && (
+                        <span
+                          className="inline-flex items-center justify-center w-4 h-4 text-amber-500 shrink-0"
+                          aria-label="This field has a note"
+                          title="This field has a note"
+                        >
+                          <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                            <line x1="16" y1="13" x2="8" y2="13" />
+                            <line x1="16" y1="17" x2="8" y2="17" />
+                          </svg>
+                        </span>
+                      )}
                     </div>
 
                     {/* Input — checkbox or text */}
@@ -1918,6 +1938,14 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                     </div>
                   </div>
                 )}
+
+                {/* Field note */}
+                <FieldNote
+                  formId={form.id}
+                  fieldId={field.id}
+                  initialNote={fieldNotes?.[field.id] ?? null}
+                  onNoteChange={onNoteChange}
+                />
               </div>
             </div>
           );

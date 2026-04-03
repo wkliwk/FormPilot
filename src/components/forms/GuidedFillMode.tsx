@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 import { validateFieldFormat } from "@/lib/validation/field-rules";
+import FieldNote from "./FieldNote";
 
 interface Props {
   formId: string;
@@ -14,6 +15,10 @@ interface Props {
   /** Called when the user presses "Finish" on the last step. Defaults to onExit if not provided. */
   onFinish?: () => void;
   onValuesChange: (values: Record<string, string>, states: Record<string, FieldState>) => void;
+  /** Per-field private notes — keyed by fieldId. */
+  fieldNotes?: Record<string, string>;
+  /** Called after a note is saved or deleted — used to keep parent notepad indicators in sync. */
+  onNoteChange?: (fieldId: string, note: string | null) => void;
 }
 
 // Group fields by category
@@ -89,6 +94,8 @@ export default function GuidedFillMode({
   onExit,
   onFinish,
   onValuesChange,
+  fieldNotes,
+  onNoteChange,
 }: Props) {
   const groups = groupFields(fields);
   const totalSteps = groups.length;
@@ -330,13 +337,30 @@ export default function GuidedFillMode({
             >
               {/* Field label + type */}
               <div className="flex items-center justify-between gap-3">
-                <label
-                  htmlFor={`guided-${field.id}`}
-                  className="text-base font-semibold text-slate-900"
-                >
-                  {field.label}
-                  {field.required && <span className="text-red-500 ml-0.5">*</span>}
-                </label>
+                <div className="flex items-center gap-2">
+                  <label
+                    htmlFor={`guided-${field.id}`}
+                    className="text-base font-semibold text-slate-900"
+                  >
+                    {field.label}
+                    {field.required && <span className="text-red-500 ml-0.5">*</span>}
+                  </label>
+                  {/* Notepad icon — shown when a note exists for this field */}
+                  {fieldNotes?.[field.id] && (
+                    <span
+                      className="inline-flex items-center justify-center w-4 h-4 text-amber-500 shrink-0"
+                      aria-label="This field has a note"
+                      title="This field has a note"
+                    >
+                      <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                        <polyline points="14 2 14 8 20 8" />
+                        <line x1="16" y1="13" x2="8" y2="13" />
+                        <line x1="16" y1="17" x2="8" y2="17" />
+                      </svg>
+                    </span>
+                  )}
+                </div>
                 <span className="text-xs text-slate-300 font-medium uppercase tracking-wide">
                   {field.type}
                 </span>
@@ -508,6 +532,14 @@ export default function GuidedFillMode({
                   Skip this field
                 </button>
               )}
+
+              {/* Field note */}
+              <FieldNote
+                formId={formId}
+                fieldId={field.id}
+                initialNote={fieldNotes?.[field.id] ?? null}
+                onNoteChange={onNoteChange}
+              />
             </div>
           );
         })}
