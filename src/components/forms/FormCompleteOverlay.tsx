@@ -17,6 +17,7 @@ export default function FormCompleteOverlay({ formId, formTitle, filledCount, on
   const shareText = `Just completed my "${formTitle}" with FormPilot — AI explained every confusing field in plain English. ${APP_URL}${UTM}`;
   const [tweetText, setTweetText] = useState(shareText);
   const [copied, setCopied] = useState(false);
+  const [badgeCopied, setBadgeCopied] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // Focus trap, Escape to close, move focus into overlay on mount
@@ -80,6 +81,24 @@ export default function FormCompleteOverlay({ formId, formTitle, filledCount, on
       document.body.removeChild(input);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  }
+
+  async function handleShareBadge() {
+    const badgeUrl = `${APP_URL}/certificate/${formId}`;
+    try {
+      await navigator.clipboard.writeText(badgeUrl);
+      setBadgeCopied(true);
+      setTimeout(() => setBadgeCopied(false), 2000);
+    } catch {
+      const input = document.createElement("input");
+      input.value = badgeUrl;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand("copy");
+      document.body.removeChild(input);
+      setBadgeCopied(true);
+      setTimeout(() => setBadgeCopied(false), 2000);
     }
   }
 
@@ -147,7 +166,19 @@ export default function FormCompleteOverlay({ formId, formTitle, filledCount, on
           </button>
         </div>
 
-        {/* Copy link + Download PDF */}
+        {/* Download Certificate */}
+        <a
+          href={`/api/forms/${formId}/certificate`}
+          download={`formpilot-certificate-${formId}.pdf`}
+          className="mb-3 w-full flex items-center justify-center gap-2 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors"
+        >
+          <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" />
+          </svg>
+          Download Certificate
+        </a>
+
+        {/* Copy link + Share badge + Export PDF */}
         <div className="flex gap-3">
           <button
             onClick={handleCopy}
@@ -166,6 +197,26 @@ export default function FormCompleteOverlay({ formId, formTitle, filledCount, on
                   <rect x="9" y="9" width="13" height="13" rx="2" ry="2" /><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
                 </svg>
                 Copy link
+              </>
+            )}
+          </button>
+          <button
+            onClick={handleShareBadge}
+            className="flex-1 flex items-center justify-center gap-2 py-2.5 border border-slate-200 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-50 transition-colors"
+          >
+            {badgeCopied ? (
+              <>
+                <svg className="w-4 h-4 text-emerald-500" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                Link copied!
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" /><line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                </svg>
+                Share Completion
               </>
             )}
           </button>
