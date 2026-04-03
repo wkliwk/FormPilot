@@ -769,7 +769,7 @@ export default function UploadPage() {
                       <span className="text-blue-600">Click to upload</span> or drag and drop
                     </p>
                     <p className="text-sm text-slate-400 mt-1">
-                      PDF, DOCX, PNG, JPG, WEBP, HEIC supported &middot; Max {MAX_SIZE_MB}MB
+                      PDF, DOCX, PNG, JPG, WEBP, HEIC supported &middot; Max {MAX_SIZE_MB}MB &middot; PDFs up to 30 pages
                     </p>
                   </div>
                 </div>
@@ -964,7 +964,7 @@ export default function UploadPage() {
           <div className="border-t border-slate-100 pt-5 space-y-2">
             <p className="text-xs text-slate-400 leading-relaxed">
               <span className="font-medium text-slate-500">Supported formats:</span>{" "}
-              PDF, Word, and images (PNG, JPG, WEBP, HEIC) &middot; Max {MAX_SIZE_MB}MB
+              PDF (up to 30 pages), Word, and images (PNG, JPG, WEBP, HEIC) &middot; Max {MAX_SIZE_MB}MB
             </p>
             <p className="text-xs text-slate-400 leading-relaxed">
               <span className="font-medium text-slate-500">Supported forms:</span>{" "}

@@ -6,6 +6,11 @@ export async function extractTextFromPDF(buffer: Buffer): Promise<string> {
   return data.text;
 }
 
+export async function getPDFPageCount(buffer: Buffer): Promise<number> {
+  const data = await pdfParse(buffer);
+  return data.numpages;
+}
+
 export async function extractTextFromDocx(buffer: Buffer): Promise<string> {
   const result = await mammoth.extractRawText({ buffer });
   return result.value;

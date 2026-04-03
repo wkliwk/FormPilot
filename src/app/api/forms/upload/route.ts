@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canUploadForm, incrementFormUsage, isProUser } from "@/lib/subscription";
 import { grantReferralBonus } from "@/lib/referral";
-import { extractTextFromBuffer } from "@/lib/pdf/extract";
+import { extractTextFromBuffer, getPDFPageCount } from "@/lib/pdf/extract";
 import { analyzeFormFields, analyzeFormFieldsFromImage } from "@/lib/ai/analyze-form";
 import { preprocessImage } from "@/lib/image/preprocess";
 import { checkRateLimit, checkIpRateLimit } from "@/lib/rate-limit";
@@ -17,6 +17,7 @@ import QuotaApproachingEmail from "@/emails/QuotaApproachingEmail";
 export const maxDuration = 60;
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+const MAX_PDF_PAGES = 30;
 
 const DOC_TYPES = [
   "application/pdf",
@@ -130,6 +131,32 @@ export async function POST(req: NextRequest) {
   }
 
   const isImage = IMAGE_TYPES.includes(file.type);
+
+  // Guard: reject PDFs with more than MAX_PDF_PAGES pages
+  if (file.type === "application/pdf") {
+    try {
+      const pageCount = await getPDFPageCount(buffer);
+      if (pageCount > MAX_PDF_PAGES) {
+        log.info("PDF rejected — too many pages", {
+          route: "POST /api/forms/upload",
+          userId: session.user.id,
+          pageCount,
+          limit: MAX_PDF_PAGES,
+        });
+        return NextResponse.json(
+          {
+            error: `This PDF has ${pageCount} pages. FormPilot works best with forms up to ${MAX_PDF_PAGES} pages. Please upload just the pages you need to fill in.`,
+            code: "TOO_MANY_PAGES",
+            pageCount,
+            limit: MAX_PDF_PAGES,
+          },
+          { status: 422 }
+        );
+      }
+    } catch {
+      // Non-fatal — if page count check fails, proceed; extraction will catch real errors
+    }
+  }
 
   let preferredLanguage: string | null = null;
   let profileCountry: string | null = null;
