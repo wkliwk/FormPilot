@@ -14,6 +14,7 @@ import ProGateModal from "@/components/ProGateModal";
 import FieldNote from "./FieldNote";
 import GapReportPanel, { type ProfileGap } from "./GapReportPanel";
 import ProgressRing from "./ProgressRing";
+import ShareModal from "./ShareModal";
 
 interface FormRecord {
   id: string;
@@ -172,6 +173,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [showForceExportDialog, setShowForceExportDialog] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showConfidenceReview, setShowConfidenceReview] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
   const [sampleFilling, setSampleFilling] = useState(false);
   const [sampleFillMessage, setSampleFillMessage] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState(false);
@@ -1060,6 +1062,20 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           </div>
 
           <div className="flex flex-wrap gap-2">
+            {/* Share explanations */}
+            <button
+              type="button"
+              onClick={() => setShowShareModal(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-2 border border-slate-200 bg-white text-slate-600 text-sm rounded-lg font-medium hover:bg-slate-50 transition-colors"
+              title="Share field explanations (no personal data)"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+                <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+              </svg>
+              Share
+            </button>
             {/* Jump to next empty field */}
             {unansweredCount > 0 && (
               <button
@@ -2003,6 +2019,9 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         </button>
       )}
     </div>
+    {showShareModal && (
+      <ShareModal formId={form.id} onClose={() => setShowShareModal(false)} />
+    )}
     </>
   );
 }

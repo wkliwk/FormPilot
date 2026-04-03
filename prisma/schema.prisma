@@ -85,6 +85,7 @@ model Form {
   status      FormStatus @default(PENDING)
   category     String?    // Detected form category (TAX, IMMIGRATION, LEGAL, HR_EMPLOYMENT, HEALTHCARE, GENERAL)
   lastNudgedAt DateTime? // Set after sending re-engagement email — suppresses nudges for 7 days
+  shareToken   String?   @unique // nanoid(16) — public share link token; null = not shared
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
