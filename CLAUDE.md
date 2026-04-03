@@ -49,7 +49,18 @@ npm run db:push      # Push schema to DB (no migration)
 npm run db:migrate   # Create and apply migration
 npm run db:studio    # Open Prisma Studio
 npm run db:seed      # Seed database
+npm run setup-hooks  # Install git pre-push hook (run once after cloning)
 ```
+
+## Git Hooks
+
+A `pre-push` hook runs `npm run build` before every push to catch build failures before they reach Vercel/Railway. Install it once after cloning:
+
+```bash
+npm run setup-hooks
+```
+
+The hook is stored in `scripts/hooks/pre-push` and installed into `.git/hooks/`. Bypass with `git push --no-verify` in emergencies only.
 
 ## Product Goal
 

@@ -1,0 +1,21 @@
+#!/bin/sh
+# FormPilot pre-push hook — verifies the production build succeeds before pushing.
+# Prevents deploying code that Vercel/Railway will reject.
+# Bypass with: git push --no-verify
+
+echo "🔨 Running production build check before push..."
+echo "   (This catches errors that tsc --noEmit misses)"
+echo ""
+
+npm run build
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ Build failed. Push aborted."
+  echo "   Fix the build errors above, then push again."
+  echo "   To bypass (emergency only): git push --no-verify"
+  exit 1
+fi
+
+echo ""
+echo "✅ Build passed. Pushing..."
