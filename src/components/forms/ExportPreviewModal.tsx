@@ -295,8 +295,15 @@ export default function ExportPreviewModal({
         <div className="hidden lg:flex flex-col flex-1 overflow-hidden bg-white">
           {canPreviewDoc ? (
             <>
-              <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-100 text-xs text-slate-400 shrink-0">
-                Preview shows your answers overlaid on the original document
+              <div className="px-3 py-2 bg-blue-50 border-b border-blue-100 text-xs text-blue-600 flex items-center gap-1.5 shrink-0">
+                <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="16" x2="12" y2="12" />
+                  <line x1="12" y1="8" x2="12.01" y2="8" />
+                </svg>
+                <span>
+                  This preview shows the original form layout. Your filled answers will be included in the downloaded file.
+                </span>
               </div>
               <DocumentImageViewer
                 formId={formId}
