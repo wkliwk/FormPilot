@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import UpgradeGateModal, { isDismissed } from "@/components/UpgradeGateModal";
 
@@ -58,8 +58,19 @@ function getFileBadge(f: File): { label: string; bg: string; text: string; borde
   return { label: ext, bg: "bg-slate-50", text: "text-slate-600", border: "border-slate-200" };
 }
 
+const CATEGORY_LABELS: Record<string, string> = {
+  TAX: "Tax forms (W-4, 1040, W-2, 1099…)",
+  IMMIGRATION: "Immigration forms (DS-160, I-130, I-485…)",
+  HR_EMPLOYMENT: "HR / Employment forms (I-9, onboarding…)",
+  HEALTHCARE: "Healthcare forms (insurance, patient intake…)",
+  LEGAL: "Legal forms (contracts, affidavits…)",
+  GENERAL: "General forms",
+};
+
 export default function UploadPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const categoryHint = searchParams.get("category") ?? null;
   const fileRef = useRef<HTMLInputElement>(null);
   const cameraRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
@@ -567,6 +578,20 @@ export default function UploadPage() {
               We will parse every field, explain what to enter, and help you fill it out.
             </p>
           </div>
+
+          {/* Category hint banner — shown when navigating from the empty state category picker */}
+          {categoryHint && CATEGORY_LABELS[categoryHint] && (
+            <div className="flex items-center gap-2.5 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+              <svg className="w-4 h-4 text-blue-500 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              <p className="text-sm text-blue-800">
+                <span className="font-semibold">Uploading:</span> {CATEGORY_LABELS[categoryHint]}
+              </p>
+            </div>
+          )}
 
           {/* Tab switcher */}
           <div className="flex gap-1 bg-slate-100 p-1 rounded-xl">
