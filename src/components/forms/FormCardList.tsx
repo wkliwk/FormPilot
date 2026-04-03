@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ProgressRing from "./ProgressRing";
+
+const MAX_TITLE_LENGTH = 60;
 
 const statusConfig: Record<string, { label: string; bg: string; text: string; dot: string }> = {
   COMPLETED: { label: "Completed", bg: "bg-emerald-50", text: "text-emerald-700", dot: "bg-emerald-500" },
@@ -88,7 +90,11 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
   const router = useRouter();
   const [forms, setForms] = useState(initialForms);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [renamingId, setRenamingId] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const editInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
@@ -138,6 +144,50 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
     } finally {
       setDeletingId(null);
     }
+  }
+
+  function startRename(e: React.MouseEvent, form: FormCard) {
+    e.preventDefault();
+    e.stopPropagation();
+    setEditingId(form.id);
+    setEditTitle(form.title);
+    // Focus input on next tick after it mounts
+    setTimeout(() => {
+      editInputRef.current?.select();
+    }, 0);
+  }
+
+  async function commitRename(id: string) {
+    const trimmed = editTitle.trim().slice(0, MAX_TITLE_LENGTH);
+    const original = forms.find((f) => f.id === id)?.title ?? "";
+    if (!trimmed || trimmed === original) {
+      setEditingId(null);
+      return;
+    }
+    setEditingId(null);
+    setRenamingId(id);
+    // Optimistic update
+    setForms((prev) => prev.map((f) => f.id === id ? { ...f, title: trimmed } : f));
+    try {
+      const res = await fetch(`/api/forms/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: trimmed }),
+      });
+      if (!res.ok) throw new Error("Rename failed");
+    } catch {
+      // Roll back on failure
+      setForms((prev) => prev.map((f) => f.id === id ? { ...f, title: original } : f));
+      setToast("Could not rename form. Please try again.");
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setRenamingId(null);
+    }
+  }
+
+  function cancelRename() {
+    setEditingId(null);
+    setEditTitle("");
   }
 
   // Derive which statuses and categories are present (for filter pill visibility)
@@ -282,20 +332,44 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
           {filteredForms.map((form) => {
             const style = getStatusStyle(form.status);
             const isDeleting = deletingId === form.id;
+            const isEditing = editingId === form.id;
+            const isRenaming = renamingId === form.id;
             const catConfig = form.category ? categoryConfig[form.category] : null;
             return (
               <div key={form.id} className="relative group">
                 <Link
                   href={`/dashboard/forms/${form.id}`}
-                  className={`relative flex items-center gap-4 bg-white rounded-xl border border-slate-200 p-4 sm:p-5 hover:border-blue-200 hover:shadow-card transition-all ${isDeleting ? "opacity-50 pointer-events-none" : ""}`}
+                  className={`relative flex items-center gap-4 bg-white rounded-xl border border-slate-200 p-4 sm:p-5 hover:border-blue-200 hover:shadow-card transition-all ${isDeleting ? "opacity-50 pointer-events-none" : ""} ${isEditing ? "pointer-events-none" : ""}`}
                 >
                   {getFileIcon(form.sourceType)}
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <h3 className="font-semibold text-slate-900 group-hover:text-blue-700 transition-colors truncate">
-                        {form.title}
-                      </h3>
+                      {isEditing ? (
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          value={editTitle}
+                          maxLength={MAX_TITLE_LENGTH}
+                          onChange={(e) => setEditTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") { e.preventDefault(); commitRename(form.id); }
+                            if (e.key === "Escape") { e.preventDefault(); cancelRename(); }
+                          }}
+                          onBlur={() => commitRename(form.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="pointer-events-auto font-semibold text-slate-900 bg-white border border-blue-400 rounded-lg px-2 py-0.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-0 w-full max-w-[300px]"
+                          aria-label="Rename form"
+                          autoFocus
+                        />
+                      ) : (
+                        <h3
+                          className={`font-semibold transition-colors truncate ${isRenaming ? "text-slate-400" : "text-slate-900 group-hover:text-blue-700"}`}
+                          title="Click to rename"
+                        >
+                          {form.title}
+                        </h3>
+                      )}
                       {catConfig && (
                         <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-medium shrink-0 ${catConfig.bg} ${catConfig.text}`}>
                           {catConfig.label}
@@ -331,6 +405,19 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
                   </svg>
                 </Link>
 
+                {/* Rename button */}
+                <button
+                  onClick={(e) => startRename(e, form)}
+                  disabled={isDeleting || isEditing}
+                  className="absolute right-24 top-1/2 -translate-y-1/2 hidden sm:flex items-center justify-center w-8 h-8 rounded-lg text-slate-300 hover:text-blue-500 hover:bg-blue-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                  aria-label={`Rename ${form.title}`}
+                  title="Rename form"
+                >
+                  <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                  </svg>
+                </button>
                 <button
                   onClick={(e) => handleDelete(e, form.id, form.title)}
                   disabled={isDeleting}
