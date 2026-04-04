@@ -17,6 +17,7 @@ interface IncompleteForm {
   title: string;
   completionPct: number;
   updatedAt: string; // ISO date string
+  dueDate?: string | null; // ISO date string
 }
 
 interface Props {
@@ -79,16 +80,29 @@ export default function WeeklyDigestEmail({
           </Text>
 
           {/* Forms list */}
-          {forms.map((form) => (
-            <div key={form.id} style={formRow}>
-              <div style={formMeta}>
-                <strong style={formTitle}>{form.title}</strong>
-                <span style={formDetail}>
-                  {form.completionPct}% complete &middot; last edited {formatDate(form.updatedAt)}
-                </span>
+          {forms.map((form) => {
+            const now = new Date();
+            const due = form.dueDate ? new Date(form.dueDate) : null;
+            const daysLeft = due ? Math.ceil((due.getTime() - now.getTime()) / (24 * 60 * 60 * 1000)) : null;
+            const isOverdue = daysLeft !== null && daysLeft < 0;
+            const isDueSoon = daysLeft !== null && daysLeft >= 0 && daysLeft <= 14;
+            return (
+              <div key={form.id} style={formRow}>
+                <div style={formMeta}>
+                  <strong style={formTitle}>{form.title}</strong>
+                  <span style={formDetail}>
+                    {form.completionPct}% complete &middot; last edited {formatDate(form.updatedAt)}
+                    {isOverdue && <span style={overdueTag}> · Overdue</span>}
+                    {!isOverdue && isDueSoon && (
+                      <span style={dueSoonTag}>
+                        {" "}· Due {daysLeft === 0 ? "today" : daysLeft === 1 ? "tomorrow" : `in ${daysLeft} days`}
+                      </span>
+                    )}
+                  </span>
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
 
           {/* Profile nudge — only if incomplete */}
           {profileScore < 100 && missingCategories.length > 0 && (
@@ -196,3 +210,5 @@ const button = {
 const hr = { borderColor: "#e2e8f0", margin: "24px 0" };
 const footer = { color: "#94a3b8", fontSize: "12px", lineHeight: "1.5" };
 const link = { color: "#94a3b8" };
+const overdueTag = { color: "#dc2626", fontWeight: "600" as const };
+const dueSoonTag = { color: "#d97706", fontWeight: "600" as const };

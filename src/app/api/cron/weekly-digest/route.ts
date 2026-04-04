@@ -92,6 +92,7 @@ export async function POST(req: NextRequest) {
             title: true,
             fields: true,
             updatedAt: true,
+            dueDate: true,
           },
         },
         profile: { select: { data: true } },
@@ -113,6 +114,7 @@ export async function POST(req: NextRequest) {
           title: f.title,
           completionPct,
           updatedAt: f.updatedAt.toISOString(),
+          dueDate: f.dueDate ? f.dueDate.toISOString() : null,
         };
       });
 
@@ -183,4 +185,9 @@ export async function POST(req: NextRequest) {
     });
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
+}
+
+// Vercel crons call GET — delegate to the POST handler logic
+export async function GET(req: NextRequest) {
+  return POST(req);
 }
