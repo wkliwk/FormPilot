@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const CATEGORIES = [
   {
@@ -148,11 +149,18 @@ export default function DashboardEmptyState() {
 
       {/* Fallback + sample row */}
       <div className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-2 border-t border-slate-100">
-        <button
-          onClick={() => router.push("/dashboard/upload")}
+        <Link
+          href="/dashboard/library"
           className="text-sm text-blue-600 hover:text-blue-700 font-medium underline underline-offset-2 transition-colors"
         >
-          Or upload any form
+          Browse common forms
+        </Link>
+        <span className="hidden sm:inline text-slate-300">·</span>
+        <button
+          onClick={() => router.push("/dashboard/upload")}
+          className="text-sm text-slate-500 hover:text-slate-700 font-medium transition-colors"
+        >
+          Upload any form
         </button>
         <span className="hidden sm:inline text-slate-300">·</span>
         <button

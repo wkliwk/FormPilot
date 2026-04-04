@@ -248,6 +248,16 @@ export default async function DashboardPage() {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Link
+              href="/dashboard/library"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 bg-white border border-slate-200 text-slate-700 rounded-xl text-sm font-semibold hover:bg-slate-50 transition-all shadow-sm active:scale-[0.98]"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+              </svg>
+              Library
+            </Link>
             <ProGateModal
               feature="Batch Fill"
               benefit="Upload and auto-fill up to 10 forms at once. Save hours on repetitive paperwork."
