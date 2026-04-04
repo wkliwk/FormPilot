@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 interface BillingInfo {
@@ -8,20 +9,64 @@ interface BillingInfo {
   formsUsed: number;
   formsLimit: number | null;
   periodStart: string;
+  subscriptionStatus: string | null;
+  currentPeriodEnd: string | null;
+  hasStripeCustomer: boolean;
+}
+
+interface Invoice {
+  id: string;
+  date: number;
+  amount: number;
+  currency: string;
+  pdfUrl: string | null;
+  status: string | null;
 }
 
 type PlanChoice = "monthly" | "annual";
 
+function formatCurrency(amount: number, currency: string) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: currency.toUpperCase(),
+    minimumFractionDigits: 2,
+  }).format(amount / 100);
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
 export default function BillingPage() {
+  const searchParams = useSearchParams();
+  const success = searchParams.get("success") === "1";
+  const canceled = searchParams.get("canceled") === "1";
+
   const [billing, setBilling] = useState<BillingInfo | null>(null);
+  const [invoices, setInvoices] = useState<Invoice[] | null>(null);
   const [loading, setLoading] = useState(true);
+  const [invoicesLoading, setInvoicesLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<PlanChoice>("annual");
 
   useEffect(() => {
     fetch("/api/billing")
       .then((r) => r.json())
-      .then(setBilling)
+      .then((data: BillingInfo) => {
+        setBilling(data);
+        if (data.plan === "pro") {
+          setInvoicesLoading(true);
+          fetch("/api/billing/invoices")
+            .then((r) => r.json())
+            .then((d: { invoices: Invoice[] }) => setInvoices(d.invoices ?? []))
+            .catch(() => setInvoices([]))
+            .finally(() => setInvoicesLoading(false));
+        }
+      })
       .finally(() => setLoading(false));
   }, []);
 
@@ -62,55 +107,86 @@ export default function BillingPage() {
       </nav>
 
       <main className="max-w-2xl mx-auto px-4 py-10">
-        <h1 className="text-2xl font-bold text-slate-900 mb-8">Billing &amp; Plan</h1>
+        <h1 className="text-2xl font-bold text-slate-900 mb-6">Billing &amp; Plan</h1>
+
+        {/* Success / canceled banners */}
+        {success && (
+          <div className="mb-6 flex items-center gap-3 bg-emerald-50 border border-emerald-200 rounded-xl px-4 py-3 text-sm text-emerald-800">
+            <svg className="w-4 h-4 text-emerald-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            You&apos;re now on FormPilot Pro. Welcome!
+          </div>
+        )}
+        {canceled && (
+          <div className="mb-6 flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+            <svg className="w-4 h-4 text-amber-600 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            Checkout was canceled. Your plan was not changed.
+          </div>
+        )}
 
         {loading ? (
           <div className="space-y-6 animate-pulse">
             <div className="bg-slate-100 rounded-2xl h-28" />
             <div className="bg-slate-100 rounded-2xl h-20" />
+            <div className="bg-slate-100 rounded-2xl h-40" />
           </div>
         ) : billing ? (
           <div className="space-y-6">
             {/* Current plan card */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-6 flex items-center justify-between">
-              <div>
-                <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">
-                  Current plan
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-2xl font-bold text-slate-900 capitalize">
-                    {billing.plan}
-                  </span>
-                  {billing.plan === "pro" && (
-                    <span className="bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
-                      Active
+            <div className="bg-white rounded-2xl border border-slate-200 p-6">
+              <div className="flex items-start justify-between">
+                <div>
+                  <div className="text-xs font-medium text-slate-400 uppercase tracking-wide mb-1">
+                    Current plan
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-2xl font-bold text-slate-900 capitalize">
+                      {billing.plan}
                     </span>
+                    {billing.plan === "pro" && (
+                      <span className="bg-blue-100 text-blue-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                        Active
+                      </span>
+                    )}
+                    {billing.subscriptionStatus === "PAST_DUE" && (
+                      <span className="bg-red-100 text-red-700 text-xs font-medium px-2 py-0.5 rounded-full">
+                        Past due
+                      </span>
+                    )}
+                  </div>
+                  {billing.plan === "free" && (
+                    <p className="text-sm text-slate-500 mt-1">
+                      Upgrade to Pro for unlimited forms, autofill history, and more.
+                    </p>
+                  )}
+                  {billing.plan === "pro" && billing.currentPeriodEnd && (
+                    <p className="text-sm text-slate-500 mt-1">
+                      Next billing date: <span className="font-medium text-slate-700">{formatDate(billing.currentPeriodEnd)}</span>
+                    </p>
                   )}
                 </div>
-                {billing.plan === "free" && (
-                  <p className="text-sm text-slate-500 mt-1">
-                    Upgrade to Pro for unlimited forms, form memory, and shared templates.
-                  </p>
-                )}
-              </div>
-              <div>
-                {billing.plan === "free" ? (
-                  <button
-                    onClick={() => handleUpgrade()}
-                    disabled={actionLoading}
-                    className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    {actionLoading ? "Redirecting…" : "Upgrade to Pro"}
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleManage}
-                    disabled={actionLoading}
-                    className="border border-slate-300 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-50 disabled:opacity-50"
-                  >
-                    {actionLoading ? "Redirecting…" : "Manage subscription"}
-                  </button>
-                )}
+                <div>
+                  {billing.plan === "free" ? (
+                    <button
+                      onClick={() => handleUpgrade()}
+                      disabled={actionLoading}
+                      className="bg-blue-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                    >
+                      {actionLoading ? "Redirecting…" : "Upgrade to Pro"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleManage}
+                      disabled={actionLoading}
+                      className="border border-slate-300 text-slate-700 text-sm font-medium px-4 py-2 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    >
+                      {actionLoading ? "Redirecting…" : "Manage subscription"}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -205,40 +281,102 @@ export default function BillingPage() {
                   </p>
                 )}
                 <p className="text-xs text-slate-400 mt-2">
-                  Resets on your billing cycle.
+                  Resets at the start of each month.
                 </p>
               </div>
             )}
 
-            {/* Pro features list */}
+            {/* Plan comparison (free users) */}
             {billing.plan === "free" && (
-              <div className="bg-blue-50 border border-blue-100 rounded-2xl p-6">
-                <h3 className="font-semibold text-slate-900 mb-3">
-                  Pro includes
-                </h3>
-                <ul className="space-y-2 text-sm text-slate-700">
-                  {[
-                    "Unlimited form uploads",
-                    "Form Memory — learns from your completed forms",
-                    "Shareable form templates",
-                    "Priority AI processing",
-                  ].map((f) => (
-                    <li key={f} className="flex items-center gap-2">
-                      <span className="text-blue-500">✓</span> {f}
-                    </li>
-                  ))}
-                </ul>
-                <button
-                  onClick={() => handleUpgrade()}
-                  disabled={actionLoading}
-                  className="mt-4 w-full bg-blue-600 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                >
-                  {actionLoading
-                    ? "Redirecting…"
-                    : selectedPlan === "annual"
-                    ? "Get Pro — $79/year"
-                    : "Get Pro — $9/month"}
-                </button>
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100">
+                  <h2 className="font-semibold text-slate-900">Free vs Pro</h2>
+                </div>
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-slate-100">
+                      <th className="text-left px-6 py-3 text-slate-500 font-medium w-1/2">Feature</th>
+                      <th className="text-center px-4 py-3 text-slate-500 font-medium">Free</th>
+                      <th className="text-center px-4 py-3 text-blue-600 font-semibold">Pro</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {[
+                      { feature: "Form uploads / month", free: "5", pro: "Unlimited" },
+                      { feature: "AI autofill", free: "✓", pro: "✓" },
+                      { feature: "Autofill history (snapshots)", free: "—", pro: "✓" },
+                      { feature: "Field mapping editor", free: "—", pro: "✓" },
+                      { feature: "Deadline reminders", free: "—", pro: "✓" },
+                      { feature: "Completion certificate", free: "—", pro: "✓" },
+                      { feature: "Batch fill", free: "—", pro: "✓" },
+                    ].map(({ feature, free, pro }) => (
+                      <tr key={feature}>
+                        <td className="px-6 py-3 text-slate-700">{feature}</td>
+                        <td className="px-4 py-3 text-center text-slate-400">{free}</td>
+                        <td className="px-4 py-3 text-center text-slate-900 font-medium">{pro}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <div className="px-6 py-4 bg-blue-50 border-t border-blue-100">
+                  <button
+                    onClick={() => handleUpgrade()}
+                    disabled={actionLoading}
+                    className="w-full bg-blue-600 text-white text-sm font-medium py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    {actionLoading
+                      ? "Redirecting…"
+                      : selectedPlan === "annual"
+                      ? "Get Pro — $79/year"
+                      : "Get Pro — $9/month"}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Invoice history (Pro users) */}
+            {billing.plan === "pro" && (
+              <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden">
+                <div className="px-6 py-4 border-b border-slate-100">
+                  <h2 className="font-semibold text-slate-900">Invoice history</h2>
+                </div>
+                {invoicesLoading ? (
+                  <div className="px-6 py-4 space-y-3 animate-pulse">
+                    <div className="h-4 bg-slate-100 rounded w-full" />
+                    <div className="h-4 bg-slate-100 rounded w-3/4" />
+                  </div>
+                ) : invoices && invoices.length > 0 ? (
+                  <div className="divide-y divide-slate-100">
+                    {invoices.map((inv) => (
+                      <div key={inv.id} className="flex items-center justify-between px-6 py-3">
+                        <div>
+                          <div className="text-sm font-medium text-slate-800">
+                            {formatCurrency(inv.amount, inv.currency)}
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {new Date(inv.date).toLocaleDateString("en-US", { year: "numeric", month: "short", day: "numeric" })}
+                          </div>
+                        </div>
+                        {inv.pdfUrl ? (
+                          <a
+                            href={inv.pdfUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 underline"
+                          >
+                            Download
+                          </a>
+                        ) : (
+                          <span className="text-xs text-slate-300">No PDF</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="px-6 py-4 text-sm text-slate-400">
+                    No invoices yet.
+                  </div>
+                )}
               </div>
             )}
           </div>

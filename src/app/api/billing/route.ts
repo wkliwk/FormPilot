@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { getUserPlan, getOrCreateUsage, FREE_FORM_LIMIT } from "@/lib/subscription";
 
 export async function GET() {
@@ -9,9 +10,13 @@ export async function GET() {
   }
 
   const userId = session.user.id;
-  const [plan, usage] = await Promise.all([
+  const [plan, usage, sub] = await Promise.all([
     getUserPlan(userId),
     getOrCreateUsage(userId),
+    prisma.subscription.findUnique({
+      where: { userId },
+      select: { status: true, currentPeriodEnd: true, stripeCustomerId: true },
+    }),
   ]);
 
   return NextResponse.json({
@@ -19,5 +24,8 @@ export async function GET() {
     formsUsed: usage.formsThisMonth,
     formsLimit: plan === "pro" ? null : FREE_FORM_LIMIT,
     periodStart: usage.periodStart,
+    subscriptionStatus: sub?.status ?? null,
+    currentPeriodEnd: sub?.currentPeriodEnd?.toISOString() ?? null,
+    hasStripeCustomer: !!sub?.stripeCustomerId,
   });
 }
