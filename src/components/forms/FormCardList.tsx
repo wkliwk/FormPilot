@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import ProgressRing from "./ProgressRing";
@@ -97,9 +97,22 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
   const [toast, setToast] = useState<string | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState<string | null>(null);
-  const [sortKey, setSortKey] = useState<SortKey>("updatedAt");
+  // Sort key persists to localStorage
+  const [sortKey, setSortKey] = useState<SortKey>(() => {
+    if (typeof window === "undefined") return "updatedAt";
+    return (localStorage.getItem("fp_forms_sort") as SortKey) ?? "updatedAt";
+  });
+
+  // Debounce search input — 300ms
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    searchDebounceRef.current = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => { if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current); };
+  }, [search]);
   const [hasMore, setHasMore] = useState(initialHasMore);
   const [nextCursor, setNextCursor] = useState<string | null>(
     initialHasMore && initialForms.length > 0 ? initialForms[initialForms.length - 1].id : null
@@ -219,7 +232,7 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
   );
 
   const filteredForms = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    const q = debouncedSearch.trim().toLowerCase();
     const filtered = forms.filter((f) => {
       if (q && !f.title.toLowerCase().includes(q)) return false;
       if (statusFilter && f.status !== statusFilter) return false;
@@ -231,7 +244,7 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
       if (sortKey === "createdAt") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
     });
-  }, [forms, search, statusFilter, categoryFilter, sortKey]);
+  }, [forms, debouncedSearch, statusFilter, categoryFilter, sortKey]);
 
   const hasActiveFilter = search.trim() || statusFilter || categoryFilter;
 
@@ -266,7 +279,11 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
           </div>
           <select
             value={sortKey}
-            onChange={(e) => setSortKey(e.target.value as SortKey)}
+            onChange={(e) => {
+      const v = e.target.value as SortKey;
+      setSortKey(v);
+      localStorage.setItem("fp_forms_sort", v);
+    }}
             className="shrink-0 px-3 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent cursor-pointer"
             aria-label="Sort forms"
           >
@@ -279,6 +296,20 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
         {/* Status + category filter pills */}
         {(presentStatuses.length > 1 || presentCategories.length > 0) && (
           <div className="flex flex-wrap gap-2">
+            {/* "All" pill — shown only when status pills are visible */}
+            {presentStatuses.length > 1 && (
+              <button
+                onClick={() => setStatusFilter(null)}
+                className={`inline-flex items-center text-xs px-2.5 py-1 rounded-full font-medium border transition-all ${
+                  !statusFilter
+                    ? "bg-slate-800 text-white border-slate-800 shadow-sm"
+                    : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                }`}
+                aria-pressed={!statusFilter}
+              >
+                All
+              </button>
+            )}
             {presentStatuses.length > 1 && presentStatuses.map((s) => {
               const cfg = statusConfig[s];
               const active = statusFilter === s;
@@ -320,7 +351,7 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
 
             {hasActiveFilter && (
               <button
-                onClick={() => { setSearch(""); setStatusFilter(null); setCategoryFilter(null); }}
+                onClick={() => { setSearch(""); setDebouncedSearch(""); setStatusFilter(null); setCategoryFilter(null); }}
                 className="inline-flex items-center gap-1 text-xs px-2.5 py-1 rounded-full font-medium bg-white text-slate-400 border border-slate-200 hover:text-slate-600 hover:border-slate-300 transition-all"
               >
                 <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
@@ -339,7 +370,7 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
         <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
           <p className="text-sm text-slate-400">No forms match your search.</p>
           <button
-            onClick={() => { setSearch(""); setStatusFilter(null); setCategoryFilter(null); }}
+            onClick={() => { setSearch(""); setDebouncedSearch(""); setStatusFilter(null); setCategoryFilter(null); }}
             className="mt-2 text-sm text-blue-600 hover:underline"
           >
             Clear filters
