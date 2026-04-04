@@ -18,21 +18,25 @@ export async function GET() {
     return NextResponse.json({ invoices: [] });
   }
 
-  const stripe = getStripe();
-  const { data: invoices } = await stripe.invoices.list({
-    customer: sub.stripeCustomerId,
-    limit: 12,
-    status: "paid",
-  });
+  try {
+    const stripe = getStripe();
+    const { data: invoices } = await stripe.invoices.list({
+      customer: sub.stripeCustomerId,
+      limit: 12,
+      status: "paid",
+    });
 
-  return NextResponse.json({
-    invoices: invoices.map((inv) => ({
-      id: inv.id,
-      date: inv.created * 1000,
-      amount: inv.amount_paid,
-      currency: inv.currency,
-      pdfUrl: inv.invoice_pdf,
-      status: inv.status,
-    })),
-  });
+    return NextResponse.json({
+      invoices: invoices.map((inv) => ({
+        id: inv.id,
+        date: inv.created * 1000,
+        amount: inv.amount_paid,
+        currency: inv.currency,
+        pdfUrl: inv.invoice_pdf,
+        status: inv.status,
+      })),
+    });
+  } catch {
+    return NextResponse.json({ invoices: [] });
+  }
 }
