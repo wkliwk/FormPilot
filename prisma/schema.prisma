@@ -228,3 +228,14 @@ model FormTemplate {
   @@index([userId])
   @@index([slug])
 }
+
+// Product Hunt launch notify-me list — collected pre-launch, blasted on launch day
+model LaunchNotify {
+  id          String    @id @default(cuid())
+  email       String    @unique
+  source      String    @default("landing") // "landing" | "demo" | "dashboard"
+  blastSentAt DateTime? // set when launch-day blast email has been sent — prevents double-send
+  createdAt   DateTime  @default(now())
+
+  @@index([blastSentAt])
+}

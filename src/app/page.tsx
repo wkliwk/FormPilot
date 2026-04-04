@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import ReferralTracker from "@/components/ReferralTracker";
 import FAQSection from "@/components/FAQSection";
 import AnimatedCounter from "@/components/AnimatedCounter";
+import LaunchBanner from "@/components/LaunchBanner";
 import { FAQ_ITEMS } from "@/lib/faq-items";
 
 // Set NEXT_PUBLIC_PH_URL in env once the Product Hunt post is live
@@ -192,6 +193,10 @@ export default async function HomePage() {
       <Suspense fallback={null}>
         <ReferralTracker />
       </Suspense>
+
+      {/* Product Hunt banner — pre-launch notify-me OR launch-day upvote CTA */}
+      <LaunchBanner phUrl={PRODUCT_HUNT_URL} />
+
       {/* Nav */}
       <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-lg border-b border-slate-100">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
