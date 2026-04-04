@@ -196,6 +196,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [blurErrors, setBlurErrors] = useState<Record<string, string>>({});
   // export pre-flight: required-fields-empty banner
   const [showRequiredEmptyBanner, setShowRequiredEmptyBanner] = useState(false);
+  // export pre-flight: flagged-fields-blank warning
+  const [flaggedBlankCount, setFlaggedBlankCount] = useState(0);
   // autofill confidence summary banner
   const [autofillSummary, setAutofillSummary] = useState<{ high: number; medium: number; low: number; unfilled: number } | null>(null);
   // field mapping editor
@@ -318,6 +320,14 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     const newStates = { ...fieldStates, [fieldId]: "accepted" as FieldState };
     setFieldStates(newStates);
     scheduleSave(values, newStates);
+    // Auto-clear flag when a field is accepted — no longer needs manual review
+    if (flaggedFields.has(fieldId)) {
+      const field = fields.find((f) => f.id === fieldId);
+      if (field) {
+        setFlaggedFields((prev) => { const next = new Set(prev); next.delete(fieldId); return next; });
+        localStorage.removeItem(flagKey(field.label));
+      }
+    }
   }
 
   function handleReject(fieldId: string) {
@@ -495,6 +505,22 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     }
     setFieldStates(newStates);
     scheduleSave(values, newStates);
+    // Auto-clear flags for all fields accepted in this batch
+    const acceptedIds = Object.entries(newStates)
+      .filter(([, s]) => s === "accepted")
+      .map(([id]) => id);
+    const toUnflag = acceptedIds.filter((id) => flaggedFields.has(id));
+    if (toUnflag.length > 0) {
+      setFlaggedFields((prev) => {
+        const next = new Set(prev);
+        toUnflag.forEach((id) => {
+          next.delete(id);
+          const f = fields.find((fl) => fl.id === id);
+          if (f) localStorage.removeItem(flagKey(f.label));
+        });
+        return next;
+      });
+    }
   }
 
   function toggleExplanation(fieldId: string) {
@@ -827,6 +853,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       setShowRequiredEmptyBanner(true);
     }
 
+    // Flagged-blank pre-flight: count flagged fields that are still empty
+    const blankFlagged = Array.from(flaggedFields).filter((id) => !values[id] || !String(values[id]).trim()).length;
+    setFlaggedBlankCount(blankFlagged);
+
     // Show preview modal before actual export
     setShowPreviewModal(true);
   }
@@ -989,6 +1019,42 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       localStorage.setItem(`preFillDismissed:${form.id}`, "1");
     }
     setPriorFormOffer(null);
+  }
+
+  // -- field flags (localStorage, keyed by formId+fieldLabel) --
+
+  const flagKey = (fieldLabel: string) => `flag:${form.id}:${fieldLabel}`;
+
+  const [flaggedFields, setFlaggedFields] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    return new Set(
+      fields
+        .filter((f) => localStorage.getItem(flagKey(f.label)) === "1")
+        .map((f) => f.id)
+    );
+  });
+
+  const [flagFilter, setFlagFilter] = useState(false);
+
+  function toggleFlag(fieldId: string) {
+    const field = fields.find((f) => f.id === fieldId);
+    if (!field) return;
+    setFlaggedFields((prev) => {
+      const next = new Set(prev);
+      if (next.has(fieldId)) {
+        next.delete(fieldId);
+        localStorage.removeItem(flagKey(field.label));
+      } else {
+        next.add(fieldId);
+        localStorage.setItem(flagKey(field.label), "1");
+      }
+      return next;
+    });
+  }
+
+  function clearAllFlags() {
+    fields.forEach((f) => localStorage.removeItem(flagKey(f.label)));
+    setFlaggedFields(new Set());
   }
 
   // -- derived --
@@ -1337,6 +1403,26 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
               </svg>
               Share
             </button>
+            {/* Flagged fields count badge */}
+            {flaggedFields.size > 0 && (
+              <button
+                type="button"
+                onClick={() => setFlagFilter((v) => !v)}
+                className={`inline-flex items-center gap-1.5 px-4 py-2 border text-sm rounded-lg font-medium transition-colors active:scale-[0.98] ${
+                  flagFilter
+                    ? "bg-amber-500 text-white border-amber-500 hover:bg-amber-600"
+                    : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"
+                }`}
+                aria-label={`${flaggedFields.size} field${flaggedFields.size !== 1 ? "s" : ""} flagged for review. Click to ${flagFilter ? "show all" : "filter to flagged only"}.`}
+                title={flagFilter ? "Show all fields" : "Show flagged fields only"}
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill={flagFilter ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                  <line x1="4" y1="22" x2="4" y2="15" />
+                </svg>
+                {flaggedFields.size} flagged
+              </button>
+            )}
             {/* Jump to next empty field */}
             {unansweredCount > 0 && (
               <button
@@ -1839,6 +1925,29 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         </div>
       )}
 
+      {/* Flagged-blank export pre-flight banner */}
+      {flaggedBlankCount > 0 && showPreviewModal === false && (
+        <div className="flex items-center justify-between gap-3 px-4 py-3 bg-amber-50 border border-amber-300 rounded-xl">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <svg className="w-4 h-4 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+              <line x1="4" y1="22" x2="4" y2="15" />
+            </svg>
+            <p className="text-sm text-amber-900">
+              <span className="font-semibold">{flaggedBlankCount} flagged field{flaggedBlankCount !== 1 ? "s" : ""} marked for review {flaggedBlankCount !== 1 ? "are" : "is"} still empty</span>
+              {" "}— you may want to fill them before exporting.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { setFlaggedBlankCount(0); setFlagFilter(true); }}
+            className="shrink-0 text-xs font-semibold text-amber-700 hover:text-amber-900 underline underline-offset-2 whitespace-nowrap"
+          >
+            Review flagged
+          </button>
+        </div>
+      )}
+
       {/* Autofill confidence summary banner */}
       {autofillSummary && (
         <div className="flex items-start gap-3 bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
@@ -1939,9 +2048,43 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         </div>
       )}
 
+      {/* Flagged-only filter banner */}
+      {flagFilter && (
+        <div className="flex items-center justify-between gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-amber-500 shrink-0" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+              <line x1="4" y1="22" x2="4" y2="15" />
+            </svg>
+            <p className="text-sm font-medium text-amber-800">
+              Showing {flaggedFields.size} flagged field{flaggedFields.size !== 1 ? "s" : ""}
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={clearAllFlags}
+              className="text-xs font-medium text-amber-700 hover:text-amber-900 underline underline-offset-2 transition-colors"
+            >
+              Clear all flags
+            </button>
+            <button
+              type="button"
+              onClick={() => setFlagFilter(false)}
+              className="text-xs text-amber-400 hover:text-amber-700 transition-colors"
+              aria-label="Close filter"
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Field Cards */}
       <div className="space-y-3">
-        {fields.map((field) => {
+        {(flagFilter ? fields.filter((f) => flaggedFields.has(f.id)) : fields).map((field) => {
           const state: FieldState = fieldStates[field.id] ?? "pending";
           const hasAutofill = field.confidence !== undefined && field.confidence > 0 && Boolean(values[field.id]);
           const tier = field.confidence !== undefined && field.confidence > 0 ? confidenceTier(field.confidence) : null;
@@ -1951,6 +2094,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           const hasError = errorFieldIds.has(field.id) || Boolean(blurErrors[field.id]);
           const hasWarning = warningFieldIds.has(field.id);
           const skippedInfo = skippedFields.find((sf) => sf.id === field.id);
+
+          const isFlagged = flaggedFields.has(field.id);
 
           // Card border color
           let cardClasses = "bg-white border-slate-200";
@@ -1963,6 +2108,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           } else if (skippedInfo && !values[field.id]) {
             // Amber ring for skipped (unfilled) fields — not an error, just incomplete
             cardClasses = "bg-amber-50/10 border-amber-300 ring-2 ring-amber-300/50";
+          } else if (isFlagged) {
+            cardClasses = "bg-amber-50/20 border-l-4 border-amber-400 border-t-slate-200 border-r-slate-200 border-b-slate-200";
           } else if (hasWarning) {
             cardClasses = "bg-amber-50/20 border-amber-200";
           } else if (tier && hasAutofill) {
@@ -2026,6 +2173,24 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                           <circle cx="12" cy="12" r="10" />
                           <path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3" />
                           <line x1="12" y1="17" x2="12.01" y2="17" />
+                        </svg>
+                      </button>
+
+                      {/* Flag for review button */}
+                      <button
+                        type="button"
+                        onClick={() => toggleFlag(field.id)}
+                        className={`inline-flex items-center justify-center w-5 h-5 rounded-full transition-colors shrink-0 ${
+                          isFlagged
+                            ? "text-amber-500 hover:text-amber-700"
+                            : "text-slate-300 hover:text-amber-400 hover:bg-amber-50"
+                        }`}
+                        aria-label={isFlagged ? "Remove flag from this field" : "Flag this field for review"}
+                        title={isFlagged ? "Flagged for review — click to remove" : "Flag for review"}
+                      >
+                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={isFlagged ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+                          <line x1="4" y1="22" x2="4" y2="15" />
                         </svg>
                       </button>
 
