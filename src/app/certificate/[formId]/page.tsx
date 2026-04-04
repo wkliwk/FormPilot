@@ -2,6 +2,9 @@ import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import type { Metadata } from "next";
+import ShareCertificate from "./ShareCertificate";
+
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://getformpilot.com";
 
 interface Props {
   params: Promise<{ formId: string }>;
@@ -18,9 +21,21 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     return { title: "Certificate Not Found — FormPilot" };
   }
 
+  const ogUrl = `${APP_URL}/api/og/certificate?formId=${formId}`;
+
   return {
     title: `${form.title} — Completed with FormPilot`,
     description: `This form was completed using FormPilot, the AI-powered form assistant.`,
+    openGraph: {
+      title: `${form.title} — Completed with FormPilot`,
+      description: "I just completed a form using FormPilot AI. It explained every field and autofilled what it could.",
+      images: [{ url: ogUrl, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${form.title} — Completed with FormPilot`,
+      images: [ogUrl],
+    },
   };
 }
 
@@ -34,8 +49,11 @@ export default async function CertificateBadgePage({ params }: Props) {
       title: true,
       category: true,
       status: true,
+      completedAt: true,
       updatedAt: true,
-      // Deliberately NOT selecting: userId, fields, filledData, fileBytes — no personal data
+      autofillRate: true,
+      fields: true,
+      // Deliberately NOT selecting: userId, filledData — no personal data
     },
   });
 
@@ -43,13 +61,19 @@ export default async function CertificateBadgePage({ params }: Props) {
     notFound();
   }
 
-  const verificationId = form.id.slice(-8).toUpperCase();
-  const completionDate = form.updatedAt.toLocaleDateString("en-US", {
+  const fields = form.fields as Array<{ value?: string }>;
+  const filledCount = fields.filter((f) => f.value && String(f.value).trim()).length;
+  const totalCount = fields.length;
+  const autofillPct = form.autofillRate != null ? Math.round(form.autofillRate) : null;
+
+  const completionDate = (form.completedAt ?? form.updatedAt).toLocaleDateString("en-US", {
     month: "long",
     day: "numeric",
     year: "numeric",
   });
   const category = form.category ? form.category.replace(/_/g, " ") : null;
+  const verificationId = form.id.slice(-8).toUpperCase();
+  const shareUrl = `${APP_URL}/c/${form.id}`;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-slate-100 flex items-center justify-center p-6">
@@ -63,7 +87,7 @@ export default async function CertificateBadgePage({ params }: Props) {
               <span className="text-blue-200 text-2xl font-light">Pilot</span>
             </div>
             <span className="text-blue-200 text-xs font-semibold uppercase tracking-widest">
-              Completion Badge
+              Completion Certificate
             </span>
           </div>
 
@@ -102,6 +126,24 @@ export default async function CertificateBadgePage({ params }: Props) {
               </div>
             )}
 
+            {/* Stats row */}
+            {(filledCount > 0 || autofillPct != null) && (
+              <div className="grid grid-cols-2 gap-4 mb-6 bg-slate-50 rounded-xl p-4">
+                {filledCount > 0 && (
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-slate-900">{filledCount}<span className="text-base text-slate-400">/{totalCount}</span></p>
+                    <p className="text-xs text-slate-500 mt-0.5">Fields filled</p>
+                  </div>
+                )}
+                {autofillPct != null && (
+                  <div className="text-center">
+                    <p className="text-2xl font-bold text-blue-600">{autofillPct}%</p>
+                    <p className="text-xs text-slate-500 mt-0.5">AI autofilled</p>
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="border-t border-slate-100 pt-6 space-y-3">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-500 font-medium">Completed on</span>
@@ -116,6 +158,16 @@ export default async function CertificateBadgePage({ params }: Props) {
             <p className="mt-6 text-center text-xs text-slate-400 italic">
               Filled with confidence using FormPilot
             </p>
+          </div>
+
+          {/* Share section */}
+          <div className="px-8 pb-6 border-t border-slate-100 pt-6">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Share your completion</p>
+            <ShareCertificate
+              formTitle={form.title}
+              shareUrl={shareUrl}
+              tweetText={`I just filled out "${form.title}" in minutes using FormPilot AI — it explained every field and autofilled what it could. Try it free → ${shareUrl} #FormPilot`}
+            />
           </div>
 
           {/* Footer CTA */}

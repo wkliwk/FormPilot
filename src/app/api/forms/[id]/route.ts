@@ -160,8 +160,17 @@ export async function PATCH(
       data: updateData,
     });
 
-    // When a form reaches COMPLETED — extract memory, send email, award referral (all non-blocking)
+    // When a form reaches COMPLETED — compute stats, extract memory, send email, award referral
     if (parsed.data.status === "COMPLETED") {
+      // Compute autofill rate: accepted AI suggestions / total filled fields
+      const finalFields = (updateData.fields ?? form.fields) as Array<Record<string, unknown>>;
+      const filled = finalFields.filter((f) => f.value && String(f.value).trim());
+      const aiAccepted = filled.filter((f) => f.fieldState === "accepted");
+      const rate = filled.length > 0 ? Math.round((aiAccepted.length / filled.length) * 100) : 0;
+      await prisma.form.update({
+        where: { id },
+        data: { completedAt: new Date(), autofillRate: rate },
+      });
       awardReferralBonus(session.user.id).catch(() => { /* best-effort */ });
       const currentFields = (updated.fields ?? form.fields) as unknown as FormField[];
       extractMemoryFromForm(session.user.id, id, updated.title, currentFields).catch(

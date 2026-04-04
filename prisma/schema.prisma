@@ -93,6 +93,8 @@ model Form {
   stalledEmailSentAt DateTime? // Set after sending the 48h stalled-form nudge — prevents duplicate sends
   shareToken   String?   @unique // nanoid(16) — public share link token; null = not shared
   version      Int       @default(0) // Optimistic lock counter — incremented on every field-values write
+  completedAt  DateTime? // Set when status transitions to COMPLETED — used on certificate page
+  autofillRate Float?    // Percentage of filled fields that were AI-suggested and accepted (0–100)
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
