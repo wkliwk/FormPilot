@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import ReferralTracker from "@/components/ReferralTracker";
 import FAQSection from "@/components/FAQSection";
+import AnimatedCounter from "@/components/AnimatedCounter";
 import { FAQ_ITEMS } from "@/lib/faq-items";
 
 // Set NEXT_PUBLIC_PH_URL in env once the Product Hunt post is live
@@ -30,17 +31,20 @@ const TESTIMONIALS = [
   },
 ];
 
-async function getFormsProcessed(): Promise<number> {
+async function getStats(): Promise<{ formsProcessed: number; formsFilledRounded: number }> {
   try {
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3300";
     const res = await fetch(`${baseUrl}/api/stats`, {
       next: { revalidate: 60 },
     });
-    if (!res.ok) return 0;
+    if (!res.ok) return { formsProcessed: 0, formsFilledRounded: 0 };
     const data = await res.json();
-    return data.formsProcessed ?? 0;
+    return {
+      formsProcessed: data.formsProcessed ?? 0,
+      formsFilledRounded: data.formsFilledRounded ?? 0,
+    };
   } catch {
-    return 0;
+    return { formsProcessed: 0, formsFilledRounded: 0 };
   }
 }
 
@@ -174,7 +178,7 @@ const faqJsonLd = {
 };
 
 export default async function HomePage() {
-  const formsProcessed = await getFormsProcessed();
+  const { formsProcessed, formsFilledRounded } = await getStats();
 
   return (
     <main className="min-h-screen">
@@ -240,7 +244,7 @@ export default async function HomePage() {
                 <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                   <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                 </svg>
-                {formsProcessed.toLocaleString()} forms processed
+                <AnimatedCounter target={formsProcessed} /> forms processed
               </div>
             )}
             {PRODUCT_HUNT_URL && (
@@ -492,6 +496,68 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      {/* Trust badges */}
+      <section className="border-y border-slate-100 bg-slate-50/60 py-10">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6">
+          <p className="text-xs font-medium text-slate-400 uppercase tracking-widest text-center mb-6">
+            Built with your privacy in mind
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              {
+                label: "No data sold",
+                detail: "Your form data is yours. We never sell or share it with third parties.",
+                icon: (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <circle cx="12" cy="12" r="10" />
+                    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07" />
+                  </svg>
+                ),
+                color: "text-rose-500",
+              },
+              {
+                label: "End-to-end encrypted",
+                detail: "Sensitive fields like SSN are encrypted with AES-256-GCM at rest.",
+                icon: (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0110 0v4" />
+                  </svg>
+                ),
+                color: "text-blue-500",
+              },
+              {
+                label: "GDPR ready",
+                detail: "Export or delete all your data at any time from your account settings.",
+                icon: (
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                    <polyline points="9 12 11 14 15 10" />
+                  </svg>
+                ),
+                color: "text-emerald-500",
+              },
+            ].map((badge) => (
+              <div key={badge.label} className="flex items-start gap-3 bg-white rounded-xl border border-slate-100 px-5 py-4 shadow-soft">
+                <span className={`mt-0.5 shrink-0 ${badge.color}`}>{badge.icon}</span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">{badge.label}</p>
+                  <p className="text-xs text-slate-500 mt-0.5 leading-relaxed">{badge.detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+          {formsFilledRounded >= 50 && (
+            <p className="text-center text-sm text-slate-500 mt-6">
+              <span className="font-semibold text-slate-700">
+                <AnimatedCounter target={formsFilledRounded} />+
+              </span>{" "}
+              forms completed by real users
+            </p>
+          )}
+        </div>
+      </section>
 
       {/* Supported forms */}
       <section className="max-w-4xl mx-auto px-4 sm:px-6 py-20 sm:py-28 text-center">
