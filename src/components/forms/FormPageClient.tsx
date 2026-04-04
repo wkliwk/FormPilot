@@ -274,6 +274,17 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
   const [showNotes, setShowNotes] = useState(false);
   const [hasNotes, setHasNotes] = useState(!!(initialNotes?.trim()));
 
+  // Mobile document preview modal
+  const [showMobileDocModal, setShowMobileDocModal] = useState(false);
+
+  // Default to guided mode on mobile (< 768px) — runs once on mount
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 768) {
+      setMode("guided");
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function openSnapshots() {
     if (!isPro) {
       setUpgradeGateFeature("Autofill History");
@@ -1075,20 +1086,20 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
           </div>
         </div>
       ) : (
-        <div className="max-w-4xl">
-          {/* On mobile with a document, show collapsible thumbnail strip */}
+        <div className="max-w-4xl pb-24 md:pb-0">
+          {/* On mobile with a document, show a "View original" button */}
           {canShowDocument && (
             <div className="md:hidden mb-4">
-            <DocumentImageViewer
-              formId={form.id}
-              sourceType={sourceType ?? "PDF"}
-              fields={fields}
-              activeFieldId={activeFieldId}
-              liveValues={liveValues}
-              onFieldSelect={handleDocumentFieldSelect}
-              mobileCollapsed
-              language={activeLanguage}
-            />
+              <button
+                onClick={() => setShowMobileDocModal(true)}
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-sm font-medium text-slate-700 hover:bg-slate-100 transition-colors min-h-[48px]"
+              >
+                <svg className="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                </svg>
+                View Original Document
+              </button>
             </div>
           )}
           <FormViewer
@@ -1124,6 +1135,62 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
         filledCount={(formData.fields as FormField[]).filter((f) => f.value && String(f.value).trim()).length}
         onClose={() => setShowCompleteOverlay(false)}
       />
+    )}
+
+    {/* Mobile sticky bottom action bar — visible only on small screens */}
+    <div className="md:hidden fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-slate-200 px-4 py-3 flex items-center gap-3" style={{ paddingBottom: "calc(0.75rem + env(safe-area-inset-bottom, 0px))" }}>
+      <button
+        onClick={() => setMode("guided")}
+        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors active:scale-[0.98]"
+      >
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10" />
+          <polyline points="12 16 16 12 12 8" />
+          <line x1="8" y1="12" x2="16" y2="12" />
+        </svg>
+        Guided Fill
+      </button>
+      {canShowDocument && (
+        <button
+          onClick={() => setShowMobileDocModal(true)}
+          className="inline-flex items-center justify-center p-3 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors"
+          aria-label="View original document"
+        >
+          <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+          </svg>
+        </button>
+      )}
+    </div>
+
+    {/* Mobile document modal */}
+    {showMobileDocModal && canShowDocument && (
+      <div className="fixed inset-0 z-50 flex flex-col bg-white md:hidden">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0">
+          <span className="text-sm font-semibold text-slate-800">Original Document</span>
+          <button
+            onClick={() => setShowMobileDocModal(false)}
+            className="text-slate-400 hover:text-slate-700 p-1 transition-colors"
+            aria-label="Close document view"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex-1 overflow-hidden">
+          <DocumentImageViewer
+            formId={form.id}
+            sourceType={sourceType ?? "PDF"}
+            fields={fields}
+            activeFieldId={activeFieldId}
+            liveValues={liveValues}
+            onFieldSelect={(fieldId) => { handleDocumentFieldSelect(fieldId); setShowMobileDocModal(false); }}
+            language={activeLanguage}
+          />
+        </div>
+      </div>
     )}
     </>
   );
