@@ -92,21 +92,73 @@ export default function ProfileForm({ initialData, initialPreferredLanguage }: P
     };
   }, []);
 
-  const CORE_FIELDS: { label: string; value: string | undefined; category: string }[] = [
-    { label: "First name", value: form.firstName, category: "Personal, Tax, Immigration" },
-    { label: "Last name", value: form.lastName, category: "Personal, Tax, Immigration" },
-    { label: "Email", value: form.email, category: "All forms" },
-    { label: "Phone", value: form.phone, category: "Personal, HR, Healthcare" },
-    { label: "Date of birth", value: form.dateOfBirth, category: "Immigration, Healthcare" },
-    { label: "Street address", value: form.address?.street, category: "Tax, Immigration, HR" },
-    { label: "City", value: form.address?.city, category: "Tax, Immigration, HR" },
-    { label: "State", value: form.address?.state, category: "Tax, HR" },
-    { label: "ZIP code", value: form.address?.zip, category: "Tax, Immigration" },
-    { label: "Country", value: form.address?.country, category: "Immigration" },
+  const PROFILE_CATEGORIES: {
+    key: string;
+    label: string;
+    sectionId: string;
+    fields: { label: string; value: string | undefined }[];
+  }[] = [
+    {
+      key: "personal",
+      label: "Personal",
+      sectionId: "section-personal",
+      fields: [
+        { label: "First name", value: form.firstName },
+        { label: "Last name", value: form.lastName },
+        { label: "Email", value: form.email },
+        { label: "Phone", value: form.phone },
+        { label: "Date of birth", value: form.dateOfBirth },
+      ],
+    },
+    {
+      key: "address",
+      label: "Address",
+      sectionId: "section-address",
+      fields: [
+        { label: "Street", value: form.address?.street },
+        { label: "City", value: form.address?.city },
+        { label: "State", value: form.address?.state },
+        { label: "ZIP", value: form.address?.zip },
+        { label: "Country", value: form.address?.country },
+      ],
+    },
+    {
+      key: "employment",
+      label: "Employment",
+      sectionId: "section-employment",
+      fields: [
+        { label: "Employer", value: form.employerName },
+        { label: "Job title", value: form.jobTitle },
+      ],
+    },
+    {
+      key: "identity",
+      label: "Identity docs",
+      sectionId: "section-identity",
+      fields: [
+        { label: "SSN", value: form.ssn },
+        { label: "Passport", value: form.passportNumber },
+        { label: "Driver's license", value: form.driverLicense },
+        { label: "Tax ID", value: form.taxId },
+      ],
+    },
   ];
 
-  const filledCount = CORE_FIELDS.filter((f) => f.value?.trim()).length;
-  const completeness = Math.round((filledCount / CORE_FIELDS.length) * 100);
+  const totalFields = PROFILE_CATEGORIES.reduce((s, c) => s + c.fields.length, 0);
+  const totalFilled = PROFILE_CATEGORIES.reduce(
+    (s, c) => s + c.fields.filter((f) => f.value?.trim()).length,
+    0
+  );
+  const completeness = Math.round((totalFilled / totalFields) * 100);
+
+  function scrollToSection(sectionId: string, sectionKey: string) {
+    // Expand the section if collapsed, then scroll to it
+    setCollapsed((c) => ({ ...c, [sectionKey]: false }));
+    setTimeout(() => {
+      const el = document.getElementById(sectionId);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 50);
+  }
 
   function set(key: keyof ProfileData, value: string) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -178,10 +230,15 @@ export default function ProfileForm({ initialData, initialPreferredLanguage }: P
   return (
     <>
     <form onSubmit={handleSubmit} className="space-y-5">
-      {/* Completeness bar */}
+      {/* Completeness score */}
       <div className="bg-slate-50 rounded-xl p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <span className="text-sm font-medium text-slate-700">Profile completeness</span>
+          <span
+            className="text-sm font-medium text-slate-700 cursor-help"
+            title="A complete profile means more fields are auto-filled for you — saving time on every form."
+          >
+            Profile completeness
+          </span>
           <span className={`text-sm font-semibold tabular-nums ${completeness >= 80 ? "text-emerald-600" : completeness >= 50 ? "text-amber-600" : "text-slate-500"}`}>
             {completeness}%
           </span>
@@ -192,30 +249,49 @@ export default function ProfileForm({ initialData, initialPreferredLanguage }: P
             style={{ width: `${completeness}%` }}
           />
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-          {CORE_FIELDS.map((field) => {
-            const filled = !!field.value?.trim();
+
+        {/* Empty profile prompt */}
+        {completeness === 0 && (
+          <p className="text-xs text-slate-500">
+            <span className="font-medium text-slate-700">Let&apos;s build your profile.</span>{" "}
+            Fill in your details below and FormPilot will autofill forms for you automatically.
+          </p>
+        )}
+
+        {/* Category sub-scores */}
+        <div className="flex flex-wrap gap-2">
+          {PROFILE_CATEGORIES.map((cat) => {
+            const filled = cat.fields.filter((f) => f.value?.trim()).length;
+            const total = cat.fields.length;
+            const done = filled === total;
             return (
-              <div key={field.label} className="flex items-center gap-2 text-xs">
-                {filled ? (
-                  <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0" viewBox="0 0 20 20" fill="currentColor">
+              <button
+                key={cat.key}
+                type="button"
+                onClick={() => !done && scrollToSection(cat.sectionId, cat.key)}
+                title={done ? `${cat.label}: complete` : `${cat.label}: ${total - filled} field${total - filled !== 1 ? "s" : ""} missing — click to fill`}
+                className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  done
+                    ? "bg-emerald-50 text-emerald-700 border border-emerald-200 cursor-default"
+                    : "bg-white text-slate-600 border border-slate-200 hover:border-blue-300 hover:text-blue-700 cursor-pointer"
+                }`}
+              >
+                {done ? (
+                  <svg className="w-3 h-3 text-emerald-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 ) : (
-                  <svg className="w-3.5 h-3.5 text-slate-300 shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                    <circle cx="10" cy="10" r="9" stroke="currentColor" strokeWidth="2" fill="none" />
-                  </svg>
+                  <span className="text-slate-400">{filled}/{total}</span>
                 )}
-                <span className={filled ? "text-slate-600" : "text-slate-400"}>{field.label}</span>
-                {!filled && <span className="text-slate-300 truncate hidden sm:inline">· {field.category}</span>}
-              </div>
+                {cat.label}
+              </button>
             );
           })}
         </div>
       </div>
 
       {/* Personal */}
-      <Section title="Personal" collapsed={collapsed["personal"]} onToggle={() => toggleSection("personal")}>
+      <Section id="section-personal" title="Personal" collapsed={collapsed["personal"]} onToggle={() => toggleSection("personal")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="First Name" value={form.firstName ?? ""} onChange={(v) => set("firstName", v)} required />
           <Field label="Last Name" value={form.lastName ?? ""} onChange={(v) => set("lastName", v)} required />
@@ -228,7 +304,7 @@ export default function ProfileForm({ initialData, initialPreferredLanguage }: P
       </Section>
 
       {/* Address */}
-      <Section title="Address" collapsed={collapsed["address"]} onToggle={() => toggleSection("address")}>
+      <Section id="section-address" title="Address" collapsed={collapsed["address"]} onToggle={() => toggleSection("address")}>
         <Field label="Street" value={form.address?.street ?? ""} onChange={(v) => setAddress("street", v)} />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="City" value={form.address?.city ?? ""} onChange={(v) => setAddress("city", v)} />
@@ -241,7 +317,7 @@ export default function ProfileForm({ initialData, initialPreferredLanguage }: P
       </Section>
 
       {/* Employment */}
-      <Section title="Employment" collapsed={collapsed["employment"]} onToggle={() => toggleSection("employment")}>
+      <Section id="section-employment" title="Employment" collapsed={collapsed["employment"]} onToggle={() => toggleSection("employment")}>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Field label="Employer Name" value={form.employerName ?? ""} onChange={(v) => set("employerName", v)} />
           <Field label="Job Title" value={form.jobTitle ?? ""} onChange={(v) => set("jobTitle", v)} />
@@ -270,7 +346,7 @@ export default function ProfileForm({ initialData, initialPreferredLanguage }: P
       </Section>
 
       {/* Identity Documents */}
-      <Section title="Identity Documents" collapsed={collapsed["identity"]} onToggle={() => toggleSection("identity")} sensitive>
+      <Section id="section-identity" title="Identity Documents" collapsed={collapsed["identity"]} onToggle={() => toggleSection("identity")} sensitive>
         <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-1">
           <svg className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
@@ -437,12 +513,14 @@ export default function ProfileForm({ initialData, initialPreferredLanguage }: P
 }
 
 function Section({
+  id,
   title,
   children,
   collapsed,
   onToggle,
   sensitive,
 }: {
+  id?: string;
   title: string;
   children: React.ReactNode;
   collapsed?: boolean;
@@ -450,7 +528,7 @@ function Section({
   sensitive?: boolean;
 }) {
   return (
-    <section className="border border-slate-200 rounded-2xl overflow-hidden">
+    <section id={id} className="border border-slate-200 rounded-2xl overflow-hidden scroll-mt-4">
       <button
         type="button"
         onClick={onToggle}
