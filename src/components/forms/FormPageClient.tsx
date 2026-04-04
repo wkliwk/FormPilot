@@ -63,9 +63,10 @@ interface Props {
   profileCompleteness?: number;
   autofillMatchRate?: number;
   priorForm?: PriorFormInfo | null;
+  dueDate?: string | null;
 }
 
-export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, isAtFreeLimit, profileCompleteness = 100, autofillMatchRate = 100, priorForm }: Props) {
+export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, isAtFreeLimit, profileCompleteness = 100, autofillMatchRate = 100, priorForm, dueDate: initialDueDate }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [deleting, setDeleting] = useState(false);
@@ -99,6 +100,26 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     const t = setTimeout(() => setShowResumeToast(false), 2000);
     return () => clearTimeout(t);
   }, [showResumeToast]);
+
+  // Due date state
+  const [dueDate, setDueDate] = useState<string | null>(initialDueDate ?? null);
+  const [dueDateSaving, setDueDateSaving] = useState(false);
+
+  async function handleDueDateChange(newDate: string | null) {
+    setDueDate(newDate);
+    setDueDateSaving(true);
+    try {
+      await fetch(`/api/forms/${form.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dueDate: newDate }),
+      });
+    } catch {
+      // silently fail — date is optimistically set
+    } finally {
+      setDueDateSaving(false);
+    }
+  }
 
   // Language prompt banner — shown once to users who haven't set a language preference
   const LANG_BANNER_DISMISS_KEY = "fp-lang-banner-dismissed";
@@ -538,16 +559,60 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     </div>
   ) : null;
 
+  const dueDaysLeft = dueDate
+    ? Math.ceil((new Date(dueDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000))
+    : null;
+
   const breadcrumb = (
-    <nav className="flex items-center gap-2 text-sm mb-4 min-w-0" aria-label="Breadcrumb">
-      <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors shrink-0">
-        Dashboard
-      </Link>
-      <svg className="w-4 h-4 text-slate-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <polyline points="9 18 15 12 9 6" />
-      </svg>
-      <span className="font-medium text-slate-700 truncate min-w-0">{pageTitle}</span>
-    </nav>
+    <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+      <nav className="flex items-center gap-2 text-sm min-w-0" aria-label="Breadcrumb">
+        <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors shrink-0">
+          Dashboard
+        </Link>
+        <svg className="w-4 h-4 text-slate-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <polyline points="9 18 15 12 9 6" />
+        </svg>
+        <span className="font-medium text-slate-700 truncate min-w-0">{pageTitle}</span>
+      </nav>
+      <div className="flex items-center gap-2">
+        {dueDate && dueDaysLeft !== null && (
+          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+            dueDaysLeft <= 1 ? "bg-red-100 text-red-700" : dueDaysLeft <= 7 ? "bg-amber-100 text-amber-700" : "bg-slate-100 text-slate-600"
+          }`}>
+            {dueDaysLeft <= 0 ? "Overdue" : dueDaysLeft === 1 ? "Due tomorrow" : `Due in ${dueDaysLeft}d`}
+          </span>
+        )}
+        <label className="flex items-center gap-1.5 text-xs text-slate-500 cursor-pointer">
+          <svg className="w-3.5 h-3.5 text-slate-400 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+            <line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <input
+            type="date"
+            value={dueDate ? dueDate.slice(0, 10) : ""}
+            min={new Date().toISOString().slice(0, 10)}
+            onChange={(e) => handleDueDateChange(e.target.value ? new Date(e.target.value).toISOString() : null)}
+            className="text-xs border border-slate-200 rounded-lg px-2 py-1 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:opacity-50"
+            disabled={dueDateSaving}
+            aria-label="Set due date"
+            title={dueDate ? "Change due date" : "Set a due date"}
+          />
+          {dueDate && (
+            <button
+              onClick={() => handleDueDateChange(null)}
+              className="text-slate-300 hover:text-slate-500 transition-colors"
+              aria-label="Clear due date"
+              disabled={dueDateSaving}
+            >
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          )}
+        </label>
+      </div>
+    </div>
   );
 
   async function handleGuidedFinish() {

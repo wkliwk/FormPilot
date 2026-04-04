@@ -23,6 +23,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
       category: true,
       language: true,
       version: true,
+      dueDate: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -116,6 +117,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
           profileCompleteness={profileCompleteness}
           autofillMatchRate={autofillMatchRate}
           priorForm={priorForm ? { id: priorForm.id, title: priorForm.title, createdAt: priorForm.createdAt.toISOString() } : null}
+          dueDate={form.dueDate ? form.dueDate.toISOString() : null}
         />
       </main>
     </div>

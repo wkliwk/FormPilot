@@ -77,6 +77,7 @@ interface FormCard {
   completionPercent: number;
   createdAt: Date;
   updatedAt: Date;
+  dueDate?: Date | null;
 }
 
 interface Props {
@@ -239,7 +240,16 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
       if (categoryFilter && f.category !== categoryFilter) return false;
       return true;
     });
+    const now = Date.now();
+    const dueSoonScore = (f: FormCard) => {
+      if (!f.dueDate || f.status === "COMPLETED") return Infinity;
+      const ms = new Date(f.dueDate).getTime() - now;
+      return ms <= 7 * 24 * 60 * 60 * 1000 ? ms : Infinity;
+    };
     return [...filtered].sort((a, b) => {
+      const da = dueSoonScore(a);
+      const db = dueSoonScore(b);
+      if (da !== db) return da - db; // due-soon forms first
       if (sortKey === "title") return a.title.localeCompare(b.title);
       if (sortKey === "createdAt") return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
       return new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime();
@@ -424,6 +434,15 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
                           {catConfig.label}
                         </span>
                       )}
+                      {form.dueDate && form.status !== "COMPLETED" && (() => {
+                        const daysLeft = Math.ceil((new Date(form.dueDate).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+                        if (daysLeft > 7) return null;
+                        return (
+                          <span className={`inline-flex items-center text-xs px-2 py-0.5 rounded-full font-semibold shrink-0 ${daysLeft <= 1 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                            {daysLeft <= 0 ? "Overdue" : daysLeft === 1 ? "Due tomorrow" : `Due in ${daysLeft}d`}
+                          </span>
+                        );
+                      })()}
                     </div>
 
                     {/* Completion ring */}

@@ -94,6 +94,7 @@ const updateSchema = z.object({
     .optional(),
   status: z.enum(["PENDING", "ANALYZED", "FILLING", "COMPLETED"]).optional(),
   title: z.string().trim().min(1).optional(),
+  dueDate: z.string().datetime().nullable().optional(), // ISO 8601 or null to clear
 });
 
 export async function PATCH(
@@ -129,6 +130,10 @@ export async function PATCH(
 
     if (parsed.data.status) {
       updateData.status = parsed.data.status;
+    }
+
+    if (parsed.data.dueDate !== undefined) {
+      updateData.dueDate = parsed.data.dueDate ? new Date(parsed.data.dueDate) : null;
     }
 
     if (parsed.data.fields) {

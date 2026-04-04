@@ -95,6 +95,7 @@ model Form {
   version      Int       @default(0) // Optimistic lock counter — incremented on every field-values write
   completedAt  DateTime? // Set when status transitions to COMPLETED — used on certificate page
   autofillRate Float?    // Percentage of filled fields that were AI-suggested and accepted (0–100)
+  dueDate      DateTime? // Optional deadline set by user — drives reminder emails and dashboard badges
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
@@ -239,6 +240,18 @@ model FormSnapshot {
   createdAt DateTime @default(now())
 
   @@index([formId, createdAt])
+}
+
+// Tracks deadline reminder emails sent per form — enforces 3-day cooldown
+model FormReminder {
+  id           String   @id @default(cuid())
+  formId       String
+  userId       String
+  sentAt       DateTime @default(now())
+  daysBeforeDue Int
+
+  @@index([formId])
+  @@index([userId, sentAt])
 }
 
 // Product Hunt launch notify-me list — collected pre-launch, blasted on launch day

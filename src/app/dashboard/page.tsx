@@ -48,6 +48,11 @@ export default async function DashboardPage() {
       where: { userId: session.user.id! },
       orderBy: { createdAt: "desc" },
       take: PAGE_SIZE + 1, // fetch one extra to detect hasMore
+      select: {
+        id: true, userId: true, title: true, status: true, sourceType: true,
+        category: true, fields: true, filledData: true, shareToken: true,
+        dueDate: true, createdAt: true, updatedAt: true,
+      },
     }),
     prisma.form.findMany({
       where: { userId: session.user.id! },
@@ -139,6 +144,14 @@ export default async function DashboardPage() {
     freeFormLimit: FREE_FORM_LIMIT,
   };
 
+  // Upcoming deadlines widget data
+  const now = new Date();
+  const sevenDaysFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+  const upcomingDeadlines = pagedForms
+    .filter((f) => f.dueDate && f.status !== "COMPLETED" && new Date(f.dueDate) <= sevenDaysFromNow)
+    .sort((a, b) => new Date(a.dueDate!).getTime() - new Date(b.dueDate!).getTime())
+    .slice(0, 3);
+
   return (
     <>
       {showChecklist && (
@@ -200,6 +213,26 @@ export default async function DashboardPage() {
             referralCount={referralStats.count}
             bonusForms={referralStats.bonusForms}
           />
+        )}
+
+        {/* Upcoming deadlines widget */}
+        {upcomingDeadlines.length > 0 && (
+          <div className="bg-amber-50 border border-amber-200 rounded-2xl px-5 py-4">
+            <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide mb-3">Upcoming Deadlines</p>
+            <div className="space-y-2">
+              {upcomingDeadlines.map((f) => {
+                const daysLeft = Math.ceil((new Date(f.dueDate!).getTime() - now.getTime()) / (24 * 60 * 60 * 1000));
+                return (
+                  <Link key={f.id} href={`/dashboard/forms/${f.id}`} className="flex items-center justify-between gap-3 hover:opacity-80 transition-opacity">
+                    <span className="text-sm font-medium text-amber-900 truncate">{f.title}</span>
+                    <span className={`shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${daysLeft <= 1 ? "bg-red-100 text-red-700" : "bg-amber-100 text-amber-700"}`}>
+                      {daysLeft <= 0 ? "Overdue" : daysLeft === 1 ? "Tomorrow" : `${daysLeft}d left`}
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
         )}
 
         {/* Header */}
@@ -264,6 +297,7 @@ export default async function DashboardPage() {
                 completionPercent,
                 createdAt: f.createdAt,
                 updatedAt: f.updatedAt,
+                dueDate: f.dueDate ?? null,
               };
             })}
           />
