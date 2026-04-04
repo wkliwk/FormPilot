@@ -233,6 +233,47 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
   const [shareError, setShareError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Snapshot history panel
+  const [showSnapshots, setShowSnapshots] = useState(false);
+  const [snapshots, setSnapshots] = useState<Array<{ id: string; createdAt: string }>>([]);
+  const [snapshotsLoading, setSnapshotsLoading] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
+  async function openSnapshots() {
+    setShowSnapshots(true);
+    setSnapshotsLoading(true);
+    try {
+      const res = await fetch(`/api/forms/${form.id}/snapshots`);
+      const data = await res.json() as { snapshots?: Array<{ id: string; createdAt: string }> };
+      setSnapshots(data.snapshots ?? []);
+    } catch {
+      setSnapshots([]);
+    } finally {
+      setSnapshotsLoading(false);
+    }
+  }
+
+  async function handleRestoreSnapshot(snapshotId: string) {
+    setRestoringId(snapshotId);
+    try {
+      const res = await fetch(`/api/forms/${form.id}/snapshots/${snapshotId}/restore`, { method: "POST" });
+      if (!res.ok) throw new Error("Restore failed");
+      const data = await res.json() as { form?: { fields?: unknown } };
+      if (data.form?.fields) {
+        const updatedFields = data.form.fields as FormField[];
+        setFormData((prev) => ({ ...prev, fields: updatedFields as unknown }));
+        setLiveValues(
+          Object.fromEntries(updatedFields.filter((f) => f.value).map((f) => [f.id, f.value!]))
+        );
+      }
+      setShowSnapshots(false);
+    } catch {
+      // silently fail — user can retry
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
   // Share modal: focus trap + Escape to close + return focus to trigger
   useEffect(() => {
     if (!shareSlug) return;
@@ -435,6 +476,68 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     </div>
   ) : null;
 
+  const snapshotPanel = showSnapshots ? (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={() => setShowSnapshots(false)}
+      aria-hidden="true"
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="snapshots-modal-title"
+        className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between gap-3">
+          <h2 id="snapshots-modal-title" className="font-semibold text-slate-900">Autofill History</h2>
+          <button
+            onClick={() => setShowSnapshots(false)}
+            className="text-slate-400 hover:text-slate-600"
+            aria-label="Close history panel"
+          >
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+        {snapshotsLoading ? (
+          <div className="flex items-center justify-center py-8">
+            <svg className="w-5 h-5 text-blue-500 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+              <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+            </svg>
+          </div>
+        ) : snapshots.length === 0 ? (
+          <p className="text-sm text-slate-500 py-4 text-center">No autofill history yet. Run AI Autofill to create a snapshot.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100">
+            {snapshots.map((snap, i) => (
+              <li key={snap.id} className="flex items-center justify-between gap-3 py-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">
+                    {i === 0 ? "Latest autofill" : `Autofill ${snapshots.length - i}`}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {new Date(snap.createdAt).toLocaleString()}
+                  </p>
+                </div>
+                <button
+                  onClick={() => handleRestoreSnapshot(snap.id)}
+                  disabled={restoringId === snap.id}
+                  className="shrink-0 text-xs font-semibold text-blue-600 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {restoringId === snap.id ? "Restoring…" : "Restore"}
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="text-xs text-slate-400">Restoring overwrites your current field values.</p>
+      </div>
+    </div>
+  ) : null;
+
   const breadcrumb = (
     <nav className="flex items-center gap-2 text-sm mb-4 min-w-0" aria-label="Breadcrumb">
       <Link href="/dashboard" className="text-slate-400 hover:text-slate-700 transition-colors shrink-0">
@@ -468,6 +571,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     return (
       <>
         {shareModal}
+        {snapshotPanel}
         {breadcrumb}
         <GuidedFillMode
           formId={form.id}
@@ -489,6 +593,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     <>
     <div className="space-y-4">
       {shareModal}
+      {snapshotPanel}
       {breadcrumb}
       {shareError && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
@@ -666,6 +771,20 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
             savedAt={savedAt}
             onDismissError={() => setSaveStatus("idle")}
           />
+
+          {/* Autofill history */}
+          <button
+            onClick={openSnapshots}
+            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[48px] md:min-h-0 text-sm font-medium rounded-lg transition-colors text-slate-600 hover:bg-slate-100"
+            aria-label="View autofill history"
+            title="Autofill History"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="10" />
+              <polyline points="12 6 12 12 16 14" />
+            </svg>
+            <span className="hidden sm:inline">History</span>
+          </button>
 
           {/* Share as Template */}
           <button

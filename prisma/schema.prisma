@@ -231,6 +231,16 @@ model FormTemplate {
   @@index([slug])
 }
 
+// Snapshot of autofilled field values — stored after each autofill run, max 10 per form
+model FormSnapshot {
+  id        String   @id @default(cuid())
+  formId    String
+  fields    Json     // Full fields array at time of snapshot
+  createdAt DateTime @default(now())
+
+  @@index([formId, createdAt])
+}
+
 // Product Hunt launch notify-me list — collected pre-launch, blasted on launch day
 model LaunchNotify {
   id          String    @id @default(cuid())

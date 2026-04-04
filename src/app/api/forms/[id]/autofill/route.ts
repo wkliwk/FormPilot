@@ -85,6 +85,22 @@ export async function POST(
       },
     });
 
+    // Create snapshot; trim to 10 most recent per form (best-effort, non-blocking)
+    prisma.formSnapshot.create({
+      data: { formId: id, fields: filledFields as object },
+    }).then(() =>
+      prisma.formSnapshot.findMany({
+        where: { formId: id },
+        orderBy: { createdAt: "desc" },
+        skip: 10,
+        select: { id: true },
+      })
+    ).then((old) => {
+      if (old.length > 0) {
+        return prisma.formSnapshot.deleteMany({ where: { id: { in: old.map((s) => s.id) } } });
+      }
+    }).catch(() => { /* best-effort */ });
+
     log.info("Form autofilled", {
       route: "POST /api/forms/[id]/autofill",
       durationMs: Date.now() - start,
