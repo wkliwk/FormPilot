@@ -1,11 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { track } from "@vercel/analytics";
 
 interface Props {
   /** "limit" = hit monthly upload cap; "feature" = tried to use a Pro-only feature */
   reason: "limit" | "feature";
   featureName?: string; // Only used when reason="feature"
+  /** Where the prompt was triggered from — used for analytics */
+  trigger?: "upload" | "refill" | "library" | "resume" | "feature";
   onClose: () => void;
 }
 
@@ -45,13 +48,18 @@ const TESTIMONIALS = [
 
 type PlanChoice = "monthly" | "annual";
 
-export default function UpgradeGateModal({ reason, featureName, onClose }: Props) {
+export default function UpgradeGateModal({ reason, featureName, trigger, onClose }: Props) {
   const [proCount, setProCount] = useState<number | null>(null);
   const [upgradeLoading, setUpgradeLoading] = useState(false);
   const [plan, setPlan] = useState<PlanChoice>("annual");
   const overlayRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  // Track prompt shown
+  useEffect(() => {
+    track("upgrade_prompt_shown", { reason, trigger: trigger ?? "unknown" });
+  }, [reason, trigger]);
 
   // Fetch social proof count
   useEffect(() => {
@@ -97,6 +105,7 @@ export default function UpgradeGateModal({ reason, featureName, onClose }: Props
   }, []);
 
   async function handleUpgrade() {
+    track("upgrade_prompt_clicked", { reason, trigger: trigger ?? "unknown", plan });
     setUpgradeLoading(true);
     const res = await fetch(`/api/billing/create-checkout?plan=${plan}`, { method: "POST" });
     const data = (await res.json()) as { url?: string };
@@ -105,6 +114,7 @@ export default function UpgradeGateModal({ reason, featureName, onClose }: Props
   }
 
   function handleRemindLater() {
+    track("upgrade_prompt_dismissed", { reason, trigger: trigger ?? "unknown" });
     setDismissCookie();
     onClose();
   }

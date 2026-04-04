@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import UpgradeGateModal from "@/components/UpgradeGateModal";
 
 interface LibraryFormMeta {
   slug: string;
@@ -33,6 +34,7 @@ export default function LibraryPage() {
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState<string | null>(null);
   const [startError, setStartError] = useState<string | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string>("All");
 
   useEffect(() => {
@@ -57,9 +59,9 @@ export default function LibraryPage() {
       const data = await res.json() as { formId?: string; error?: string; limit?: number; formsUsed?: number };
       if (!res.ok) {
         if (res.status === 403) {
-          setStartError(`You've reached your ${data.limit} form limit for this month. Upgrade to Pro for unlimited forms.`);
+          setShowUpgrade(true);
         } else {
-          throw new Error(data.error ?? "Failed to start form");
+          setStartError(data.error ?? "Failed to start form");
         }
         setStarting(null);
         return;
@@ -212,6 +214,14 @@ export default function LibraryPage() {
             <p className="text-sm text-slate-400 text-center py-12">No forms in this category yet.</p>
           )}
         </>
+      )}
+
+      {showUpgrade && (
+        <UpgradeGateModal
+          reason="limit"
+          trigger="library"
+          onClose={() => setShowUpgrade(false)}
+        />
       )}
     </main>
   );

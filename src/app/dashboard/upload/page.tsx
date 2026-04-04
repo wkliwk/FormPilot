@@ -534,7 +534,7 @@ export default function UploadPage() {
 
       {/* Upgrade modal */}
       {showUpgradeModal && (
-        <UpgradeGateModal reason="limit" onClose={() => setShowUpgradeModal(false)} />
+        <UpgradeGateModal reason="limit" trigger="upload" onClose={() => setShowUpgradeModal(false)} />
       )}
 
       {/* Breadcrumb */}

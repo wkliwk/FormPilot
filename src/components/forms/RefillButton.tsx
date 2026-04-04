@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import UpgradeGateModal from "@/components/UpgradeGateModal";
 
 interface Props {
   formId: string;
@@ -11,6 +12,7 @@ export default function RefillButton({ formId }: Props) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showUpgrade, setShowUpgrade] = useState(false);
 
   async function handleRefill() {
     setLoading(true);
@@ -18,6 +20,10 @@ export default function RefillButton({ formId }: Props) {
     try {
       const res = await fetch(`/api/forms/${formId}/refill`, { method: "POST" });
       if (!res.ok) {
+        if (res.status === 403) {
+          setShowUpgrade(true);
+          return;
+        }
         const data = await res.json() as { error?: string };
         throw new Error(data.error ?? "Re-fill failed");
       }
@@ -56,6 +62,13 @@ export default function RefillButton({ formId }: Props) {
         <div className="absolute right-0 top-full mt-1 z-20 whitespace-nowrap text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-2 py-1">
           {error}
         </div>
+      )}
+      {showUpgrade && (
+        <UpgradeGateModal
+          reason="limit"
+          trigger="refill"
+          onClose={() => setShowUpgrade(false)}
+        />
       )}
     </div>
   );
