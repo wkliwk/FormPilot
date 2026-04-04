@@ -96,6 +96,7 @@ model Form {
   completedAt  DateTime? // Set when status transitions to COMPLETED — used on certificate page
   autofillRate Float?    // Percentage of filled fields that were AI-suggested and accepted (0–100)
   dueDate      DateTime? // Optional deadline set by user — drives reminder emails and dashboard badges
+  notes        String?   // Private per-form notes — not exported to PDF
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 

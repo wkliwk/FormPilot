@@ -51,7 +51,7 @@ export default async function DashboardPage() {
       select: {
         id: true, userId: true, title: true, status: true, sourceType: true,
         category: true, fields: true, filledData: true, shareToken: true,
-        dueDate: true, createdAt: true, updatedAt: true,
+        dueDate: true, notes: true, createdAt: true, updatedAt: true,
       },
     }),
     prisma.form.findMany({
@@ -298,6 +298,7 @@ export default async function DashboardPage() {
                 createdAt: f.createdAt,
                 updatedAt: f.updatedAt,
                 dueDate: f.dueDate ?? null,
+                hasNotes: !!(f.notes?.trim()),
               };
             })}
           />

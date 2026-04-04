@@ -24,6 +24,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
       language: true,
       version: true,
       dueDate: true,
+      notes: true,
       createdAt: true,
       updatedAt: true,
     },
@@ -118,6 +119,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
           autofillMatchRate={autofillMatchRate}
           priorForm={priorForm ? { id: priorForm.id, title: priorForm.title, createdAt: priorForm.createdAt.toISOString() } : null}
           dueDate={form.dueDate ? form.dueDate.toISOString() : null}
+          initialNotes={form.notes ?? null}
         />
       </main>
     </div>

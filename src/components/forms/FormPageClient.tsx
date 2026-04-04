@@ -8,6 +8,8 @@ import FormViewer from "./FormViewer";
 import GuidedFillMode from "./GuidedFillMode";
 import FormCompleteOverlay from "./FormCompleteOverlay";
 import AutoSaveIndicator, { type SaveStatus } from "./AutoSaveIndicator";
+import UpgradeGateModal from "@/components/UpgradeGateModal";
+import FormNotesPanel from "./FormNotesPanel";
 
 // pdf.js uses DOMMatrix at module-level — must be client-only (no SSR)
 const DocumentImageViewer = dynamic(() => import("./DocumentImageViewer"), { ssr: false });
@@ -64,9 +66,10 @@ interface Props {
   autofillMatchRate?: number;
   priorForm?: PriorFormInfo | null;
   dueDate?: string | null;
+  initialNotes?: string | null;
 }
 
-export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, isAtFreeLimit, profileCompleteness = 100, autofillMatchRate = 100, priorForm, dueDate: initialDueDate }: Props) {
+export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, isAtFreeLimit, profileCompleteness = 100, autofillMatchRate = 100, priorForm, dueDate: initialDueDate, initialNotes }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [deleting, setDeleting] = useState(false);
@@ -106,6 +109,10 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
   const [dueDateSaving, setDueDateSaving] = useState(false);
 
   async function handleDueDateChange(newDate: string | null) {
+    if (!isPro && newDate) {
+      setUpgradeGateFeature("Deadline Reminders");
+      return;
+    }
     setDueDate(newDate);
     setDueDateSaving(true);
     try {
@@ -254,13 +261,24 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
   const [shareError, setShareError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
+  // Upgrade gate modal
+  const [upgradeGateFeature, setUpgradeGateFeature] = useState<string | null>(null);
+
   // Snapshot history panel
   const [showSnapshots, setShowSnapshots] = useState(false);
   const [snapshots, setSnapshots] = useState<Array<{ id: string; createdAt: string }>>([]);
   const [snapshotsLoading, setSnapshotsLoading] = useState(false);
   const [restoringId, setRestoringId] = useState<string | null>(null);
 
+  // Notes panel
+  const [showNotes, setShowNotes] = useState(false);
+  const [hasNotes, setHasNotes] = useState(!!(initialNotes?.trim()));
+
   async function openSnapshots() {
+    if (!isPro) {
+      setUpgradeGateFeature("Autofill History");
+      return;
+    }
     setShowSnapshots(true);
     setSnapshotsLoading(true);
     try {
@@ -637,6 +655,21 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
       <>
         {shareModal}
         {snapshotPanel}
+        {upgradeGateFeature && (
+          <UpgradeGateModal
+            reason="feature"
+            featureName={upgradeGateFeature}
+            onClose={() => setUpgradeGateFeature(null)}
+          />
+        )}
+        {showNotes && (
+          <FormNotesPanel
+            formId={form.id}
+            initialNotes={initialNotes}
+            onClose={() => setShowNotes(false)}
+            onNotesChange={(v) => setHasNotes(!!v.trim())}
+          />
+        )}
         {breadcrumb}
         <GuidedFillMode
           formId={form.id}
@@ -659,6 +692,21 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
     <div className="space-y-4">
       {shareModal}
       {snapshotPanel}
+      {upgradeGateFeature && (
+        <UpgradeGateModal
+          reason="feature"
+          featureName={upgradeGateFeature}
+          onClose={() => setUpgradeGateFeature(null)}
+        />
+      )}
+      {showNotes && (
+        <FormNotesPanel
+          formId={form.id}
+          initialNotes={initialNotes}
+          onClose={() => setShowNotes(false)}
+          onNotesChange={(v) => setHasNotes(!!v.trim())}
+        />
+      )}
       {breadcrumb}
       {shareError && (
         <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
@@ -849,6 +897,25 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
               <polyline points="12 6 12 12 16 14" />
             </svg>
             <span className="hidden sm:inline">History</span>
+          </button>
+
+          {/* Notes */}
+          <button
+            onClick={() => setShowNotes((v) => !v)}
+            className={`relative inline-flex items-center gap-1.5 px-3 py-2 min-h-[48px] md:min-h-0 text-sm font-medium rounded-lg transition-colors ${showNotes ? "bg-amber-50 text-amber-700" : "text-slate-600 hover:bg-slate-100"}`}
+            aria-label="Form notes"
+            title="Notes"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+            </svg>
+            <span className="hidden sm:inline">Notes</span>
+            {hasNotes && !showNotes && (
+              <span className="absolute top-1 right-1 w-2 h-2 bg-amber-400 rounded-full" aria-label="Has notes" />
+            )}
           </button>
 
           {/* Share as Template */}
