@@ -8,6 +8,7 @@ import { validateFieldFormat } from "@/lib/validation/field-rules";
 import { generateSampleValue } from "@/lib/sample-data";
 import { CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/constants";
 import ExportPreviewModal, { type ExportFormat } from "./ExportPreviewModal";
+import PreExportValidationModal, { type PreExportIssue } from "./PreExportValidationModal";
 import ConfidenceReviewPanel from "./ConfidenceReviewPanel";
 import FieldQA from "./FieldQA";
 import ProGateModal from "@/components/ProGateModal";
@@ -179,6 +180,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   );
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [showForceExportDialog, setShowForceExportDialog] = useState(false);
+  const [preExportIssues, setPreExportIssues] = useState<PreExportIssue[]>([]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showExportUpgradeModal, setShowExportUpgradeModal] = useState(false);
   const [showConfidenceReview, setShowConfidenceReview] = useState(false);
@@ -837,30 +839,62 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     const result = validateForm(fields, values, fieldStates as Record<string, string>);
     setValidation(result);
 
-    if (!result.valid) {
-      // Scroll to and focus the first invalid field so users can fix it in context
-      const firstErrorId = result.errors[0]?.fieldId;
-      if (firstErrorId) {
-        const el = document.getElementById(`field-${firstErrorId}`);
-        if (el) {
-          el.scrollIntoView({ behavior: "smooth", block: "center" });
-          el.focus();
+    // Collect all pre-export issues for the unified validation modal
+    const issues: PreExportIssue[] = [];
+
+    // (a) Required fields that are empty
+    for (const id of emptyRequiredFieldIds) {
+      const f = fields.find((fi) => fi.id === id);
+      if (f) issues.push({ fieldId: id, label: f.label, type: "required_empty" });
+    }
+
+    // (b) Flagged fields that are still blank
+    for (const id of Array.from(flaggedFields)) {
+      if (!values[id] || !String(values[id]).trim()) {
+        const f = fields.find((fi) => fi.id === id);
+        if (f) issues.push({ fieldId: id, label: f.label, type: "flagged_blank" });
+      }
+    }
+
+    // (c) AI-filled fields with low confidence that were not manually confirmed
+    for (const f of fields) {
+      if (
+        f.confidence !== undefined &&
+        f.confidence < CONFIDENCE_REVIEW_THRESHOLD &&
+        values[f.id] &&
+        fieldStates[f.id] !== "accepted"
+      ) {
+        // Skip duplicates (already added as required_empty)
+        if (!issues.find((i) => i.fieldId === f.id)) {
+          issues.push({ fieldId: f.id, label: f.label, type: "low_confidence" });
         }
       }
-      setShowForceExportDialog(true);
+    }
+
+    if (issues.length > 0) {
+      setPreExportIssues(issues);
       return;
     }
 
-    // Non-blocking required-field pre-flight: warn but allow export
-    if (emptyRequiredCount > 0) {
-      setShowRequiredEmptyBanner(true);
+    // No issues — show preview modal immediately
+    setShowPreviewModal(true);
+  }
+
+  function handlePreExportReview() {
+    // Close the modal and scroll to the first issue field
+    const firstIssue = preExportIssues[0];
+    setPreExportIssues([]);
+    if (firstIssue) {
+      const el = document.getElementById(`field-${firstIssue.fieldId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        el.focus();
+      }
     }
+  }
 
-    // Flagged-blank pre-flight: count flagged fields that are still empty
-    const blankFlagged = Array.from(flaggedFields).filter((id) => !values[id] || !String(values[id]).trim()).length;
-    setFlaggedBlankCount(blankFlagged);
-
-    // Show preview modal before actual export
+  function handlePreExportExportAnyway() {
+    setPreExportIssues([]);
     setShowPreviewModal(true);
   }
 
@@ -1094,6 +1128,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   return (
     <>
     {/* Export upgrade nudge — shown to free-tier users at their limit */}
+    {preExportIssues.length > 0 && (
+      <PreExportValidationModal
+        issues={preExportIssues}
+        onReview={handlePreExportReview}
+        onExportAnyway={handlePreExportExportAnyway}
+        onClose={() => setPreExportIssues([])}
+      />
+    )}
+
     {showExportUpgradeModal && (
       <div
         className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
