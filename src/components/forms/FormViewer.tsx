@@ -16,6 +16,7 @@ import GapReportPanel, { type ProfileGap } from "./GapReportPanel";
 import ProgressRing from "./ProgressRing";
 import ShareModal from "./ShareModal";
 import FieldMappingEditor, { type MappingRow } from "./FieldMappingEditor";
+import UpgradeGateModal from "@/components/UpgradeGateModal";
 
 interface FormRecord {
   id: string;
@@ -200,6 +201,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   // field mapping editor
   const [mappingRows, setMappingRows] = useState<MappingRow[] | null>(null);
   const [mappingLoading, setMappingLoading] = useState(false);
+  const [upgradeGateFeature, setUpgradeGateFeature] = useState<string | null>(null);
   // skipped fields after autofill — required fields autofill could not fill
   type SkippedField = { id: string; label: string; reason: "low_confidence" | "missing_profile_data" | "type_mismatch" | "timeout" };
   const [skippedFields, setSkippedFields] = useState<SkippedField[]>([]);
@@ -662,6 +664,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   // -- field mapping editor --
 
   async function openMappingEditor() {
+    if (!isPro) {
+      setUpgradeGateFeature("Field Mapping Editor");
+      return;
+    }
     setMappingLoading(true);
     try {
       const res = await fetch(`/api/forms/${form.id}/autofill/mapping`);
@@ -1107,6 +1113,13 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         }}
         onClose={() => setShowConfidenceReview(false)}
         exporting={exporting}
+      />
+    )}
+    {upgradeGateFeature && (
+      <UpgradeGateModal
+        reason="feature"
+        featureName={upgradeGateFeature}
+        onClose={() => setUpgradeGateFeature(null)}
       />
     )}
     {mappingRows !== null && (
