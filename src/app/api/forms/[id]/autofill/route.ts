@@ -119,7 +119,17 @@ export async function POST(
         profileLabel: PROFILE_KEY_LABELS[f.profileKey!] ?? f.profileKey!,
       }));
 
-    return NextResponse.json({ fields: filledFields, profileGaps });
+    // Skipped fields: required fields that autofill could not fill
+    // Reason: missing_profile_data if the profile key was absent, low_confidence otherwise
+    const skippedFields = filledFields
+      .filter((f) => !f.value && f.required)
+      .map((f) => ({
+        id: f.id,
+        label: f.label,
+        reason: f.profileKey && !profileData[f.profileKey] ? "missing_profile_data" : "low_confidence",
+      }));
+
+    return NextResponse.json({ fields: filledFields, profileGaps, skipped_fields: skippedFields });
   } catch (err) {
     return handleApiError(err, "POST /api/forms/[id]/autofill");
   }

@@ -196,6 +196,9 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [showRequiredEmptyBanner, setShowRequiredEmptyBanner] = useState(false);
   // autofill confidence summary banner
   const [autofillSummary, setAutofillSummary] = useState<{ high: number; medium: number; low: number; unfilled: number } | null>(null);
+  // skipped fields after autofill — required fields autofill could not fill
+  type SkippedField = { id: string; label: string; reason: "low_confidence" | "missing_profile_data" | "type_mismatch" | "timeout" };
+  const [skippedFields, setSkippedFields] = useState<SkippedField[]>([]);
   // undo autofill — snapshot taken before each autofill, cleared on field edit or after 8s
   const preAutofillSnapshot = useRef<{ values: Record<string, string>; fieldStates: Record<string, FieldState> } | null>(null);
   const [showUndoToast, setShowUndoToast] = useState(false);
@@ -299,6 +302,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     setValues(snapshot.values);
     setFieldStates(snapshot.fieldStates);
     setAutofillSummary(null);
+    setSkippedFields([]);
     scheduleSave(snapshot.values, snapshot.fieldStates);
     setUndoConfirmFlash(true);
     setTimeout(() => setUndoConfirmFlash(false), 2000);
@@ -632,6 +636,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         preAutofillSnapshot.current = null;
       }, 8000);
 
+      // Set skipped fields banner (required fields autofill could not fill)
+      const skipped = (data.skipped_fields ?? []) as SkippedField[];
+      setSkippedFields(skipped);
+
       // Show gap report if there are unmatched profile fields and user hasn't dismissed it
       const gaps: ProfileGap[] = data.profileGaps ?? [];
       const dismissKey = `gapReportDismissed:${form.id}`;
@@ -658,6 +666,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     setValues(clearValues);
     setFieldStates(clearStates);
     setAutofillSummary(null);
+    setSkippedFields([]);
     onValuesSnapshotChange?.(clearValues);
 
     setSaveStatus("saving");
@@ -882,6 +891,13 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   }, [currentUnansweredIndex, unansweredCount, navigateToUnansweredField]);
 
   // -- prior form offer --
+
+  // Auto-dismiss the skipped-fields banner once all previously-skipped fields have been filled by the user
+  useEffect(() => {
+    if (skippedFields.length === 0) return;
+    const allFilled = skippedFields.every((sf) => values[sf.id] && String(values[sf.id]).trim());
+    if (allFilled) setSkippedFields([]);
+  }, [values, skippedFields]);
 
   useEffect(() => {
     const dismissKey = `preFillDismissed:${form.id}`;
@@ -1809,6 +1825,44 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         </div>
       )}
 
+      {/* Skipped fields banner — amber, shown when autofill left required fields empty */}
+      {skippedFields.length > 0 && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3" role="alert">
+          <svg className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+          </svg>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-amber-900">
+              {skippedFields.length === 1
+                ? "1 required field could not be filled automatically"
+                : `${skippedFields.length} required fields could not be filled automatically`}
+            </p>
+            <button
+              type="button"
+              className="text-xs text-amber-700 underline underline-offset-2 mt-1 hover:text-amber-900 transition-colors"
+              onClick={() => {
+                const firstSkipped = skippedFields.find((sf) => !values[sf.id]);
+                if (!firstSkipped) return;
+                const el = document.getElementById(`field-${firstSkipped.id}`);
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}
+            >
+              Show unfilled fields
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={() => setSkippedFields([])}
+            className="p-1 text-amber-400 hover:text-amber-700 transition-colors shrink-0"
+            aria-label="Dismiss"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Field Cards */}
       <div className="space-y-3">
         {fields.map((field) => {
@@ -1820,6 +1874,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
           const hasError = errorFieldIds.has(field.id) || Boolean(blurErrors[field.id]);
           const hasWarning = warningFieldIds.has(field.id);
+          const skippedInfo = skippedFields.find((sf) => sf.id === field.id);
 
           // Card border color
           let cardClasses = "bg-white border-slate-200";
@@ -1829,6 +1884,9 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
             cardClasses = "bg-emerald-50/30 border-emerald-200";
           } else if (state === "rejected") {
             cardClasses = "bg-white border-slate-200 opacity-70";
+          } else if (skippedInfo && !values[field.id]) {
+            // Amber ring for skipped (unfilled) fields — not an error, just incomplete
+            cardClasses = "bg-amber-50/10 border-amber-300 ring-2 ring-amber-300/50";
           } else if (hasWarning) {
             cardClasses = "bg-amber-50/20 border-amber-200";
           } else if (tier && hasAutofill) {
@@ -1927,6 +1985,26 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                           Verify this
                         </span>
                       )}
+                      {/* Skip reason badge — shown for autofill-skipped fields that are still empty */}
+                      {skippedInfo && !values[field.id] && (() => {
+                        const SKIP_REASON_LABELS: Record<string, string> = {
+                          low_confidence: "Not enough info in your profile",
+                          missing_profile_data: "Missing from your profile",
+                          type_mismatch: "This field needs a specific format",
+                          timeout: "Autofill timed out — try again",
+                        };
+                        return (
+                          <span
+                            className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700"
+                            title={SKIP_REASON_LABELS[skippedInfo.reason] ?? "Could not autofill"}
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                            </svg>
+                            Fill manually
+                          </span>
+                        );
+                      })()}
                       {/* Notepad icon — shown when a note exists for this field */}
                       {fieldNotes?.[field.id] && (
                         <span
