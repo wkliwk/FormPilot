@@ -57,6 +57,8 @@ interface Props {
   fieldNotes?: Record<string, string>;
   /** Called after a note is saved or deleted — used to keep parent notepad indicators in sync. */
   onNoteChange?: (fieldId: string, note: string | null) => void;
+  /** Called after "Clear all" (start fresh) successfully writes to DB — lets parent hide the resume banner. */
+  onClearAll?: () => void;
 }
 
 // -- Certificate download button (Pro-gated) --
@@ -141,7 +143,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange, isPro, isAtFreeLimit, fieldNotes, onNoteChange }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange, isPro, isAtFreeLimit, fieldNotes, onNoteChange, onClearAll }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -746,6 +748,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       setSavedAt(now);
       setSaveError(false);
       onSaveStatusChange?.("saved", now);
+      onClearAll?.();
     } catch {
       setSaveStatus("error");
       setSaveError(true);

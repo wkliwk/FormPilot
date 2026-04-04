@@ -94,15 +94,10 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
   const [savedAt, setSavedAt] = useState<Date | null>(() =>
     (form.fields as FormField[]).some((f) => f.value) ? new Date() : null
   );
+  const resumeFieldCount = (form.fields as FormField[]).filter((f) => f.value).length;
   const [showResumeToast, setShowResumeToast] = useState(() =>
-    (form.fields as FormField[]).some((f) => f.value)
+    form.status === "FILLING" && resumeFieldCount > 0
   );
-
-  useEffect(() => {
-    if (!showResumeToast) return;
-    const t = setTimeout(() => setShowResumeToast(false), 2000);
-    return () => clearTimeout(t);
-  }, [showResumeToast]);
 
   // Due date state
   const [dueDate, setDueDate] = useState<string | null>(initialDueDate ?? null);
@@ -829,13 +824,22 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
         );
       })()}
 
-      {/* Resume toast — shown briefly when saved draft values exist on load */}
+      {/* Resume banner — shown when form has saved progress from a previous session */}
       {showResumeToast && (
-        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3">
-          <svg className="w-4 h-4 text-slate-500 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+        <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3">
+          <svg className="w-4 h-4 text-blue-500 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd" />
           </svg>
-          <p className="text-sm text-slate-600">Resuming your saved progress</p>
+          <p className="text-sm text-blue-800 flex-1">
+            Resuming saved progress — {resumeFieldCount} field{resumeFieldCount !== 1 ? "s" : ""} filled
+          </p>
+          <button
+            onClick={() => setShowResumeToast(false)}
+            className="text-xs font-medium text-blue-600 hover:text-blue-800 transition-colors shrink-0"
+            aria-label="Dismiss resume banner"
+          >
+            Dismiss
+          </button>
         </div>
       )}
 
@@ -1061,6 +1065,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
               onSaveStatusChange={handleSaveStatusChange}
               fieldNotes={fieldNotes}
               onNoteChange={handleNoteChange}
+              onClearAll={() => setShowResumeToast(false)}
             />
           </div>
           {/* Right: Document panel — sticky, desktop only */}
@@ -1122,6 +1127,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
             language={activeLanguage}
             onSaveStatusChange={handleSaveStatusChange}
             fieldNotes={fieldNotes}
+            onClearAll={() => setShowResumeToast(false)}
           />
         </div>
       )}
