@@ -93,6 +93,7 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
   const [forms, setForms] = useState(initialForms);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [duplicatingId, setDuplicatingId] = useState<string | null>(null);
+  const [refillingId, setRefillingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
   const [renamingId, setRenamingId] = useState<string | null>(null);
@@ -135,6 +136,26 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
       // silently ignore — button stays visible so user can retry
     } finally {
       setLoadingMore(false);
+    }
+  }
+
+  async function handleRefill(e: React.MouseEvent, id: string) {
+    e.preventDefault();
+    e.stopPropagation();
+    setRefillingId(id);
+    try {
+      const res = await fetch(`/api/forms/${id}/refill`, { method: "POST" });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error ?? "Re-fill failed");
+      }
+      const data = await res.json() as { id: string };
+      router.push(`/dashboard/forms/${data.id}`);
+    } catch (err) {
+      setToast(err instanceof Error ? err.message : "Could not start re-fill. Please try again.");
+      setTimeout(() => setToast(null), 4000);
+    } finally {
+      setRefillingId(null);
     }
   }
 
@@ -484,6 +505,28 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
                   </svg>
                 </Link>
 
+                {/* Re-fill button — only on COMPLETED forms */}
+                {form.status === "COMPLETED" && (
+                  <button
+                    onClick={(e) => handleRefill(e, form.id)}
+                    disabled={isDeleting || !!refillingId}
+                    className="absolute right-40 top-1/2 -translate-y-1/2 hidden sm:flex items-center justify-center w-8 h-8 rounded-lg text-slate-300 hover:text-emerald-600 hover:bg-emerald-50 opacity-0 group-hover:opacity-100 transition-all disabled:opacity-50 disabled:cursor-not-allowed z-10"
+                    aria-label={`Re-fill ${form.title}`}
+                    title="Re-fill form (start over with your answers pre-loaded)"
+                  >
+                    {refillingId === form.id ? (
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                        <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" className="opacity-75" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="1 4 1 10 7 10" />
+                        <path d="M3.51 15a9 9 0 1 0 .49-3.14" />
+                      </svg>
+                    )}
+                  </button>
+                )}
                 {/* Rename button */}
                 <button
                   onClick={(e) => startRename(e, form)}

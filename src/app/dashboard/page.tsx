@@ -14,6 +14,7 @@ import ReferralCard from "@/components/ReferralCard";
 import { getUserPlan, getOrCreateUsage, FREE_FORM_LIMIT } from "@/lib/subscription";
 import { getUserByReferralCode, getOrCreateReferralCode, getReferralStats } from "@/lib/referral";
 import ProfileCompletenessCard from "@/components/ProfileCompletenessCard";
+import RefillButton from "@/components/forms/RefillButton";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -125,6 +126,15 @@ export default async function DashboardPage() {
     completed: pagedForms.filter((f) => f.status === "COMPLETED").length,
     inProgress: pagedForms.filter((f) => f.status === "FILLING").length,
   };
+
+  // Completed forms for the History section
+  const HISTORY_FREE_LIMIT = 3;
+  // Completed forms with full card data (already loaded in pagedForms)
+  const completedForms = pagedForms
+    .filter((f) => f.status === "COMPLETED")
+    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+  const historyForms = plan === "pro" ? completedForms : completedForms.slice(0, HISTORY_FREE_LIMIT);
+  const hasMoreHistory = plan !== "pro" && completedForms.length > HISTORY_FREE_LIMIT;
 
   // Stats widget data — computed from ALL forms (not just paged)
   const SECONDS_SAVED_PER_FIELD = 45;
@@ -312,6 +322,60 @@ export default async function DashboardPage() {
               };
             })}
           />
+        )}
+
+        {/* History section — completed forms with Re-fill CTA */}
+        {historyForms.length > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-slate-900">Completed Forms</h2>
+              {hasMoreHistory && (
+                <Link
+                  href="/dashboard/billing"
+                  className="text-xs text-blue-600 hover:underline font-medium"
+                >
+                  Upgrade to see all {completedForms.length}
+                </Link>
+              )}
+            </div>
+            <div className="space-y-3">
+              {historyForms.map((f) => {
+                const fields = f.fields as Array<{ value?: string }>;
+                const totalFields = fields.length;
+                const filledCount = fields.filter((field) => field.value && String(field.value).trim()).length;
+                return (
+                  <div key={f.id} className="flex items-center gap-4 bg-white rounded-xl border border-slate-200 p-4 sm:p-5">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-lg bg-emerald-50 text-emerald-500 shrink-0">
+                      <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-semibold text-slate-900 truncate">{f.title}</h3>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        {totalFields} fields &middot; {filledCount} filled &middot; completed{" "}
+                        {new Date(f.updatedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}
+                      </p>
+                    </div>
+                    <Link
+                      href={`/dashboard/forms/${f.id}`}
+                      className="shrink-0 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors px-2 py-1"
+                    >
+                      View
+                    </Link>
+                    <RefillButton formId={f.id} />
+                  </div>
+                );
+              })}
+            </div>
+            {hasMoreHistory && (
+              <p className="mt-3 text-xs text-slate-400 text-center">
+                Showing last {HISTORY_FREE_LIMIT} completed forms.{" "}
+                <Link href="/dashboard/billing" className="text-blue-600 hover:underline">Upgrade to Pro</Link>
+                {" "}to see full history and re-fill any past form.
+              </p>
+            )}
+          </section>
         )}
       </main>
     </>
