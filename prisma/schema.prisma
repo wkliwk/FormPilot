@@ -23,6 +23,7 @@ model User {
   onboardingDismissedAt    DateTime? // Set when user dismisses the onboarding checklist
   drip2SentAt              DateTime? // Welcome drip email 2 (T+48h profile nudge) sent at
   drip3SentAt              DateTime? // Welcome drip email 3 (T+7d re-engage) sent at
+  copilotEnabled           Boolean   @default(true) // AI co-pilot ghost text suggestions while typing
 
   accounts     Account[]
   sessions     Session[]

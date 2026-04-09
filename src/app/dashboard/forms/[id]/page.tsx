@@ -34,13 +34,17 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
     notFound();
   }
 
-  const [profile, isPro, usage] = await Promise.all([
+  const [profile, isPro, usage, userPrefs] = await Promise.all([
     prisma.profile.findUnique({
       where: { userId: session.user.id! },
       select: { id: true, preferredLanguage: true, country: true, data: true },
     }),
     isProUser(session.user.id!),
     getOrCreateUsage(session.user.id!),
+    prisma.user.findUnique({
+      where: { id: session.user.id! },
+      select: { copilotEnabled: true },
+    }),
   ]);
 
   const isAtFreeLimit = !isPro && (usage.formsThisMonth >= FREE_FORM_LIMIT + usage.bonusForms);
@@ -120,6 +124,7 @@ export default async function FormPage({ params }: { params: Promise<{ id: strin
           priorForm={priorForm ? { id: priorForm.id, title: priorForm.title, createdAt: priorForm.createdAt.toISOString() } : null}
           dueDate={form.dueDate ? form.dueDate.toISOString() : null}
           initialNotes={form.notes ?? null}
+          copilotEnabled={userPrefs?.copilotEnabled ?? true}
         />
       </main>
     </div>

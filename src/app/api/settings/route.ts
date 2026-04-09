@@ -11,18 +11,20 @@ export async function GET() {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { digestUnsubscribed: true, reminderEmailsEnabled: true },
+    select: { digestUnsubscribed: true, reminderEmailsEnabled: true, copilotEnabled: true },
   });
 
   return NextResponse.json({
     digestEnabled: !user?.digestUnsubscribed,
     reminderEmailsEnabled: user?.reminderEmailsEnabled ?? true,
+    copilotEnabled: user?.copilotEnabled ?? true,
   });
 }
 
 const patchSchema = z.object({
   digestEnabled: z.boolean().optional(),
   reminderEmailsEnabled: z.boolean().optional(),
+  copilotEnabled: z.boolean().optional(),
 });
 
 export async function PATCH(req: NextRequest) {
@@ -43,6 +45,9 @@ export async function PATCH(req: NextRequest) {
   }
   if (parsed.data.reminderEmailsEnabled !== undefined) {
     updateData.reminderEmailsEnabled = parsed.data.reminderEmailsEnabled;
+  }
+  if (parsed.data.copilotEnabled !== undefined) {
+    updateData.copilotEnabled = parsed.data.copilotEnabled;
   }
 
   if (Object.keys(updateData).length === 0) {

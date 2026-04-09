@@ -26,6 +26,7 @@ interface FormRecord {
   status: string;
   fields: unknown;
   version?: number;
+  category?: string | null;
 }
 
 interface Props {
@@ -61,6 +62,8 @@ interface Props {
   onNoteChange?: (fieldId: string, note: string | null) => void;
   /** Called after "Clear all" (start fresh) successfully writes to DB — lets parent hide the resume banner. */
   onClearAll?: () => void;
+  /** Whether the AI co-pilot ghost suggestions are enabled for this user. */
+  copilotEnabled?: boolean;
 }
 
 // -- Certificate download button (Pro-gated) --
@@ -145,7 +148,7 @@ const tierConfig = {
 
 // -- component --
 
-export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange, isPro, isAtFreeLimit, fieldNotes, onNoteChange, onClearAll }: Props) {
+export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChange, onValuesSnapshotChange, hasFile, sourceType, onTitleChange, onComplete, onSaveStatusChange, isPro, isAtFreeLimit, fieldNotes, onNoteChange, onClearAll, copilotEnabled = true }: Props) {
   const initialFields = form.fields as FormField[];
 
   const [fields] = useState<FormField[]>(initialFields);
@@ -201,6 +204,11 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [blurErrors, setBlurErrors] = useState<Record<string, string>>({});
   // deterministic fix suggestions — fieldId → corrected value string
   const [blurFixes, setBlurFixes] = useState<Record<string, string>>({});
+  // co-pilot ghost text suggestions — fieldId → ghost suffix (text after cursor)
+  const [copilotSuggestions, setCopilotSuggestions] = useState<Record<string, string>>({});
+  // co-pilot session cache — "fieldId:partialValue" → suggestion | null
+  const copilotCacheRef = useRef<Map<string, string | null>>(new Map());
+  const copilotDebounceRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // export pre-flight: required-fields-empty banner
   const [showRequiredEmptyBanner, setShowRequiredEmptyBanner] = useState(false);
   // export pre-flight: flagged-fields-blank warning
@@ -330,6 +338,78 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
       preAutofillSnapshot.current = null;
     }
+  }
+
+  // --- Co-pilot: debounced ghost text suggestion ---
+  function triggerCopilotSuggestion(field: { id: string; label: string; type: string; profileKey?: string }, partialValue: string) {
+    if (!copilotEnabled) return;
+    // Don't suggest on accepted/autofilled fields
+    if (fieldStates[field.id] === "accepted") return;
+    // Don't suggest for empty value (wait until user types something)
+    if (!partialValue.trim()) {
+      setCopilotSuggestions((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+      return;
+    }
+
+    // Check session cache
+    const cacheKey = `${field.id}:${partialValue}`;
+    if (copilotCacheRef.current.has(cacheKey)) {
+      const cached = copilotCacheRef.current.get(cacheKey);
+      if (cached) {
+        setCopilotSuggestions((prev) => ({ ...prev, [field.id]: cached }));
+      } else {
+        setCopilotSuggestions((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+      }
+      return;
+    }
+
+    // Clear previous debounce for this field
+    const existingTimer = copilotDebounceRef.current.get(field.id);
+    if (existingTimer) clearTimeout(existingTimer);
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/forms/${form.id}/suggest-field`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fieldLabel: field.label,
+            fieldType: field.type,
+            partialValue,
+            formCategory: form.category,
+            profileKey: field.profileKey,
+          }),
+        });
+        if (!res.ok) return;
+        const data = await res.json() as { suggestion: string | null };
+        const suggestion = data.suggestion ?? null;
+        copilotCacheRef.current.set(cacheKey, suggestion);
+        // Only set if the suggestion is a completion (starts with current value)
+        if (suggestion && suggestion.toLowerCase().startsWith(partialValue.toLowerCase())) {
+          // Ghost text = only the suffix after what user already typed
+          const suffix = suggestion.slice(partialValue.length);
+          setCopilotSuggestions((prev) => ({ ...prev, [field.id]: suffix }));
+        } else {
+          setCopilotSuggestions((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+        }
+      } catch {
+        // Silently fail — co-pilot suggestions are best-effort
+      }
+    }, 300);
+
+    copilotDebounceRef.current.set(field.id, timer);
+  }
+
+  function acceptCopilotSuggestion(fieldId: string, currentValue: string) {
+    const suffix = copilotSuggestions[fieldId];
+    if (!suffix) return;
+    const newValue = currentValue + suffix;
+    handleValueChange(fieldId, newValue);
+    setCopilotSuggestions((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
+  }
+
+  function dismissCopilotSuggestion(fieldId: string) {
+    setCopilotSuggestions((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
   }
 
   function handleUndoAutofill() {
@@ -2484,11 +2564,50 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                       </div>
                     ) : (
                       <div className="relative flex items-center gap-1.5">
+                        {/* Co-pilot ghost text overlay — absolutely positioned behind the input */}
+                        {copilotEnabled && copilotSuggestions[field.id] && state !== "accepted" && field.type !== "date" && (
+                          <div
+                            aria-hidden="true"
+                            className="absolute left-0 top-0 px-3.5 py-2.5 text-base md:text-sm pointer-events-none select-none overflow-hidden whitespace-pre flex-1 w-full"
+                            style={{ fontFamily: "inherit" }}
+                          >
+                            <span className="invisible">{values[field.id] ?? ""}</span>
+                            <span className="text-slate-300">{copilotSuggestions[field.id]}</span>
+                          </div>
+                        )}
                         <input
                           id={`field-${field.id}`}
                           type={field.type === "date" ? "date" : "text"}
                           value={values[field.id] ?? ""}
-                          onChange={(e) => handleValueChange(field.id, e.target.value)}
+                          onChange={(e) => {
+                            const newVal = e.target.value;
+                            handleValueChange(field.id, newVal);
+                            // Dismiss ghost suggestion if user typed past it
+                            const currentSuffix = copilotSuggestions[field.id];
+                            if (currentSuffix) {
+                              const expectedFull = (values[field.id] ?? "") + currentSuffix;
+                              if (!expectedFull.toLowerCase().startsWith(newVal.toLowerCase())) {
+                                dismissCopilotSuggestion(field.id);
+                              }
+                            }
+                            // Trigger co-pilot after debounce
+                            if (newVal.trim() && state !== "accepted") {
+                              triggerCopilotSuggestion(field, newVal);
+                            } else {
+                              dismissCopilotSuggestion(field.id);
+                            }
+                          }}
+                          onKeyDown={(e) => {
+                            // Tab accepts the co-pilot ghost suggestion
+                            if (e.key === "Tab" && copilotSuggestions[field.id] && state !== "accepted") {
+                              e.preventDefault();
+                              acceptCopilotSuggestion(field.id, values[field.id] ?? "");
+                            }
+                            // Escape dismisses co-pilot suggestion
+                            if (e.key === "Escape" && copilotSuggestions[field.id]) {
+                              dismissCopilotSuggestion(field.id);
+                            }
+                          }}
                           onFocus={() => {
                             setActiveField(field.id);
                             onFieldFocus?.(field.id);
@@ -2497,6 +2616,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                           onBlur={() => {
                             setActiveField(null);
                             onFieldFocus?.(null);
+                            dismissCopilotSuggestion(field.id);
                             handleFieldBlurForCorrection(field.id, field.label);
                             const currentVal = values[field.id] ?? "";
                             // Required-field check takes priority over format errors
@@ -2525,7 +2645,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                             expandedExplanations.has(field.id) ? `explanation-${field.id}` : "",
                             field.confidence && field.confidence > 0 ? `confidence-${field.id}` : "",
                           ].filter(Boolean).join(" ") || undefined}
-                          className={`${inputClasses} flex-1`}
+                          className={`${inputClasses} flex-1 ${copilotEnabled && copilotSuggestions[field.id] ? "bg-transparent" : ""}`}
                           placeholder={state === "rejected" ? "Enter value manually..." : field.example}
                         />
                         {/* Per-field random fill button — pure client-side, no API call */}
