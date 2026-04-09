@@ -7,7 +7,7 @@ import dynamic from "next/dynamic";
 // pdf.js uses DOMMatrix at module-level — must be client-only (no SSR)
 const DocumentImageViewer = dynamic(() => import("./DocumentImageViewer"), { ssr: false });
 
-export type ExportFormat = "pdf" | "json" | "docx" | "clipboard";
+export type ExportFormat = "pdf" | "json" | "docx" | "clipboard" | "email";
 
 interface Props {
   formId: string;
@@ -17,6 +17,7 @@ interface Props {
   hasFile: boolean;
   sourceType?: string;
   isPro?: boolean;
+  userEmail?: string;
   onConfirmExport: (format: ExportFormat) => void;
   onClose: () => void;
   exporting: boolean;
@@ -30,6 +31,7 @@ export default function ExportPreviewModal({
   hasFile,
   sourceType,
   isPro,
+  userEmail,
   onConfirmExport,
   onClose,
   exporting,
@@ -40,6 +42,28 @@ export default function ExportPreviewModal({
   const canFillPDF = hasFile && sourceType === "PDF";
   const defaultFormat: ExportFormat = canFillPDF ? "pdf" : "json";
   const [format, setFormat] = useState<ExportFormat>(defaultFormat);
+
+  // Email send state
+  const [emailTo, setEmailTo] = useState(userEmail ?? "");
+  const [emailSubject, setEmailSubject] = useState(formTitle);
+  const [emailMessage, setEmailMessage] = useState("");
+  const [emailSending, setEmailSending] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  // Fetch user email on first email format selection if not provided
+  useEffect(() => {
+    if (format === "email" && !emailTo && !userEmail) {
+      fetch("/api/profile")
+        .then((r) => r.ok ? r.json() : null)
+        .then((data) => {
+          const email = data?.data?.email;
+          if (email) setEmailTo(email);
+        })
+        .catch(() => {});
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [format]);
 
   const canPreviewDoc = hasFile && (sourceType === "PDF" || sourceType === "IMAGE");
   const filledFields = fields.filter((f) => values[f.id]);
@@ -97,6 +121,17 @@ export default function ExportPreviewModal({
         </svg>
       ),
     },
+    {
+      value: "email" as ExportFormat,
+      label: "Send by email",
+      description: isPro ? "Email the filled form to anyone" : "Email the form to yourself",
+      icon: (
+        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+          <polyline points="22,6 12,13 2,6" />
+        </svg>
+      ),
+    },
   ];
 
   // Focus trap + focus on open + Escape to close
@@ -133,7 +168,36 @@ export default function ExportPreviewModal({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  async function handleEmailSend() {
+    setEmailSending(true);
+    setEmailError(null);
+    try {
+      const res = await fetch(`/api/forms/${formId}/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          to: emailTo,
+          subject: emailSubject || undefined,
+          message: emailMessage || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error ?? "Failed to send email");
+      }
+      setEmailSent(true);
+    } catch (err) {
+      setEmailError(err instanceof Error ? err.message : "Something went wrong");
+    } finally {
+      setEmailSending(false);
+    }
+  }
+
   function handleConfirm() {
+    if (format === "email") {
+      handleEmailSend();
+      return;
+    }
     // Pro gate: for docx, if not Pro, call confirm (parent opens ProGateModal)
     onConfirmExport(format);
     if (format === "clipboard") {
@@ -148,6 +212,12 @@ export default function ExportPreviewModal({
     ? "Download Word"
     : format === "json"
     ? "Download JSON"
+    : format === "email"
+    ? emailSent
+      ? `Sent to ${emailTo}`
+      : emailSending
+      ? "Sending..."
+      : "Send Email"
     : copied
     ? "Copied!"
     : "Copy to clipboard";
@@ -239,6 +309,72 @@ export default function ExportPreviewModal({
               })}
             </div>
           </div>
+
+          {/* Email form — shown when email format is selected */}
+          {format === "email" && (
+            <div className="px-4 py-3 border-b border-slate-200 bg-white space-y-3">
+              <div>
+                <label htmlFor="email-to" className="text-xs font-medium text-slate-600 block mb-1">To</label>
+                <input
+                  id="email-to"
+                  type="email"
+                  value={emailTo}
+                  onChange={(e) => setEmailTo(e.target.value)}
+                  disabled={!isPro && !!userEmail}
+                  className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 disabled:bg-slate-50 disabled:text-slate-500"
+                  placeholder="recipient@example.com"
+                />
+                {!isPro && userEmail && (
+                  <p className="text-xs text-slate-400 mt-1">
+                    Free plan: sends to your email only.{" "}
+                    <a href="/dashboard/billing" className="text-blue-600 hover:underline">Upgrade to Pro</a>
+                    {" "}to send to any address.
+                  </p>
+                )}
+              </div>
+              <div>
+                <label htmlFor="email-subject" className="text-xs font-medium text-slate-600 block mb-1">Subject</label>
+                <input
+                  id="email-subject"
+                  type="text"
+                  value={emailSubject}
+                  onChange={(e) => setEmailSubject(e.target.value)}
+                  className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  placeholder="Form title"
+                />
+              </div>
+              <div>
+                <label htmlFor="email-message" className="text-xs font-medium text-slate-600 block mb-1">
+                  Message <span className="text-slate-400 font-normal">(optional)</span>
+                </label>
+                <textarea
+                  id="email-message"
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value.slice(0, 500))}
+                  rows={3}
+                  className="w-full text-sm px-3 py-2 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-400 resize-none"
+                  placeholder="Please find my completed form attached."
+                />
+                <p className="text-xs text-slate-400 mt-0.5 text-right">{emailMessage.length}/500</p>
+              </div>
+              {emailError && (
+                <div className="flex items-center gap-2 text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                  {emailError}
+                </div>
+              )}
+              {emailSent && (
+                <div className="flex items-center gap-2 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                  <svg className="w-3.5 h-3.5 shrink-0" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+                  </svg>
+                  Sent to {emailTo}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Image-source notice */}
           {sourceType === "IMAGE" && (
@@ -347,8 +483,10 @@ export default function ExportPreviewModal({
         </button>
         <button
           onClick={handleConfirm}
-          disabled={exporting || copied}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white text-sm font-semibold rounded-xl hover:bg-blue-700 transition-colors disabled:opacity-40 active:scale-[0.98]"
+          disabled={exporting || copied || emailSending || emailSent || (format === "email" && !emailTo)}
+          className={`inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold rounded-xl transition-colors disabled:opacity-40 active:scale-[0.98] ${
+            emailSent ? "bg-emerald-600 text-white" : "bg-blue-600 text-white hover:bg-blue-700"
+          }`}
         >
           {exporting ? (
             <>
