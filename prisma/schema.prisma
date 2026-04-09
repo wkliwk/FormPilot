@@ -222,7 +222,8 @@ model FormTemplate {
   fields       Json      // Field structure with AI guidance — personal values stripped
   category     String?
   slug         String?   @unique // URL slug for sharing: /t/[slug]
-  visibility   String    @default("INVITE") // "PUBLIC" or "INVITE"
+  visibility   String    @default("INVITE") // "PUBLIC", "INVITE", or "PUBLIC_PENDING"
+  description  String?   // Short description for the community library listing
   usedCount    Int       @default(0)
   revokedAt    DateTime?
   createdAt    DateTime  @default(now())
