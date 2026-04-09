@@ -4,6 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 import { validateFieldFormat } from "@/lib/validation/field-rules";
 import FieldNote from "./FieldNote";
+import KeyboardShortcutsHelp from "./KeyboardShortcutsHelp";
 
 interface Props {
   formId: string;
@@ -192,6 +193,8 @@ export default function GuidedFillMode({
     }
   }
 
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
+
   // Move focus to the first input in the group when the step changes
   useEffect(() => {
     const firstInput = fieldsContainerRef.current?.querySelector<HTMLElement>(
@@ -204,6 +207,69 @@ export default function GuidedFillMode({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentStep]);
 
+  // Keyboard shortcuts for guided mode
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isEditable = (e.target as HTMLElement)?.isContentEditable;
+      const isInputFocused = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || isEditable;
+
+      // Ctrl/Cmd+Enter → Autofill All
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (hasProfile && !autofilling) handleAutofill();
+        return;
+      }
+
+      // Enter on focused field → accept suggestion
+      if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.altKey && isInputFocused) {
+        const focused = document.activeElement;
+        const fieldId = focused?.id?.replace("guided-", "");
+        if (fieldId && fieldStates[fieldId] !== "accepted" && fieldStates[fieldId] !== "rejected" && values[fieldId]) {
+          e.preventDefault();
+          handleAccept(fieldId);
+          return;
+        }
+      }
+
+      // Escape on focused field → reject / clear suggestion
+      if (e.key === "Escape" && isInputFocused) {
+        const focused = document.activeElement;
+        const fieldId = focused?.id?.replace("guided-", "");
+        if (fieldId && values[fieldId] && fieldStates[fieldId] !== "accepted") {
+          e.preventDefault();
+          handleSkip(fieldId);
+          return;
+        }
+      }
+
+      // Arrow Up/Down → navigate sections (only when not in input)
+      if (!isInputFocused) {
+        if (e.key === "ArrowDown") {
+          e.preventDefault();
+          setCurrentStep((prev) => Math.min(prev + 1, totalSteps - 1));
+          return;
+        }
+        if (e.key === "ArrowUp") {
+          e.preventDefault();
+          setCurrentStep((prev) => Math.max(prev - 1, 0));
+          return;
+        }
+
+        // "?" → toggle keyboard shortcuts help
+        if (e.key === "?") {
+          e.preventDefault();
+          setShowShortcutsHelp((prev) => !prev);
+          return;
+        }
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasProfile, autofilling, fieldStates, values, totalSteps]);
+
   const filledInGroup = currentGroup?.fields.filter((f) => values[f.id]).length ?? 0;
   const totalInGroup = currentGroup?.fields.length ?? 0;
   const totalFilled = fields.filter((f) => values[f.id]).length;
@@ -211,6 +277,10 @@ export default function GuidedFillMode({
 
   return (
     <div className="space-y-6">
+      {/* Keyboard shortcuts help overlay */}
+      {showShortcutsHelp && (
+        <KeyboardShortcutsHelp mode="guided" onClose={() => setShowShortcutsHelp(false)} />
+      )}
       {/* Header */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-5 sm:p-6">
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -367,7 +437,7 @@ export default function GuidedFillMode({
               </div>
 
               {/* Explanation */}
-              <div className="bg-blue-50/60 rounded-xl p-4 space-y-2">
+              <div id={`guided-explanation-${field.id}`} className="bg-blue-50/60 rounded-xl p-4 space-y-2">
                 <p className="text-sm text-slate-700 leading-relaxed">{field.explanation}</p>
                 {field.example && (
                   <p className="text-xs text-slate-500">
@@ -415,14 +485,15 @@ export default function GuidedFillMode({
                           style={{ width: `${Math.round(confidence * 100)}%` }}
                         />
                       </div>
-                      <span className={`text-xs font-medium ${colors.text} tabular-nums`}>
+                      <span className={`text-xs font-medium ${colors.text} tabular-nums`} id={`guided-confidence-${field.id}`} aria-label={`${Math.round(confidence * 100)}% confidence match`}>
                         {Math.round(confidence * 100)}% confidence
                       </span>
                     </div>
                   </div>
-                  <div className="flex gap-2 shrink-0">
+                  <div className="flex gap-2 shrink-0" role="group" aria-label={`Review suggestion for ${field.label}`}>
                     <button
                       onClick={() => handleAccept(field.id)}
+                      aria-label={`Accept autofill for ${field.label}`}
                       className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition-colors active:scale-[0.98]"
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -432,6 +503,7 @@ export default function GuidedFillMode({
                     </button>
                     <button
                       onClick={() => handleSkip(field.id)}
+                      aria-label={`Clear suggestion for ${field.label}`}
                       className="px-4 py-2 text-sm border border-slate-200 text-slate-600 rounded-lg hover:bg-white transition-colors"
                     >
                       Clear
@@ -488,6 +560,10 @@ export default function GuidedFillMode({
                       }
                     }}
                     disabled={state === "accepted"}
+                    aria-describedby={[
+                      `guided-explanation-${field.id}`,
+                      confidence > 0 ? `guided-confidence-${field.id}` : "",
+                    ].filter(Boolean).join(" ")}
                     className={`w-full px-4 py-3 border rounded-xl text-base md:text-sm min-h-[48px] focus:outline-none focus:ring-2 transition-all ${
                       blurErrors[field.id]
                         ? "border-red-300 bg-red-50/50 focus:ring-red-400"

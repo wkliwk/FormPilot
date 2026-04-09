@@ -18,6 +18,7 @@ import ProgressRing from "./ProgressRing";
 import ShareModal from "./ShareModal";
 import FieldMappingEditor, { type MappingRow } from "./FieldMappingEditor";
 import UpgradeGateModal from "@/components/UpgradeGateModal";
+import KeyboardShortcutsHelp from "./KeyboardShortcutsHelp";
 
 interface FormRecord {
   id: string;
@@ -216,6 +217,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [showUndoToast, setShowUndoToast] = useState(false);
   const [undoConfirmFlash, setUndoConfirmFlash] = useState(false);
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // keyboard shortcuts help overlay
+  const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   // help drawer
   const [helpDrawerFieldId, setHelpDrawerFieldId] = useState<string | null>(null);
   type ExplainResult = { explanation: string; example: string; commonMistakes: string | null; whereToFind: string | null; isPro: boolean; remaining: number };
@@ -962,9 +965,57 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     requestAnimationFrame(() => setHighlightedFieldId(fieldId));
   }, [unansweredFieldIds]);
 
-  // Handle keyboard shortcuts: Alt+N / Alt+P (legacy) + N / ] when not in an input
+  // Handle keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName;
+      const isEditable = (e.target as HTMLElement)?.isContentEditable;
+      const isInputFocused = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || isEditable;
+
+      // Ctrl/Cmd+Enter → Autofill All
+      if ((e.ctrlKey || e.metaKey) && e.key === "Enter") {
+        e.preventDefault();
+        if (hasProfile && !autofilling) handleAutofill();
+        return;
+      }
+
+      // Ctrl/Cmd+E → Export
+      if ((e.ctrlKey || e.metaKey) && e.key === "e") {
+        e.preventDefault();
+        handleExport();
+        return;
+      }
+
+      // Enter on focused field → accept suggestion (only when an input is focused and field has pending suggestion)
+      if (e.key === "Enter" && !e.ctrlKey && !e.metaKey && !e.altKey && isInputFocused) {
+        const focused = document.activeElement;
+        const fieldId = focused?.id?.replace("field-", "");
+        if (fieldId && fieldStates[fieldId] !== "accepted" && fieldStates[fieldId] !== "rejected" && values[fieldId]) {
+          e.preventDefault();
+          handleAccept(fieldId);
+          return;
+        }
+      }
+
+      // Escape on focused field → reject / clear suggestion
+      if (e.key === "Escape" && isInputFocused) {
+        const focused = document.activeElement;
+        const fieldId = focused?.id?.replace("field-", "");
+        if (fieldId && values[fieldId] && fieldStates[fieldId] !== "accepted") {
+          e.preventDefault();
+          handleReject(fieldId);
+          return;
+        }
+      }
+
+      // "?" → toggle keyboard shortcuts help (only when not in input)
+      if (e.key === "?" && !isInputFocused) {
+        e.preventDefault();
+        setShowShortcutsHelp((prev) => !prev);
+        return;
+      }
+
+      // Navigation shortcuts for unanswered fields
       if (unansweredCount === 0) return;
 
       if (e.altKey && e.key === "n") {
@@ -979,9 +1030,6 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       }
 
       // N or ] advances to next empty field — but only when focus is NOT inside a text input/textarea/select
-      const tag = (e.target as HTMLElement)?.tagName;
-      const isEditable = (e.target as HTMLElement)?.isContentEditable;
-      const isInputFocused = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || isEditable;
       if (!isInputFocused && !e.altKey && !e.ctrlKey && !e.metaKey) {
         if (e.key === "n" || e.key === "N" || e.key === "]") {
           e.preventDefault();
@@ -992,7 +1040,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [currentUnansweredIndex, unansweredCount, navigateToUnansweredField]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUnansweredIndex, unansweredCount, navigateToUnansweredField, hasProfile, autofilling, fieldStates, values]);
 
   // -- prior form offer --
 
@@ -1127,6 +1176,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
 
   return (
     <>
+    {/* Keyboard shortcuts help overlay */}
+    {showShortcutsHelp && (
+      <KeyboardShortcutsHelp mode="full" onClose={() => setShowShortcutsHelp(false)} />
+    )}
     {/* Export upgrade nudge — shown to free-tier users at their limit */}
     {preExportIssues.length > 0 && (
       <PreExportValidationModal
@@ -1636,6 +1689,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                 Clear All
               </button>
             )}
+            {/* Keyboard shortcuts hint */}
+            <button
+              onClick={() => setShowShortcutsHelp(true)}
+              className="inline-flex items-center justify-center w-8 h-8 border border-slate-200 text-slate-400 text-sm rounded-lg font-mono hover:bg-slate-50 hover:text-slate-600 transition-colors"
+              aria-label="Show keyboard shortcuts"
+              title="Keyboard shortcuts (?)"
+            >
+              ?
+            </button>
           </div>
         </div>
 
@@ -2379,6 +2441,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                           }}
                           disabled={state === "accepted"}
                           aria-disabled={state === "accepted"}
+                          aria-describedby={[
+                            expandedExplanations.has(field.id) ? `explanation-${field.id}` : "",
+                            field.confidence && field.confidence > 0 ? `confidence-${field.id}` : "",
+                          ].filter(Boolean).join(" ") || undefined}
                           className={`${inputClasses} flex-1`}
                           placeholder={state === "rejected" ? "Enter value manually..." : field.example}
                         />
@@ -2459,7 +2525,11 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                   <div className="flex flex-col items-end gap-2 shrink-0 mt-0.5">
                     {/* Confidence indicator */}
                     {tier !== null && config && field.confidence !== undefined && field.confidence > 0 && (
-                      <div className={`flex items-center gap-2 text-xs px-2.5 py-1 rounded-lg border font-medium ${config.badge}`}>
+                      <div
+                        id={`confidence-${field.id}`}
+                        className={`flex items-center gap-2 text-xs px-2.5 py-1 rounded-lg border font-medium ${config.badge}`}
+                        aria-label={`${config.label}: ${Math.round(field.confidence * 100)}% confidence`}
+                      >
                         {/* Mini bar */}
                         <div className="w-10 h-1.5 bg-slate-200 rounded-full overflow-hidden" aria-hidden="true">
                           <div
@@ -2622,7 +2692,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                   </button>
 
                   {isExplanationExpanded && (
-                    <div className="mt-2.5 bg-blue-50/70 rounded-xl p-4 space-y-2 animate-slide-down">
+                    <div id={`explanation-${field.id}`} className="mt-2.5 bg-blue-50/70 rounded-xl p-4 space-y-2 animate-slide-down">
                       <p className="text-sm text-slate-700 leading-relaxed">{field.explanation}</p>
                       {field.example && (
                         <p className="text-xs text-slate-500">
