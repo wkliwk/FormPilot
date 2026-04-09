@@ -67,9 +67,10 @@ interface Props {
   priorForm?: PriorFormInfo | null;
   dueDate?: string | null;
   initialNotes?: string | null;
+  copilotEnabled?: boolean;
 }
 
-export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, isAtFreeLimit, profileCompleteness = 100, autofillMatchRate = 100, priorForm, dueDate: initialDueDate, initialNotes }: Props) {
+export default function FormPageClient({ form, hasProfile, preferredLanguage, profileCountry, hasFile, sourceType, isPro, isAtFreeLimit, profileCompleteness = 100, autofillMatchRate = 100, priorForm, dueDate: initialDueDate, initialNotes, copilotEnabled = true }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<"full" | "guided">("full");
   const [deleting, setDeleting] = useState(false);
@@ -1077,6 +1078,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
               fieldNotes={fieldNotes}
               onNoteChange={handleNoteChange}
               onClearAll={() => setShowResumeToast(false)}
+              copilotEnabled={copilotEnabled}
             />
           </div>
           {/* Right: Document panel — sticky, desktop only */}
@@ -1139,6 +1141,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
             onSaveStatusChange={handleSaveStatusChange}
             fieldNotes={fieldNotes}
             onClearAll={() => setShowResumeToast(false)}
+            copilotEnabled={copilotEnabled}
           />
         </div>
       )}

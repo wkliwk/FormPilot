@@ -6,6 +6,7 @@ import Link from "next/link";
 interface Settings {
   digestEnabled: boolean;
   reminderEmailsEnabled: boolean;
+  copilotEnabled: boolean;
 }
 
 function Toggle({ checked, onChange, disabled }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean }) {
@@ -112,6 +113,26 @@ export default function SettingsPage() {
                   <Toggle
                     checked={settings.reminderEmailsEnabled}
                     onChange={(v) => update({ reminderEmailsEnabled: v })}
+                    disabled={saving}
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-slate-100">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">AI Features</p>
+              <div className="space-y-4">
+                {/* Co-pilot mode */}
+                <div className="flex items-center justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">AI co-pilot suggestions</p>
+                    <p className="text-xs text-slate-400 mt-0.5">
+                      Ghost text suggestions as you type — press Tab to accept.
+                    </p>
+                  </div>
+                  <Toggle
+                    checked={settings.copilotEnabled}
+                    onChange={(v) => update({ copilotEnabled: v })}
                     disabled={saving}
                   />
                 </div>

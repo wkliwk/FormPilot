@@ -43,3 +43,4 @@
 {"date":"2026-04-02","project":"FormPilot","summary":"feat(#282): annual pricing plan — $79/yr tier, plan picker UI, from $6.58/mo copy across CTAs"}
 {"date":"2026-04-02","project":"FormPilot","summary":"feat(#284): contextual field Q&A — ask follow-up questions in the help drawer, Claude answers with field context"}
 {"date":"2026-04-02","project":"FormPilot","summary":"feat(#286): proactive re-fill banner — detects same-category prior form within 90 days, offers one-click answer reuse"}
+{"date":"2026-04-09","project":"FormPilot","decision":"Built AI value validation (#399): deterministic fix suggestions for SSN/EIN/phone/ZIP/date + Claude fallback endpoint + Apply fix button in FormViewer + format errors in ExportPreviewModal"}
