@@ -5,6 +5,7 @@ import { handleApiError } from "@/lib/api-error";
 import { extractMemoryFromForm } from "@/lib/ai/extract-memory";
 import { awardReferralBonus } from "@/lib/referral";
 import { sendEmail } from "@/lib/email";
+import { fireWebhooks } from "@/lib/webhooks";
 import FormCompletedEmail from "@/emails/FormCompletedEmail";
 import type { FormField } from "@/lib/ai/analyze-form";
 import { z } from "zod";
@@ -188,6 +189,17 @@ export async function PATCH(
           React.createElement(FormCompletedEmail, { formTitle: updated.title, formId: id, appUrl: APP_URL })
         ).catch(() => { /* best-effort */ });
       }
+      // Fire outbound webhooks (Pro users only, fire-and-forget)
+      fireWebhooks(session.user.id, {
+        event: "form.completed",
+        formId: id,
+        title: updated.title,
+        category: (updated as Record<string, unknown>).category as string | null ?? null,
+        completedAt: new Date().toISOString(),
+        autofillRate: rate,
+        fieldCount: finalFields.length,
+        fieldsFilledCount: filled.length,
+      }).catch(() => { /* best-effort */ });
     }
 
     return NextResponse.json({ form: updated });
