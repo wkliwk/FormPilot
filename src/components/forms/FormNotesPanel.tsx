@@ -108,26 +108,30 @@ export default function FormNotesPanel({ formId, initialNotes, onClose, onNotesC
 
       {/* Textarea */}
       <div className="p-4">
-        {notes === "" && !saving ? (
-          <textarea
-            value={notes}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            rows={8}
-            maxLength={FORM_NOTE_MAX}
-            className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder:text-slate-400"
-            placeholder="Jot down context, reminders, or anything you want to remember about this form. Only visible to you."
-          />
-        ) : (
-          <textarea
-            value={notes}
-            onChange={handleChange}
-            onBlur={handleBlur}
-            rows={8}
-            maxLength={FORM_NOTE_MAX}
-            className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder:text-slate-400"
-          />
+        {notes === "" && !saving && (
+          <div className="flex flex-col items-center text-center gap-2 mb-3 py-2">
+            <div className="w-9 h-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-400">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+            </div>
+            <p className="text-xs font-semibold text-slate-700">Add a note for yourself</p>
+            <p className="text-xs text-slate-400 leading-snug">Jot down context or reminders. Notes are private and won&apos;t appear in the exported PDF.</p>
+          </div>
         )}
+        <textarea
+          value={notes}
+          onChange={handleChange}
+          onBlur={handleBlur}
+          rows={notes === "" && !saving ? 4 : 8}
+          maxLength={FORM_NOTE_MAX}
+          className="w-full text-sm text-slate-700 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 resize-none focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-transparent placeholder:text-slate-400"
+          placeholder={notes === "" ? "Start typing…" : undefined}
+          aria-label="Form notes"
+        />
 
         {/* Footer: char count + save status */}
         <div className="flex items-center justify-between mt-2">

@@ -120,11 +120,20 @@ export default function DashboardEmptyState() {
     <div className="bg-white rounded-2xl border border-slate-200 shadow-soft p-8 sm:p-10">
       {/* Headline */}
       <div className="text-center mb-8">
+        <div className="flex justify-center mb-4">
+          <div className="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-500">
+            <svg className="w-7 h-7" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="17 8 12 3 7 8" />
+              <line x1="12" y1="3" x2="12" y2="15" />
+            </svg>
+          </div>
+        </div>
         <h2 className="text-xl font-semibold text-slate-900">
-          What kind of form do you need help with?
+          Upload your first form to get started
         </h2>
         <p className="text-slate-500 mt-2 text-sm">
-          We&apos;ll explain every field in plain English and auto-fill what we know about you.
+          FormPilot explains every field in plain English and auto-fills what it knows about you. Pick a category below or upload any form.
         </p>
       </div>
 

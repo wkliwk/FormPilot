@@ -554,7 +554,18 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
             </svg>
           </div>
         ) : snapshots.length === 0 ? (
-          <p className="text-sm text-slate-500 py-4 text-center">No autofill history yet. Run AI Autofill to create a snapshot.</p>
+          <div className="flex flex-col items-center text-center py-6 gap-3">
+            <div className="w-11 h-11 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <polyline points="1 4 1 10 7 10" />
+                <path d="M3.51 15a9 9 0 1 0 .49-3.14" />
+              </svg>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-slate-800">No saved snapshots yet</p>
+              <p className="text-sm text-slate-400 mt-1">Fill some fields and run AI Autofill — a snapshot will appear here so you can restore a previous state.</p>
+            </div>
+          </div>
         ) : (
           <ul className="divide-y divide-slate-100">
             {snapshots.map((snap, i) => (

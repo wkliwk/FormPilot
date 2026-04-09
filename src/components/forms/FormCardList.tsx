@@ -399,12 +399,27 @@ export default function FormCardList({ forms: initialForms, initialHasMore = fal
 
       {/* Results */}
       {filteredForms.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 p-8 text-center">
-          <p className="text-sm text-slate-400">No forms match your search.</p>
+        <div className="bg-white rounded-xl border border-slate-200 p-8 sm:p-10 text-center">
+          <div className="flex justify-center mb-4">
+            <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <line x1="11" y1="8" x2="11" y2="14" />
+                <line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+            </div>
+          </div>
+          <h3 className="text-sm font-semibold text-slate-800">No forms match this filter</h3>
+          <p className="text-sm text-slate-400 mt-1">Try adjusting your search or status filter to find what you&apos;re looking for.</p>
           <button
             onClick={() => { setSearch(""); setDebouncedSearch(""); setStatusFilter(null); setCategoryFilter(null); }}
-            className="mt-2 text-sm text-blue-600 hover:underline"
+            className="mt-4 inline-flex items-center gap-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 transition-colors"
           >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
             Clear filters
           </button>
         </div>

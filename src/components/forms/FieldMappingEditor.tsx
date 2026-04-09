@@ -77,7 +77,21 @@ export default function FieldMappingEditor({ mapping, onAccept, onClose }: Props
         {/* Table */}
         <div className="overflow-y-auto flex-1 px-6 py-4">
           {mapping.length === 0 ? (
-            <p className="text-sm text-slate-500 py-6 text-center">No autofilled fields to review.</p>
+            <div className="flex flex-col items-center text-center gap-3 py-10">
+              <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400">
+                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                  <polyline points="14 2 14 8 20 8" />
+                  <line x1="16" y1="13" x2="8" y2="13" />
+                  <line x1="16" y1="17" x2="8" y2="17" />
+                  <polyline points="10 9 9 9 8 9" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">No fields detected</p>
+                <p className="text-sm text-slate-400 mt-1">Make sure your form has been parsed. If the problem persists, try re-uploading the form.</p>
+              </div>
+            </div>
           ) : (
             <table className="w-full text-sm" role="table">
               <thead>
