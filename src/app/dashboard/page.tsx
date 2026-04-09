@@ -6,6 +6,7 @@ import Link from "next/link";
 import FormCardList from "@/components/forms/FormCardList";
 import DashboardEmptyState from "@/components/forms/DashboardEmptyState";
 import OnboardingChecklist from "@/components/OnboardingChecklist";
+import OnboardingModalWrapper from "@/components/OnboardingModalWrapper";
 import DashboardStats from "@/components/DashboardStats";
 import QuotaBar from "@/components/QuotaBar";
 import UpgradeNudgeBanner from "@/components/UpgradeNudgeBanner";
@@ -64,7 +65,7 @@ export default async function DashboardPage() {
     getOrCreateUsage(session.user.id!),
     getOrCreateReferralCode(session.user.id!),
     getReferralStats(session.user.id!),
-    prisma.user.findUnique({ where: { id: session.user.id! }, select: { onboardingDismissedAt: true } }),
+    prisma.user.findUnique({ where: { id: session.user.id! }, select: { onboardingDismissedAt: true, createdAt: true } }),
   ]);
   const hasMore = forms.length > PAGE_SIZE;
   const pagedForms = hasMore ? forms.slice(0, PAGE_SIZE) : forms;
@@ -89,6 +90,10 @@ export default async function DashboardPage() {
 
   // Show checklist until dismissed or all steps done
   const showChecklist = !onboardingDismissed && !allStepsDone;
+
+  // Show onboarding modal for new users (created within 7 days, not dismissed, no forms yet)
+  const isNewUser = userRecord?.createdAt && (Date.now() - new Date(userRecord.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000;
+  const showOnboardingModal = !onboardingDismissed && isNewUser && pagedForms.length === 0;
 
   // Profile completeness — weighted category score
   // See ProfileCompletenessCard.tsx for the full weighting rationale.
@@ -164,6 +169,7 @@ export default async function DashboardPage() {
 
   return (
     <>
+      {showOnboardingModal && <OnboardingModalWrapper />}
       {showChecklist && (
         <OnboardingChecklist
           hasProfileData={hasProfileData}
