@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import FormViewer from "./FormViewer";
+import FormOverviewCard from "./FormOverviewCard";
 import GuidedFillMode from "./GuidedFillMode";
 import FormCompleteOverlay from "./FormCompleteOverlay";
 import AutoSaveIndicator, { type SaveStatus } from "./AutoSaveIndicator";
@@ -1053,7 +1054,8 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
             />
           </div>
           {/* Left: Fields panel */}
-          <div className="lg:w-1/2">
+          <div className="lg:w-1/2 space-y-4">
+            <FormOverviewCard formId={form.id} />
             <FormViewer
               form={formData}
               hasProfile={hasProfile}
