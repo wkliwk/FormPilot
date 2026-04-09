@@ -255,6 +255,18 @@ model FormReminder {
   @@index([userId, sentAt])
 }
 
+// Post-autofill quality rating — thumbs up/down (1-5 scale) per form per user
+model AutofillRating {
+  id        String   @id @default(cuid())
+  formId    String
+  userId    String
+  score     Int      // 1 = thumbs down, 5 = thumbs up
+  createdAt DateTime @default(now())
+
+  @@unique([formId, userId])
+  @@index([userId])
+}
+
 // Product Hunt launch notify-me list — collected pre-launch, blasted on launch day
 model LaunchNotify {
   id          String    @id @default(cuid())

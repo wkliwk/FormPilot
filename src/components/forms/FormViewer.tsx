@@ -205,6 +205,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [flaggedBlankCount, setFlaggedBlankCount] = useState(0);
   // autofill confidence summary banner
   const [autofillSummary, setAutofillSummary] = useState<{ high: number; medium: number; low: number; unfilled: number } | null>(null);
+  // autofill quality rating
+  const [autofillRating, setAutofillRating] = useState<number | null>(null);
+  const [ratingSubmitted, setRatingSubmitted] = useState(false);
+  const ratingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // field mapping editor
   const [mappingRows, setMappingRows] = useState<MappingRow[] | null>(null);
   const [mappingLoading, setMappingLoading] = useState(false);
@@ -288,6 +292,23 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     },
     [form.id, onSaveStatusChange]
   );
+
+  // -- autofill rating --
+
+  async function submitAutofillRating(score: number) {
+    setAutofillRating(score);
+    setRatingSubmitted(true);
+    if (ratingTimerRef.current) clearTimeout(ratingTimerRef.current);
+    try {
+      await fetch(`/api/forms/${form.id}/autofill-rating`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ score }),
+      });
+    } catch {
+      // Silently fail — rating is non-critical
+    }
+  }
 
   // -- field actions --
 
@@ -665,6 +686,12 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         // Only show banner if there are medium or low confidence fills (all-high is fine, no banner needed)
         if (mediumCount > 0 || lowCount > 0) {
           setAutofillSummary({ high: highCount, medium: mediumCount, low: lowCount, unfilled: unfilledCount });
+          // Reset rating state for new autofill run
+          setAutofillRating(null);
+          setRatingSubmitted(false);
+          // Auto-dismiss rating prompt after 30 seconds
+          if (ratingTimerRef.current) clearTimeout(ratingTimerRef.current);
+          ratingTimerRef.current = setTimeout(() => setRatingSubmitted(true), 30000);
         }
       }
 
@@ -2104,10 +2131,53 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                 ) : null;
               })()}
             </div>
+            {/* Autofill quality rating widget */}
+            {!ratingSubmitted && (
+              <div className="flex items-center gap-2 mt-2 pt-2 border-t border-blue-100">
+                <span className="text-xs text-blue-600">How accurate was this autofill?</span>
+                <div className="flex gap-1" role="group" aria-label="Rate autofill accuracy">
+                  <button
+                    type="button"
+                    onClick={() => submitAutofillRating(1)}
+                    className="p-1 text-slate-400 hover:text-red-500 transition-colors"
+                    aria-label="Thumbs down — poor accuracy"
+                    title="Poor"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M10 15v4a3 3 0 003 3l4-9V2H5.72a2 2 0 00-2 1.7l-1.38 9a2 2 0 002 2.3zm7-13h2.67A2.31 2.31 0 0122 4v7a2.31 2.31 0 01-2.33 2H17" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => submitAutofillRating(5)}
+                    className="p-1 text-slate-400 hover:text-emerald-500 transition-colors"
+                    aria-label="Thumbs up — good accuracy"
+                    title="Good"
+                  >
+                    <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                      <path d="M14 9V5a3 3 0 00-3-3l-4 9v11h11.28a2 2 0 002-1.7l1.38-9a2 2 0 00-2-2.3zM7 22H4a2 2 0 01-2-2v-7a2 2 0 012-2h3" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+            {ratingSubmitted && autofillRating !== null && (
+              <div className="flex items-center gap-1.5 mt-2 pt-2 border-t border-blue-100">
+                <svg className="w-3.5 h-3.5 text-emerald-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clipRule="evenodd" />
+                </svg>
+                <span className="text-xs text-emerald-700">Thanks for your feedback!</span>
+                {autofillRating <= 2 && !isPro && (
+                  <a href="/dashboard/billing" className="text-xs text-blue-600 underline underline-offset-2 hover:text-blue-800 ml-1">
+                    Pro users get priority field mapping
+                  </a>
+                )}
+              </div>
+            )}
           </div>
           <button
             type="button"
-            onClick={() => setAutofillSummary(null)}
+            onClick={() => { setAutofillSummary(null); if (ratingTimerRef.current) clearTimeout(ratingTimerRef.current); }}
             className="p-1 text-blue-400 hover:text-blue-700 transition-colors shrink-0"
             aria-label="Dismiss"
           >
