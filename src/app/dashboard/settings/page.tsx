@@ -139,6 +139,24 @@ export default function SettingsPage() {
               </div>
             </div>
 
+            <div className="px-6 py-4 border-t border-slate-100">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Integrations</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-800">Webhooks</p>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    Send form data to Zapier, Make, n8n, or any URL when a form is completed.
+                  </p>
+                </div>
+                <Link
+                  href="/dashboard/settings/webhooks"
+                  className="text-sm text-blue-600 hover:text-blue-800 font-medium"
+                >
+                  Configure →
+                </Link>
+              </div>
+            </div>
+
             <div className="px-6 py-4">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-4">Account</p>
               <div className="flex items-center justify-between">

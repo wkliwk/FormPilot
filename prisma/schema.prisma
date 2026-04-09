@@ -33,6 +33,7 @@ model User {
   formMemory   FormMemory[]
   subscription Subscription?
   usage        UsageCount?
+  webhooks     Webhook[]
 }
 
 model Account {
@@ -266,6 +267,20 @@ model AutofillRating {
   createdAt DateTime @default(now())
 
   @@unique([formId, userId])
+  @@index([userId])
+}
+
+// Outbound webhooks — fire on form completion (Pro-only)
+model Webhook {
+  id        String   @id @default(cuid())
+  userId    String
+  url       String   // Endpoint URL to POST to
+  secret    String   // HMAC-SHA256 signing secret
+  enabled   Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 
