@@ -270,6 +270,22 @@ model AutofillRating {
   @@index([userId])
 }
 
+// Shareable form packet — pre-filled form sent to a recipient for review/completion
+model FormSharePacket {
+  id             String    @id @default(cuid())
+  formId         String
+  token          String    @unique // nanoid(21) — URL token for /share/fill/[token]
+  lockedFieldIds Json      // Array of field IDs that are read-only for the recipient
+  recipientEmail String?   // Optional — for email notification on completion
+  expiresAt      DateTime
+  completedAt    DateTime? // Set when recipient submits
+  revokedAt      DateTime? // Set when sender revokes
+  createdAt      DateTime  @default(now())
+
+  @@index([formId])
+  @@index([token])
+}
+
 // Outbound webhooks — fire on form completion (Pro-only)
 model Webhook {
   id        String   @id @default(cuid())
