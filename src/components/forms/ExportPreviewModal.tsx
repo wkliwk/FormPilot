@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import type { FormField } from "@/lib/ai/analyze-form";
+import { validateFieldFormat } from "@/lib/validation/field-rules";
 import dynamic from "next/dynamic";
 
 // pdf.js uses DOMMatrix at module-level — must be client-only (no SSR)
@@ -68,6 +69,14 @@ export default function ExportPreviewModal({
   const canPreviewDoc = hasFile && (sourceType === "PDF" || sourceType === "IMAGE");
   const filledFields = fields.filter((f) => values[f.id]);
   const emptyRequired = fields.filter((f) => f.required && !values[f.id]);
+  const formatErrors = useMemo(
+    () =>
+      fields.filter((f) => {
+        const v = values[f.id];
+        return v && validateFieldFormat(f, v) !== null;
+      }),
+    [fields, values]
+  );
 
   const formatOptions: { value: ExportFormat; label: string; description: string; icon: React.ReactNode; disabled?: boolean; disabledReason?: string; proOnly?: boolean }[] = [
     {
@@ -398,11 +407,17 @@ export default function ExportPreviewModal({
                 {emptyRequired.length} required field{emptyRequired.length !== 1 ? "s" : ""} empty
               </p>
             )}
+            {formatErrors.length > 0 && (
+              <p className="text-xs text-amber-600 mt-0.5">
+                {formatErrors.length} field{formatErrors.length !== 1 ? "s have" : " has"} a possible format issue
+              </p>
+            )}
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {fields.map((field) => {
               const val = values[field.id];
               const isActive = activeFieldId === field.id;
+              const formatErr = val ? validateFieldFormat(field, val) : null;
               return (
                 <button
                   key={field.id}
@@ -410,6 +425,8 @@ export default function ExportPreviewModal({
                   className={`w-full text-left px-3 py-2.5 rounded-xl border transition-all ${
                     isActive
                       ? "border-amber-400 bg-amber-50"
+                      : formatErr
+                      ? "border-amber-300 bg-amber-50/50 hover:border-amber-400"
                       : val
                       ? "border-slate-200 bg-white hover:border-slate-300"
                       : "border-dashed border-slate-200 bg-white opacity-60 hover:opacity-80"
@@ -422,7 +439,11 @@ export default function ExportPreviewModal({
                         <span className="text-red-400 ml-0.5" aria-label="required">*</span>
                       )}
                     </span>
-                    {val ? (
+                    {formatErr ? (
+                      <svg className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-label="format issue">
+                        <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                      </svg>
+                    ) : val ? (
                       <svg className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                         <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                       </svg>
@@ -431,7 +452,10 @@ export default function ExportPreviewModal({
                     )}
                   </div>
                   {val && (
-                    <p className="text-xs text-slate-500 mt-0.5 truncate">{val}</p>
+                    <p className={`text-xs mt-0.5 truncate ${formatErr ? "text-amber-700" : "text-slate-500"}`}>{val}</p>
+                  )}
+                  {formatErr && (
+                    <p className="text-xs text-amber-600 mt-0.5">{formatErr}</p>
                   )}
                 </button>
               );

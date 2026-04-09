@@ -80,3 +80,73 @@ export function validateFieldFormat(field: FormField, value: string): string | n
 
   return null;
 }
+
+/**
+ * Attempt to deterministically fix a known format error.
+ * Returns the corrected value string, or null if no automatic fix is possible.
+ * Only called when validateFieldFormat has already returned an error.
+ */
+export function suggestFieldFix(field: FormField, value: string): string | null {
+  const key = field.profileKey?.toLowerCase() ?? "";
+  const label = field.label.toLowerCase();
+  const digits = value.replace(/\D/g, "");
+
+  // SSN: 9 digits → XXX-XX-XXXX
+  if (key === "ssn" || label.includes("social security") || label.includes("ssn")) {
+    if (digits.length === 9) {
+      return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+    }
+  }
+
+  // EIN: 9 digits → XX-XXXXXXX
+  if (label.includes("ein") || label.includes("employer identification")) {
+    if (digits.length === 9) {
+      return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+    }
+  }
+
+  // ITIN: 9 digits starting with 9 → 9XX-XX-XXXX
+  if (label.includes("itin") || label.includes("taxpayer identification")) {
+    if (digits.length === 9 && digits[0] === "9") {
+      return `${digits.slice(0, 3)}-${digits.slice(3, 5)}-${digits.slice(5)}`;
+    }
+  }
+
+  // ZIP: 5 or 9 digits → 12345 or 12345-6789
+  const isCombinedAddressField =
+    (label.includes("city") || label.includes("town") || label.includes("state")) &&
+    label.includes("zip");
+  if (
+    !isCombinedAddressField &&
+    (key === "address.zip" || label.includes("zip") || label.includes("postal code"))
+  ) {
+    if (digits.length === 5) return digits;
+    if (digits.length === 9) return `${digits.slice(0, 5)}-${digits.slice(5)}`;
+  }
+
+  // Phone: 10 digits → (XXX) XXX-XXXX, 11 digits with leading 1 → +1 (XXX) XXX-XXXX
+  if (key === "phone" || label.includes("phone") || label.includes("telephone")) {
+    if (digits.length === 10) {
+      return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+    }
+    if (digits.length === 11 && digits[0] === "1") {
+      return `+1 (${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
+    }
+  }
+
+  // Date: try to coerce MMDDYYYY or YYYYMMDD or similar numeric strings
+  if (field.type === "date" || key === "dateofbirth" || label.includes("date")) {
+    if (digits.length === 8) {
+      // Could be MMDDYYYY or YYYYMMDD
+      const possibleYear = parseInt(digits.slice(0, 4));
+      if (possibleYear >= 1900 && possibleYear <= 2100) {
+        // YYYYMMDD → YYYY-MM-DD
+        return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6)}`;
+      }
+      // MMDDYYYY → MM/DD/YYYY
+      return `${digits.slice(0, 2)}/${digits.slice(2, 4)}/${digits.slice(4)}`;
+    }
+  }
+
+  return null;
+}

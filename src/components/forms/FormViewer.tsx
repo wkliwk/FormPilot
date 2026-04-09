@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import type { FormField, FieldState } from "@/lib/ai/analyze-form";
 import type { ValidationResult } from "@/lib/validation/validate-form";
 import { validateForm } from "@/lib/validation/validate-form";
-import { validateFieldFormat } from "@/lib/validation/field-rules";
+import { validateFieldFormat, suggestFieldFix } from "@/lib/validation/field-rules";
 import { generateSampleValue } from "@/lib/sample-data";
 import { CONFIDENCE_REVIEW_THRESHOLD } from "@/lib/constants";
 import ExportPreviewModal, { type ExportFormat } from "./ExportPreviewModal";
@@ -199,6 +199,8 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [correctionToasts, setCorrectionToasts] = useState<Record<string, "pending" | "saving" | "saved" | "dismissed">>({});
   // blur-based inline validation errors — fieldId → error message string
   const [blurErrors, setBlurErrors] = useState<Record<string, string>>({});
+  // deterministic fix suggestions — fieldId → corrected value string
+  const [blurFixes, setBlurFixes] = useState<Record<string, string>>({});
   // export pre-flight: required-fields-empty banner
   const [showRequiredEmptyBanner, setShowRequiredEmptyBanner] = useState(false);
   // export pre-flight: flagged-fields-blank warning
@@ -317,9 +319,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     setValues(newValues);
     scheduleSave(newValues, fieldStates);
     onValueChange?.(fieldId, value);
-    // Clear blur error as soon as the user starts correcting
+    // Clear blur error and fix suggestion as soon as the user starts correcting
     if (blurErrors[fieldId]) {
       setBlurErrors((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
+      setBlurFixes((prev) => { const next = { ...prev }; delete next[fieldId]; return next; });
     }
     // Manual edit after autofill = implicit acceptance; invalidate undo snapshot
     if (showUndoToast) {
@@ -2504,8 +2507,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                               const formatErr = validateFieldFormat(field, currentVal);
                               if (formatErr) {
                                 setBlurErrors((prev) => ({ ...prev, [field.id]: formatErr }));
+                                const fix = suggestFieldFix(field, currentVal);
+                                if (fix) {
+                                  setBlurFixes((prev) => ({ ...prev, [field.id]: fix }));
+                                } else {
+                                  setBlurFixes((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                                }
                               } else {
                                 setBlurErrors((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                                setBlurFixes((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
                               }
                             }
                           }}
@@ -2538,10 +2548,25 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                     )}
                     {/* Inline validation messages — blur errors shown in real-time; fieldErrors after export */}
                     {blurErrors[field.id] && !fieldErrors.some((e) => e.message === blurErrors[field.id]) && (
-                      <p className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
-                        <svg className="w-3 h-3 shrink-0" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.28 7.22a.75.75 0 00-1.06 1.06L8.94 10l-1.72 1.72a.75.75 0 101.06 1.06L10 11.06l1.72 1.72a.75.75 0 101.06-1.06L11.06 10l1.72-1.72a.75.75 0 00-1.06-1.06L10 8.94 8.28 7.22z" clipRule="evenodd" /></svg>
-                        {blurErrors[field.id]}
-                      </p>
+                      <div className="mt-1.5 flex items-start gap-2">
+                        <p className="flex-1 text-xs text-amber-700 flex items-start gap-1">
+                          <svg className="w-3 h-3 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" /></svg>
+                          {blurErrors[field.id]}
+                        </p>
+                        {blurFixes[field.id] && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              handleValueChange(field.id, blurFixes[field.id]);
+                              setBlurErrors((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                              setBlurFixes((prev) => { const next = { ...prev }; delete next[field.id]; return next; });
+                            }}
+                            className="shrink-0 text-xs font-medium text-blue-600 hover:text-blue-800 underline underline-offset-2 whitespace-nowrap"
+                          >
+                            Apply fix
+                          </button>
+                        )}
+                      </div>
                     )}
                     {fieldErrors.map((err, i) => (
                       <p key={`fe-${i}`} className="mt-1.5 text-xs text-red-600 flex items-center gap-1">
