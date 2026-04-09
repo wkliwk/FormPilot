@@ -10,7 +10,7 @@ const ADMIN_EMAILS = new Set([
 ]);
 
 /** Returns true if the user is a hardcoded admin — bypasses all quota and Pro checks */
-async function isAdminUser(userId: string): Promise<boolean> {
+export async function isAdminUser(userId: string): Promise<boolean> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { email: true },
