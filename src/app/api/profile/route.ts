@@ -120,9 +120,10 @@ export async function PATCH(req: NextRequest) {
 
   const { key, value } = parsed.data;
 
-  // Only allow keys that are in the profile schema (no arbitrary writes)
-  const allowedKeys = new Set(Object.keys(profileSchema.shape));
-  if (!allowedKeys.has(key)) {
+  // Allow top-level keys or nested address keys (e.g. "address.city")
+  const allowedTopKeys = new Set(Object.keys(profileSchema.shape));
+  const allowedAddressKeys = new Set(["address.street", "address.city", "address.state", "address.zip", "address.country"]);
+  if (!allowedTopKeys.has(key) && !allowedAddressKeys.has(key)) {
     return NextResponse.json({ error: "Unknown profile key" }, { status: 400 });
   }
 
@@ -130,8 +131,15 @@ export async function PATCH(req: NextRequest) {
     const existing = await prisma.profile.findUnique({ where: { userId: session.user.id } });
     const currentData = existing ? decryptSensitiveFields(existing.data as Record<string, unknown>) : {};
 
-    // Merge the single key
-    const merged = { ...currentData, [key]: value };
+    // Merge the single key — handle dot-notation for nested address fields
+    let merged: Record<string, unknown>;
+    if (key.startsWith("address.")) {
+      const addressField = key.slice("address.".length);
+      const existingAddress = (currentData.address as Record<string, string>) ?? {};
+      merged = { ...currentData, address: { ...existingAddress, [addressField]: value } };
+    } else {
+      merged = { ...currentData, [key]: value };
+    }
     const encryptedData = encryptSensitiveFields(merged as Record<string, unknown>);
 
     await prisma.profile.upsert({
