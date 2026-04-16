@@ -80,6 +80,8 @@
 - Confidence scores displayed per field (green/yellow/red)
 - User can accept/reject each autofilled value
 - Autofill respects rate limit (20 requests/user/hour)
+- If the uploaded PDF contains pre-existing AcroForm field values, those are automatically pre-populated at upload time (confidence 95%, badge: "From document")
+- If no AcroForm metadata exists (flat/image PDF), the step is silently skipped
 
 ---
 

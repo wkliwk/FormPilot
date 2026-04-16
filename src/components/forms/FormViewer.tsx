@@ -2222,6 +2222,19 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         />
       )}
 
+      {/* Document pre-fill banner — shown when the uploaded PDF had existing AcroForm values */}
+      {fields.some((f) => f.matchedFrom === "document") && (
+        <div className="flex items-center gap-2.5 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-xl text-sm text-blue-700">
+          <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="16" y1="13" x2="8" y2="13" />
+            <line x1="16" y1="17" x2="8" y2="17" />
+          </svg>
+          This form was already partially filled — {fields.filter((f) => f.matchedFrom === "document").length} field{fields.filter((f) => f.matchedFrom === "document").length !== 1 ? "s" : ""} pre-populated from the document. Review and confirm before exporting.
+        </div>
+      )}
+
       {/* Prior fill banner — shown when form was pre-filled from a previous submission */}
       {fields.some((f) => f.matchedFrom === "prior_fill") && (
         <div className="flex items-center gap-2.5 px-4 py-2.5 bg-violet-50 border border-violet-100 rounded-xl text-sm text-violet-700">
@@ -2604,6 +2617,15 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                       {state === "rejected" && (
                         <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-500">
                           Skipped
+                        </span>
+                      )}
+                      {field.matchedFrom === "document" && state !== "accepted" && state !== "rejected" && (
+                        <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-blue-100 text-blue-700">
+                          <svg className="w-3 h-3" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                            <polyline points="14 2 14 8 20 8" />
+                          </svg>
+                          From document
                         </span>
                       )}
                       {field.matchedFrom === "prior_fill" && state !== "accepted" && state !== "rejected" && (
