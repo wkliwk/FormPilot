@@ -275,12 +275,37 @@
 - Quota approaching warning (at 80% of free tier)
 - Form abandoned reminder (48h idle, with dismiss link)
 - Pro upgrade confirmation
+- Deadline reminder at 7 days, 2 days, and day-of (when due date is set)
 
 **Acceptance criteria:**
 - Each email renders correctly with user personalization
 - Quota email only sent once per billing period
 - Abandoned form email respects 7-day cooldown
 - All emails include unsubscribe/dismiss mechanism
+- Deadline reminder not sent for completed forms
+
+---
+
+### Form Deadline & Reminders
+
+**Description:** Users can attach an optional due date to any form. The due date is surfaced as a color-coded badge on dashboard form cards and triggers email reminders as the deadline approaches.
+
+**User flow:**
+1. User opens a form detail page
+2. User sets or changes a due date via the date picker (no past dates allowed)
+3. Dashboard shows deadline badge (green >7d, amber 2–7d, red <2d or overdue)
+4. Dashboard can be sorted by due date
+5. Email reminders sent at 7 days, 2 days, and day-of (each sent once per form)
+6. User can disable all reminders in Settings → Email Notifications
+
+**Acceptance criteria:**
+- `dueDate` field on Form model (nullable DateTime)
+- Date picker on form detail page; date saved via PATCH /api/forms/[id]
+- Dashboard badge is color-coded by urgency (green/amber/red)
+- Cron job at `/api/cron/deadline-reminders` runs daily; sends each milestone reminder exactly once per form
+- Reminder email includes form title, days until due, and "Resume filling" deep link
+- No reminder sent if form status is COMPLETED
+- User global toggle at Settings → "Deadline reminder emails"
 
 ---
 
