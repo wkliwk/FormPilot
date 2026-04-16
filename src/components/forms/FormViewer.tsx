@@ -21,6 +21,7 @@ import UpgradeGateModal from "@/components/UpgradeGateModal";
 import KeyboardShortcutsHelp from "./KeyboardShortcutsHelp";
 import FormReviewModal, { type ReviewResult } from "./FormReviewModal";
 import ProfileGapSlideOver from "./ProfileGapSlideOver";
+import CorrectionsReviewModal, { type SavedCorrection } from "./CorrectionsReviewModal";
 
 interface FormRecord {
   id: string;
@@ -218,6 +219,11 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [fieldSuggestions, setFieldSuggestions] = useState<Record<string, { value: string; source: string; sourceType?: "memory" | "history" } | { error: true } | null>>({});
   // correction toasts — fieldId → "pending" | "saving" | "saved" | "dismissed"
   const [correctionToasts, setCorrectionToasts] = useState<Record<string, "pending" | "saving" | "saved" | "dismissed">>({});
+  // corrections saved this session (for bulk pre-export review)
+  const [sessionCorrections, setSessionCorrections] = useState<SavedCorrection[]>([]);
+  const [showCorrectionsReview, setShowCorrectionsReview] = useState(false);
+  // per-field auto-dismiss timers
+  const correctionTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   // blur-based inline validation errors — fieldId → error message string
   const [blurErrors, setBlurErrors] = useState<Record<string, string>>({});
   // deterministic fix suggestions — fieldId → corrected value string
@@ -534,38 +540,69 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   function handleFieldBlurForCorrection(fieldId: string, fieldLabel: string) {
     const currentValue = values[fieldId];
     const originalValue = originalAutofillValues.current[fieldId];
-    // Only prompt if: field was autofilled, value changed, toast not already shown/dismissed
+    const fieldDef = fields.find((f) => f.id === fieldId);
+    const confidence = fieldDef?.confidence ?? 0;
+    // Only prompt if: field was autofilled (confidence ≥ 0.5), value changed, toast not already shown/dismissed
     if (
       originalValue !== undefined &&
+      confidence >= 0.5 &&
       currentValue &&
       currentValue !== originalValue &&
       correctionToasts[fieldId] === undefined
     ) {
       setCorrectionToasts((prev) => ({ ...prev, [fieldId]: "pending" }));
-      // Store label for the save action
+      // Store label + profileKey for the save action
       originalAutofillValues.current[`${fieldId}__label`] = fieldLabel;
+      // Auto-dismiss after 5 seconds if ignored
+      correctionTimers.current[fieldId] = setTimeout(() => {
+        setCorrectionToasts((prev) => {
+          if (prev[fieldId] === "pending") return { ...prev, [fieldId]: "dismissed" };
+          return prev;
+        });
+      }, 5000);
     }
   }
 
   function dismissCorrectionToast(fieldId: string) {
+    if (correctionTimers.current[fieldId]) {
+      clearTimeout(correctionTimers.current[fieldId]);
+      delete correctionTimers.current[fieldId];
+    }
     setCorrectionToasts((prev) => ({ ...prev, [fieldId]: "dismissed" }));
   }
 
   async function saveCorrection(fieldId: string) {
     const fieldLabel = originalAutofillValues.current[`${fieldId}__label`] ?? "";
     const value = values[fieldId];
+    const originalValue = originalAutofillValues.current[fieldId] ?? "";
+    const fieldDef = fields.find((f) => f.id === fieldId);
+    const profileKey = fieldDef?.profileKey;
+
     if (!fieldLabel || !value) {
       dismissCorrectionToast(fieldId);
       return;
     }
+    if (correctionTimers.current[fieldId]) {
+      clearTimeout(correctionTimers.current[fieldId]);
+      delete correctionTimers.current[fieldId];
+    }
     setCorrectionToasts((prev) => ({ ...prev, [fieldId]: "saving" }));
     try {
-      await fetch("/api/corrections", {
+      const res = await fetch("/api/profile/learn", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ fieldLabel, value }),
+        body: JSON.stringify({ fieldLabel, value, ...(profileKey ? { profileKey } : {}) }),
       });
+      const data = await res.json() as { success?: boolean; profileUpdated?: boolean };
       setCorrectionToasts((prev) => ({ ...prev, [fieldId]: "saved" }));
+      // Track in session corrections for pre-export review
+      setSessionCorrections((prev) => {
+        const existing = prev.find((c) => c.fieldId === fieldId);
+        if (existing) {
+          return prev.map((c) => c.fieldId === fieldId ? { ...c, correctedValue: value, profileUpdated: data.profileUpdated ?? false } : c);
+        }
+        return [...prev, { fieldId, fieldLabel, originalValue, correctedValue: value, profileUpdated: data.profileUpdated ?? false }];
+      });
       setTimeout(() => {
         setCorrectionToasts((prev) => ({ ...prev, [fieldId]: "dismissed" }));
       }, 2000);
@@ -978,6 +1015,13 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       setShowExportUpgradeModal(true);
       return;
     }
+
+    // Show corrections review summary before export if any corrections were saved
+    if (sessionCorrections.length > 0 && !showCorrectionsReview) {
+      setShowCorrectionsReview(true);
+      return;
+    }
+    setShowCorrectionsReview(false);
 
     // Run client-side validation first for instant feedback
     const result = validateForm(fields, values, fieldStates as Record<string, string>);
@@ -3159,6 +3203,14 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           handleAutofill();
         }}
         onClose={() => setGapSlideOver(null)}
+      />
+    )}
+    {/* Corrections review — shown before export when corrections were saved this session */}
+    {showCorrectionsReview && (
+      <CorrectionsReviewModal
+        corrections={sessionCorrections}
+        onExport={() => handleExport()}
+        onClose={() => setShowCorrectionsReview(false)}
       />
     )}
     </>
