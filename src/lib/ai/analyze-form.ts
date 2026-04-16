@@ -68,7 +68,8 @@ export interface FormField {
   /** Optional bounding box from PDF analysis (0–1 fractions of page size). */
   coordinates?: FieldCoordinates;
   /** Set to "prior_fill" when value was mapped from a previous form submission. */
-  matchedFrom?: "prior_fill";
+  /** Set to "document" when value was extracted from the PDF's own AcroForm fields. */
+  matchedFrom?: "prior_fill" | "document";
 }
 
 export interface FormAnalysis {

@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { canUploadForm, incrementFormUsage, isProUser } from "@/lib/subscription";
 import { grantReferralBonus } from "@/lib/referral";
-import { extractTextFromBuffer, getPDFPageCount } from "@/lib/pdf/extract";
+import { extractTextFromBuffer, getPDFPageCount, extractAcroFormValues } from "@/lib/pdf/extract";
 import { analyzeFormFields, analyzeFormFieldsFromImage } from "@/lib/ai/analyze-form";
 import { preprocessImage } from "@/lib/image/preprocess";
 import { checkRateLimit, checkIpRateLimit } from "@/lib/rate-limit";
@@ -209,6 +209,41 @@ export async function POST(req: NextRequest) {
       );
     }
     return handleApiError(err, "POST /api/forms/upload");
+  }
+
+  // For PDF uploads: extract any pre-existing AcroForm field values and merge them into
+  // the AI-analysed fields. Normalised name matching (strip non-alphanumeric, lowercase).
+  if (sourceType === "PDF") {
+    const acroValues = await extractAcroFormValues(buffer);
+    if (Object.keys(acroValues).length > 0) {
+      const normalize = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+      const acroNorm: Record<string, string> = {};
+      for (const [k, v] of Object.entries(acroValues)) {
+        acroNorm[normalize(k)] = v;
+      }
+      analysis.fields = analysis.fields.map((field) => {
+        // Skip fields that already have a value (from profile autofill applied earlier)
+        if (field.value) return field;
+        const labelNorm = normalize(field.label);
+        // Try exact match, then check if label contains the acro key or vice-versa
+        let matched: string | undefined;
+        for (const [normKey, val] of Object.entries(acroNorm)) {
+          if (normKey === labelNorm || (normKey.length >= 4 && labelNorm.includes(normKey)) || (labelNorm.length >= 4 && normKey.includes(labelNorm))) {
+            matched = val;
+            break;
+          }
+        }
+        if (matched) {
+          return { ...field, value: matched, confidence: 0.95, matchedFrom: "document" as const };
+        }
+        return field;
+      });
+      log.info("AcroForm values merged", {
+        route: "POST /api/forms/upload",
+        acroFieldCount: Object.keys(acroValues).length,
+        mergedCount: analysis.fields.filter((f) => f.matchedFrom === "document").length,
+      });
+    }
   }
 
   try {
