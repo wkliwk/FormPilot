@@ -20,6 +20,7 @@ import FieldMappingEditor, { type MappingRow } from "./FieldMappingEditor";
 import UpgradeGateModal from "@/components/UpgradeGateModal";
 import KeyboardShortcutsHelp from "./KeyboardShortcutsHelp";
 import FormReviewModal, { type ReviewResult } from "./FormReviewModal";
+import ProfileGapSlideOver from "./ProfileGapSlideOver";
 
 interface FormRecord {
   id: string;
@@ -169,6 +170,18 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [autofillConflict, setAutofillConflict] = useState(false);
   const [profileGaps, setProfileGaps] = useState<ProfileGap[]>([]);
   const [gapReportVisible, setGapReportVisible] = useState(false);
+  // Per-field profile gap slide-over
+  const [gapSlideOver, setGapSlideOver] = useState<{ fieldId: string; fieldLabel: string; profileKey: string; profileLabel: string } | null>(null);
+  // Set of profileKeys whose gap prompt has been dismissed for this form session
+  const [dismissedGapKeys, setDismissedGapKeys] = useState<Set<string>>(() => {
+    if (typeof window === "undefined") return new Set();
+    const keys = new Set<string>();
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(`gapDismissed:${form.id}:`)) keys.add(k.slice(`gapDismissed:${form.id}:`.length));
+    }
+    return keys;
+  });
 
   // Live completion score — recomputed whenever values change
   const completionScore = fields.length > 0
@@ -342,6 +355,19 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
       setShowUndoToast(false);
       if (undoTimerRef.current) clearTimeout(undoTimerRef.current);
       preAutofillSnapshot.current = null;
+    }
+    // Dismiss gap prompt permanently when user manually fills a field
+    if (value.trim()) {
+      const fieldDef = fields.find((f) => f.id === fieldId);
+      if (fieldDef?.profileKey) {
+        const pKey = fieldDef.profileKey;
+        if (!dismissedGapKeys.has(pKey)) {
+          if (typeof window !== "undefined") {
+            localStorage.setItem(`gapDismissed:${form.id}:${pKey}`, "1");
+          }
+          setDismissedGapKeys((prev) => new Set([...prev, pKey]));
+        }
+      }
     }
   }
 
@@ -2556,12 +2582,34 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                       )}
                       {/* Skip reason badge — shown for autofill-skipped fields that are still empty */}
                       {skippedInfo && !values[field.id] && (() => {
+                        const isMissingProfile = skippedInfo.reason === "missing_profile_data" && field.profileKey && !dismissedGapKeys.has(field.profileKey);
                         const SKIP_REASON_LABELS: Record<string, string> = {
                           low_confidence: "Not enough info in your profile",
                           missing_profile_data: "Missing from your profile",
                           type_mismatch: "This field needs a specific format",
                           timeout: "Autofill timed out — try again",
                         };
+                        if (isMissingProfile) {
+                          const gap = profileGaps.find((g) => g.profileKey === field.profileKey);
+                          return (
+                            <button
+                              type="button"
+                              onClick={() => setGapSlideOver({
+                                fieldId: field.id,
+                                fieldLabel: field.label,
+                                profileKey: field.profileKey!,
+                                profileLabel: gap?.profileLabel ?? field.profileKey!,
+                              })}
+                              className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors cursor-pointer"
+                              title="Add this to your profile to autofill"
+                            >
+                              <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                              </svg>
+                              Add to profile →
+                            </button>
+                          );
+                        }
                         return (
                           <span
                             className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700"
@@ -2572,6 +2620,29 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                             </svg>
                             Fill manually
                           </span>
+                        );
+                      })()}
+                      {/* Low-confidence autofill badge — clickable if profileKey is known and not dismissed */}
+                      {!skippedInfo && field.profileKey && !values[field.id] && autofillSummary !== null && !dismissedGapKeys.has(field.profileKey) && (() => {
+                        const gap = profileGaps.find((g) => g.profileKey === field.profileKey);
+                        if (!gap) return null;
+                        return (
+                          <button
+                            type="button"
+                            onClick={() => setGapSlideOver({
+                              fieldId: field.id,
+                              fieldLabel: field.label,
+                              profileKey: field.profileKey!,
+                              profileLabel: gap.profileLabel,
+                            })}
+                            className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors cursor-pointer"
+                            title="Add this to your profile to autofill"
+                          >
+                            <svg className="w-3 h-3" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path fillRule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.17 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 5a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 5zm0 9a1 1 0 100-2 1 1 0 000 2z" clipRule="evenodd" />
+                            </svg>
+                            Add to profile →
+                          </button>
                         );
                       })()}
                       {/* Notepad icon — shown when a note exists for this field */}
@@ -3073,6 +3144,22 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
           </>
         )}
       </div>
+    )}
+    {/* Profile gap slide-over — opens when user clicks "Add to profile →" badge */}
+    {gapSlideOver && (
+      <ProfileGapSlideOver
+        fieldLabel={gapSlideOver.fieldLabel}
+        profileKey={gapSlideOver.profileKey}
+        profileLabel={gapSlideOver.profileLabel}
+        formId={form.id}
+        onSaved={() => {
+          // Dismiss locally and re-run autofill to fill the field with the new data
+          setDismissedGapKeys((prev) => new Set([...prev, gapSlideOver.profileKey]));
+          setGapSlideOver(null);
+          handleAutofill();
+        }}
+        onClose={() => setGapSlideOver(null)}
+      />
     )}
     </>
   );
