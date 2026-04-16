@@ -1874,7 +1874,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
               <button
                 onClick={handleExport}
                 disabled={exporting}
-                className="inline-flex items-center gap-1.5 px-4 py-2 border border-slate-200 text-slate-700 text-sm rounded-lg font-medium hover:bg-slate-50 transition-colors disabled:opacity-40"
+                className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] md:min-h-0 border border-slate-200 text-slate-700 text-sm rounded-lg font-medium hover:bg-slate-50 transition-colors disabled:opacity-40"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
@@ -1902,7 +1902,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
               <button
                 onClick={handleAutofill}
                 disabled={autofilling}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 active:scale-[0.98]"
+                className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[44px] md:min-h-0 bg-blue-600 text-white text-sm rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-40 active:scale-[0.98]"
               >
                 {autofilling ? (
                   <>
@@ -1936,10 +1936,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                 Clear All
               </button>
             )}
-            {/* Keyboard shortcuts hint */}
+            {/* Keyboard shortcuts hint — desktop only (no keyboard on touch devices) */}
             <button
               onClick={() => setShowShortcutsHelp(true)}
-              className="inline-flex items-center justify-center w-8 h-8 border border-slate-200 text-slate-400 text-sm rounded-lg font-mono hover:bg-slate-50 hover:text-slate-600 transition-colors"
+              className="hidden sm:inline-flex items-center justify-center w-8 h-8 border border-slate-200 text-slate-400 text-sm rounded-lg font-mono hover:bg-slate-50 hover:text-slate-600 transition-colors"
               aria-label="Show keyboard shortcuts"
               title="Keyboard shortcuts (?)"
             >
@@ -2962,7 +2962,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                           onClick={() => handleAccept(field.id)}
                           aria-label={`Accept autofill for ${field.label}`}
                           title="Accept suggestion"
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors active:scale-95"
+                          className="inline-flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-emerald-100 text-emerald-700 hover:bg-emerald-200 transition-colors active:scale-95"
                         >
                           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -2972,7 +2972,7 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                           onClick={() => handleReject(field.id)}
                           aria-label={`Reject autofill for ${field.label}`}
                           title="Reject and clear"
-                          className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors active:scale-95"
+                          className="inline-flex items-center justify-center w-11 h-11 sm:w-8 sm:h-8 rounded-lg bg-red-50 text-red-500 hover:bg-red-100 transition-colors active:scale-95"
                         >
                           <svg className="w-4 h-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
                             <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />

@@ -708,7 +708,7 @@ export default function FormPageClient({ form, hasProfile, preferredLanguage, pr
 
   return (
     <>
-    <div className="space-y-4">
+    <div className="space-y-4 pb-24 md:pb-0">
       {shareModal}
       {snapshotPanel}
       {upgradeGateFeature && (
