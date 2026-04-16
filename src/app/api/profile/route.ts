@@ -98,3 +98,65 @@ export async function POST(req: NextRequest) {
     return handleApiError(err, "POST /api/profile");
   }
 }
+
+// PATCH: update a single top-level profile key without wiping other fields
+// Used by ProfileGapSlideOver — merges one key into existing profile data
+const patchBodySchema = z.object({
+  key: z.string().min(1).max(100),
+  value: z.string().min(0).max(500),
+});
+
+export async function PATCH(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json().catch(() => ({}));
+  const parsed = patchBodySchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Invalid data" }, { status: 400 });
+  }
+
+  const { key, value } = parsed.data;
+
+  // Only allow keys that are in the profile schema (no arbitrary writes)
+  const allowedKeys = new Set(Object.keys(profileSchema.shape));
+  if (!allowedKeys.has(key)) {
+    return NextResponse.json({ error: "Unknown profile key" }, { status: 400 });
+  }
+
+  try {
+    const existing = await prisma.profile.findUnique({ where: { userId: session.user.id } });
+    const currentData = existing ? decryptSensitiveFields(existing.data as Record<string, unknown>) : {};
+
+    // Merge the single key
+    const merged = { ...currentData, [key]: value };
+    const encryptedData = encryptSensitiveFields(merged as Record<string, unknown>);
+
+    await prisma.profile.upsert({
+      where: { userId: session.user.id },
+      create: { userId: session.user.id, data: encryptedData as object },
+      update: { data: encryptedData as object },
+    });
+
+    // Count other forms that have a field mapped to this profileKey but are currently empty
+    const userForms = await prisma.form.findMany({
+      where: { userId: session.user.id },
+      select: { id: true, fields: true },
+    });
+
+    let impactCount = 0;
+    for (const form of userForms) {
+      const formFields = form.fields as Array<{ profileKey?: string; value?: string }>;
+      if (Array.isArray(formFields)) {
+        const hasGap = formFields.some((f) => f.profileKey === key && !f.value);
+        if (hasGap) impactCount++;
+      }
+    }
+
+    return NextResponse.json({ success: true, impactCount });
+  } catch (err) {
+    return handleApiError(err, "PATCH /api/profile");
+  }
+}
