@@ -9,10 +9,9 @@ import { log } from "@/lib/logger";
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "https://getformpilot.com";
 const CRON_SECRET = process.env.CRON_SECRET ?? "";
 
-// Only remind within this window before due date
-const REMIND_WINDOW_DAYS = 7;
-// Don't send another reminder for the same form within this many days
-const COOLDOWN_DAYS = 3;
+// Reminder milestones in days-before-due. Three emails max per form per deadline.
+// Defined in descending order so we always send the most-advance applicable one first.
+const MILESTONES = [7, 2, 1]; // 7 days out, 2 days out, day-of (1)
 
 async function makeUnsubscribeUrl(userId: string): Promise<string> {
   const secret = new TextEncoder().encode(process.env.NEXTAUTH_SECRET ?? CRON_SECRET);
@@ -23,6 +22,17 @@ async function makeUnsubscribeUrl(userId: string): Promise<string> {
   return `${APP_URL}/api/email/unsubscribe?token=${token}`;
 }
 
+// Determine which milestone to send for a form at `daysUntilDue`
+// Returns the lowest milestone bucket that hasn't been sent yet
+// e.g. 6 days away → 7-day bucket; 2 days away → 2-day bucket
+function getMilestoneBucket(daysUntilDue: number): number | null {
+  // Find the smallest milestone that is >= daysUntilDue (we're within that window)
+  for (const m of [...MILESTONES].reverse()) {
+    if (daysUntilDue <= m) return m;
+  }
+  return null;
+}
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   if (!CRON_SECRET || authHeader !== `Bearer ${CRON_SECRET}`) {
@@ -30,10 +40,10 @@ export async function GET(req: NextRequest) {
   }
 
   const now = new Date();
-  const windowEnd = new Date(now.getTime() + REMIND_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  const cooldownCutoff = new Date(now.getTime() - COOLDOWN_DAYS * 24 * 60 * 60 * 1000);
+  const maxMilestone = Math.max(...MILESTONES);
+  const windowEnd = new Date(now.getTime() + maxMilestone * 24 * 60 * 60 * 1000);
 
-  // Find all incomplete forms with a due date in the next 7 days
+  // Find all incomplete forms with a due date within the largest milestone window
   const forms = await prisma.form.findMany({
     where: {
       dueDate: { gte: now, lte: windowEnd },
@@ -59,18 +69,26 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
-    // Check cooldown — skip if we already sent a reminder recently
-    const recentReminder = await prisma.formReminder.findFirst({
-      where: { formId: form.id, sentAt: { gte: cooldownCutoff } },
-    });
-    if (recentReminder) {
+    const dueDate = form.dueDate!;
+    const msUntilDue = dueDate.getTime() - now.getTime();
+    const daysUntilDue = Math.ceil(msUntilDue / (24 * 60 * 60 * 1000));
+
+    // Determine which milestone bucket we're in
+    const bucket = getMilestoneBucket(daysUntilDue);
+    if (bucket === null) {
       skipped++;
       continue;
     }
 
-    const dueDate = form.dueDate!;
-    const msUntilDue = dueDate.getTime() - now.getTime();
-    const daysUntilDue = Math.ceil(msUntilDue / (24 * 60 * 60 * 1000));
+    // Skip if we already sent a reminder at or below this bucket
+    const alreadySent = await prisma.formReminder.findFirst({
+      where: { formId: form.id, daysBeforeDue: { lte: bucket } },
+    });
+    if (alreadySent) {
+      skipped++;
+      continue;
+    }
+
     const dueDateFormatted = dueDate.toLocaleDateString("en-US", {
       month: "long",
       day: "numeric",
@@ -79,11 +97,15 @@ export async function GET(req: NextRequest) {
 
     try {
       const unsubscribeUrl = await makeUnsubscribeUrl(form.userId);
+      const subject = daysUntilDue <= 1
+        ? `⚠️ "${form.title}" is due today`
+        : daysUntilDue <= 2
+          ? `⏰ "${form.title}" is due in 2 days`
+          : `"${form.title}" is due in ${daysUntilDue} days`;
+
       await sendEmail(
         form.user.email,
-        daysUntilDue <= 1
-          ? `⚠️ "${form.title}" is due tomorrow`
-          : `"${form.title}" is due in ${daysUntilDue} days`,
+        subject,
         React.createElement(DeadlineReminderEmail, {
           formTitle: form.title,
           formId: form.id,
@@ -95,7 +117,7 @@ export async function GET(req: NextRequest) {
       );
 
       await prisma.formReminder.create({
-        data: { formId: form.id, userId: form.userId, daysBeforeDue: daysUntilDue },
+        data: { formId: form.id, userId: form.userId, daysBeforeDue: bucket },
       });
       sent++;
     } catch (err) {
