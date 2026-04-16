@@ -19,6 +19,7 @@ import ShareModal from "./ShareModal";
 import FieldMappingEditor, { type MappingRow } from "./FieldMappingEditor";
 import UpgradeGateModal from "@/components/UpgradeGateModal";
 import KeyboardShortcutsHelp from "./KeyboardShortcutsHelp";
+import FormReviewModal, { type ReviewResult } from "./FormReviewModal";
 
 interface FormRecord {
   id: string;
@@ -187,6 +188,10 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
   const [preExportIssues, setPreExportIssues] = useState<PreExportIssue[]>([]);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showExportUpgradeModal, setShowExportUpgradeModal] = useState(false);
+  // ── AI review state ──
+  const [reviewResult, setReviewResult] = useState<ReviewResult | null>(null);
+  const [reviewing, setReviewing] = useState(false);
+  const reviewCacheRef = useRef<{ result: ReviewResult; expiresAt: number } | null>(null);
   const [showConfidenceReview, setShowConfidenceReview] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [priorFormOffer, setPriorFormOffer] = useState<{ id: string; title: string } | null>(null);
@@ -993,6 +998,47 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
     setShowPreviewModal(true);
   }
 
+  async function handleReview() {
+    // Use cached result if still fresh (5-min TTL)
+    const cached = reviewCacheRef.current;
+    if (cached && Date.now() < cached.expiresAt) {
+      setReviewResult(cached.result);
+      return;
+    }
+    setReviewing(true);
+    try {
+      const res = await fetch(`/api/forms/${form.id}/review`, { method: "POST" });
+      if (res.status === 429) {
+        alert("Review limit reached. You can run up to 10 reviews per hour.");
+        return;
+      }
+      if (!res.ok) throw new Error("Review failed");
+      const data = await res.json() as ReviewResult;
+      // Cache for 5 minutes
+      reviewCacheRef.current = { result: data, expiresAt: Date.now() + 5 * 60_000 };
+      setReviewResult(data);
+    } catch {
+      alert("Could not run AI review. Please try again.");
+    } finally {
+      setReviewing(false);
+    }
+  }
+
+  function handleReviewFixIssues(_firstCheckId: string | null) {
+    setReviewResult(null);
+    // Scroll to the first field that has a value issue (empty required or low confidence)
+    const firstField = fields.find(
+      (f) => (f.required && !values[f.id]) || (f.confidence !== undefined && f.confidence < CONFIDENCE_REVIEW_THRESHOLD && values[f.id])
+    );
+    if (firstField) {
+      const el = document.getElementById(`field-${firstField.id}`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+        (el as HTMLElement).focus?.();
+      }
+    }
+  }
+
   function handlePreExportReview() {
     // Close the modal and scroll to the first issue field
     const firstIssue = preExportIssues[0];
@@ -1297,6 +1343,14 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
         onReview={handlePreExportReview}
         onExportAnyway={handlePreExportExportAnyway}
         onClose={() => setPreExportIssues([])}
+      />
+    )}
+    {reviewResult && (
+      <FormReviewModal
+        result={reviewResult}
+        onDownloadAnyway={() => { setReviewResult(null); handleExport(); }}
+        onFixIssues={handleReviewFixIssues}
+        onClose={() => setReviewResult(null)}
       />
     )}
 
@@ -1731,6 +1785,19 @@ export default function FormViewer({ form, hasProfile, onFieldFocus, onValueChan
                   <line x1="12" y1="17" x2="12.01" y2="17" />
                 </svg>
                 Review {uncertainFieldCount} uncertain field{uncertainFieldCount !== 1 ? "s" : ""}
+              </button>
+            )}
+            {filledCount > 0 && (
+              <button
+                onClick={handleReview}
+                disabled={reviewing}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg font-medium hover:bg-blue-700 transition-colors active:scale-[0.98] disabled:opacity-40"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M9 11l3 3L22 4" />
+                  <path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
+                </svg>
+                {reviewing ? "Reviewing..." : "Review & Submit"}
               </button>
             )}
             {filledCount > 0 && (
